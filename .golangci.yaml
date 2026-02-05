@@ -1,0 +1,84 @@
+version: '2'
+linters:
+  enable:
+    - unused
+    - bodyclose
+    - containedctx
+    - contextcheck
+    - copyloopvar
+    - cyclop
+    - dogsled
+    - dupword
+    - durationcheck
+    - errchkjson
+    - errname
+    - errorlint
+    - exhaustive
+    - fatcontext
+    - forcetypeassert
+    - gocheckcompilerdirectives
+    - gochecknoinits
+    - goconst
+    - gocritic
+    - goprintffuncname
+    - gosec
+    - gosmopolitan
+    - grouper
+    - importas
+    - interfacebloat
+    - intrange
+    - ireturn
+    - makezero
+    - mirror
+    - misspell
+    - nakedret
+    - nestif
+    - nilerr
+    - nilnil
+    - noctx
+    - nolintlint
+    - nosprintfhostport
+    - perfsprint
+    - prealloc
+    - predeclared
+    - promlinter
+    - reassign
+    - rowserrcheck
+    - sloglint
+    - spancheck
+    - sqlclosecheck
+    - testifylint
+    - unconvert
+    - unparam
+    - usestdlibvars
+    - wastedassign
+    - whitespace
+    - lll
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+    ireturn:
+      allow: [stdlib, error, Responder$, generic]
+    nakedret:
+      max-func-lines: 1
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    exhaustive:
+      default-signifies-exhaustive: true
+    cyclop:
+      max-complexity: 20
+    lll:
+      line-length: 120
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters: [gosec, promlinter]
+      - linters: [errcheck]
+        text: (?i)Error return value of .((os\.)?std(out|err)\..*|.*Close|.*Flush|os\.Remove(All)?|.*print(f|ln)?|os\.(Un)?Setenv). is not checked
+      - linters: [errcheck]
+        path: ui/app\.go
+        text: Error return value of .a\.client\.(Buy|Sell|Refresh|Upgrade|EndTurn). is not checked
+formatters:
+  enable: [gofumpt]
