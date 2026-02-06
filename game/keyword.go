@@ -20,8 +20,10 @@ const (
 	KeywordDeathrattle
 	KeywordAvenge
 	KeywordStartOfCombat
+	KeywordEndOfCombat
 	KeywordStartOfTurn
 	KeywordEndOfTurn
+	KeywordDiscover
 
 	keywordMax // sentinel for iteration
 )
@@ -54,10 +56,14 @@ func (k Keyword) String() string {
 		return "Avenge"
 	case KeywordStartOfCombat:
 		return "Start of Combat"
+	case KeywordEndOfCombat:
+		return "End of Combat"
 	case KeywordStartOfTurn:
 		return "Start of Turn"
 	case KeywordEndOfTurn:
 		return "End of Turn"
+	case KeywordDiscover:
+		return "Discover"
 	default:
 		return ""
 	}

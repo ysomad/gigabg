@@ -10,6 +10,7 @@ func Spells() map[string]*game.CardTemplate {
 			Name:        "Triple Reward",
 			Description: "Discover a minion from a higher tavern tier.",
 			SpellEffect: &game.Effect{Type: game.EffectDiscover},
+			Keywords:    game.Keywords(0).Add(game.KeywordDiscover),
 		},
 	}
 }

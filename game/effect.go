@@ -9,8 +9,8 @@ const (
 	EffectSummon
 	EffectDealDamage
 	EffectDestroy
-	EffectAddCard   // add card to hand (random, specific, or filtered by tribe/tier)
-	EffectDiscover  // discover from next tier
+	EffectAddCard      // add card to hand (random, specific, or filtered by tribe/tier)
+	EffectDiscoverCard // discover from next tier
 )
 
 // TargetType defines who the effect targets.
@@ -82,7 +82,7 @@ func DoubleAvenge(a *AvengeEffect) *AvengeEffect {
 	if a == nil {
 		return nil
 	}
-	doubled := a.Effect.Double()
+	doubled := a.Double()
 	return &AvengeEffect{
 		Effect:    *doubled,
 		Threshold: a.Threshold,
