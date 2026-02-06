@@ -48,10 +48,10 @@ func (a Action) String() string {
 	}
 }
 
-// Client -> Server
+// ClientMessage represents message which client must send to a server.
 type ClientMessage struct {
-	Action  Action
-	Payload json.RawMessage
+	Action  Action          `json:"a"`
+	Payload json.RawMessage `json:"p"`
 }
 
 type JoinLobby struct {
@@ -87,10 +87,10 @@ type DiscoverPick struct {
 	Index int
 }
 
-// Server -> Client
+// ServerMessage represents message which server must send to a client.
 type ServerMessage struct {
-	State *GameState
-	Error *Error
+	State *GameState `json:"s"`
+	Error *Error     `json:"e"`
 }
 
 type GameState struct {
