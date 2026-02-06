@@ -1,18 +1,10 @@
 package game
 
-import "github.com/ysomad/gigabg/errorsx"
+import (
+	"math/rand/v2"
+	"slices"
 
-const (
-	MaxPlayers   = 2
-	MaxBoardSize = 7
-	MaxHandSize  = 10
-
-	InitialGold = 3
-	MaxGold     = 10
-
-	BuyCost     = 3
-	SellValue   = 1
-	RefreshCost = 1
+	"github.com/ysomad/gigabg/errorsx"
 )
 
 const (
@@ -24,85 +16,107 @@ const (
 	ErrNotASpell       errorsx.Error = "card is not a spell"
 	ErrDiscoverPending errorsx.Error = "discover already pending"
 	ErrNoDiscover      errorsx.Error = "no discover options"
-	ErrCannotSellSpell errorsx.Error = "cannot sell spells"
 )
 
 type Player struct {
-	ID      string
-	HP      int
-	Gold    int
-	MaxGold int
-
-	Shop Shop
-
-	Board           []*Minion // only minions on board
-	Hand            []Card    // can hold minions and spells
-	DiscoverOptions []Card    // pending discover choices
+	id              string
+	hp              int
+	gold            int
+	maxGold         int
+	shop            Shop
+	board           Board  // minions on board
+	hand            []Card // can hold minions and spells
+	discoverOptions []Card // pending discover choices
 }
 
 func NewPlayer(id string) *Player {
 	return &Player{
-		ID:      id,
-		HP:      40,
-		Gold:    InitialGold,
-		MaxGold: MaxGold,
-		Shop:    Shop{tier: 1},
-		Board:   make([]*Minion, 0, MaxBoardSize),
-		Hand:    make([]Card, 0, MaxHandSize),
+		id:      id,
+		hp:      40,
+		gold:    InitialGold,
+		maxGold: MaxGold,
+		shop:    Shop{tier: 1},
+		board:   NewBoard(MaxBoardSize),
+		hand:    make([]Card, 0, MaxHandSize),
 	}
+}
+
+func (p *Player) ID() string   { return p.id }
+func (p *Player) HP() int      { return p.hp }
+func (p *Player) Gold() int    { return p.gold }
+func (p *Player) MaxGold() int { return p.maxGold }
+func (p *Player) Shop() Shop   { return p.shop }
+
+// Hand returns a copy of the player's hand.
+func (p *Player) Hand() []Card { return slices.Clone(p.hand) }
+
+// HandSize returns the number of cards in hand.
+func (p *Player) HandSize() int { return len(p.hand) }
+
+// DiscoverOptions returns a copy of the pending discover choices.
+func (p *Player) DiscoverOptions() []Card { return slices.Clone(p.discoverOptions) }
+
+// HasDiscover returns true if the player has pending discover options.
+func (p *Player) HasDiscover() bool { return len(p.discoverOptions) > 0 }
+
+// Board returns a copy of the player's board.
+func (p *Player) Board() Board { return p.board.Clone() }
+
+// BoardSize returns the number of minions on the board.
+func (p *Player) BoardSize() int { return p.board.Len() }
+
+// Alive returns true if the player has HP remaining.
+func (p *Player) Alive() bool {
+	return p.hp > 0
 }
 
 // StartTurn prepares the player for a new turn.
 func (p *Player) StartTurn(pool *CardPool, turn int) {
-	if turn > 1 && p.MaxGold < MaxGold {
-		p.MaxGold++
+	if turn > 1 && p.maxGold < MaxGold {
+		p.maxGold++
 	}
-	p.Gold = p.MaxGold
+	p.gold = p.maxGold
 
-	p.Shop.StartTurn(pool)
+	p.shop.StartTurn(pool)
 }
 
 // TakeDamage reduces player HP and returns true if player is dead.
 func (p *Player) TakeDamage(damage int) bool {
-	p.HP -= damage
-	return p.HP <= 0
+	p.hp -= damage
+	return p.hp <= 0
 }
 
 // BuyCard buys a card from the shop and adds it to hand.
 func (p *Player) BuyCard(shopIndex int) error {
-	if p.Gold < BuyCost {
+	if p.gold < MinionPrice {
 		return ErrNotEnoughGold
 	}
-	if len(p.Hand) >= MaxHandSize {
+	if len(p.hand) >= MaxHandSize {
 		return ErrHandFull
 	}
 
-	card, err := p.Shop.BuyCard(shopIndex)
+	card, err := p.shop.BuyCard(shopIndex)
 	if err != nil {
 		return err
 	}
 
-	p.Hand = append(p.Hand, card)
-	p.Gold -= BuyCost
+	p.hand = append(p.hand, card)
+	p.gold -= MinionPrice
 	return nil
 }
 
-// SellCard sells a card from hand for gold and returns it to the pool.
-func (p *Player) SellCard(handIndex int, pool *CardPool) error {
-	if handIndex < 0 || handIndex >= len(p.Hand) {
+// SellMinion sells a minion from the board for gold and returns it to the pool.
+func (p *Player) SellMinion(boardIndex int, pool *CardPool) error {
+	if boardIndex < 0 || boardIndex >= p.board.Len() {
 		return ErrInvalidIndex
 	}
-	if p.Hand[handIndex].IsSpell() {
-		return ErrCannotSellSpell
-	}
 
-	card := p.Hand[handIndex]
-	p.Hand = append(p.Hand[:handIndex], p.Hand[handIndex+1:]...)
-	pool.ReturnCard(card)
+	minion := p.board.Remove(boardIndex)
+	pool.ReturnCard(minion)
 
-	p.Gold += SellValue
-	if p.Gold > MaxGold {
-		p.Gold = MaxGold
+	p.gold += SellValue
+	if p.gold > MaxGold {
+		p.gold = MaxGold
 	}
 	return nil
 }
@@ -110,34 +124,26 @@ func (p *Player) SellCard(handIndex int, pool *CardPool) error {
 // PlaceMinion moves a minion from hand to board.
 // When a golden minion is placed, a Triple Reward spell is added to hand.
 func (p *Player) PlaceMinion(handIndex, boardPosition int, cards CardStore) error {
-	if handIndex < 0 || handIndex >= len(p.Hand) {
+	if handIndex < 0 || handIndex >= len(p.hand) {
 		return ErrInvalidIndex
 	}
-	if len(p.Board) >= MaxBoardSize {
+	if p.board.IsFull() {
 		return ErrBoardFull
 	}
 
-	card := p.Hand[handIndex]
+	card := p.hand[handIndex]
 	minion, ok := card.(*Minion)
 	if !ok {
 		return ErrInvalidIndex
 	}
 
-	p.Hand = append(p.Hand[:handIndex], p.Hand[handIndex+1:]...)
-
-	if boardPosition < 0 {
-		boardPosition = 0
-	}
-	if boardPosition > len(p.Board) {
-		boardPosition = len(p.Board)
-	}
-
-	p.Board = append(p.Board[:boardPosition], append([]*Minion{minion}, p.Board[boardPosition:]...)...)
+	p.hand = append(p.hand[:handIndex], p.hand[handIndex+1:]...)
+	p.board.Place(minion, boardPosition)
 
 	// Golden minion placement grants Triple Reward spell
-	if minion.Golden() {
-		if tmpl := cards.ByTemplateID("triple_reward"); tmpl != nil && len(p.Hand) < MaxHandSize {
-			p.Hand = append(p.Hand, NewSpell(tmpl))
+	if minion.IsGolden() {
+		if tmpl := cards.ByTemplateID("triple_reward"); tmpl != nil && len(p.hand) < MaxHandSize {
+			p.hand = append(p.hand, NewSpell(tmpl))
 		}
 	}
 
@@ -146,118 +152,108 @@ func (p *Player) PlaceMinion(handIndex, boardPosition int, cards CardStore) erro
 
 // RemoveMinion moves a minion from board to hand.
 func (p *Player) RemoveMinion(boardIndex int) error {
-	if boardIndex < 0 || boardIndex >= len(p.Board) {
+	if boardIndex < 0 || boardIndex >= p.board.Len() {
 		return ErrInvalidIndex
 	}
-	if len(p.Hand) >= MaxHandSize {
+	if len(p.hand) >= MaxHandSize {
 		return ErrHandFull
 	}
 
-	minion := p.Board[boardIndex]
-	p.Board = append(p.Board[:boardIndex], p.Board[boardIndex+1:]...)
-	p.Hand = append(p.Hand, minion)
+	minion := p.board.Remove(boardIndex)
+	p.hand = append(p.hand, minion)
 	return nil
 }
 
 // UpgradeShop upgrades the shop tier.
 func (p *Player) UpgradeShop() error {
-	if p.Shop.Tier() >= Tier6 {
+	if p.shop.Tier() >= Tier6 {
 		return ErrMaxTier
 	}
 
-	cost := p.Shop.UpgradeCost()
-	if p.Gold < cost {
+	cost := p.shop.UpgradeCost()
+	if p.gold < cost {
 		return ErrNotEnoughGold
 	}
 
-	p.Gold -= cost
-	p.Shop.Upgrade()
+	p.gold -= cost
+	p.shop.Upgrade()
 	return nil
 }
 
 // RefreshShop refreshes the shop for gold, returning old cards to pool.
 func (p *Player) RefreshShop(pool *CardPool) error {
-	if p.Gold < RefreshCost {
+	if p.gold < ShopRefreshCost {
 		return ErrNotEnoughGold
 	}
 
-	p.Gold -= RefreshCost
-	p.Shop.Refresh(pool)
+	p.gold -= ShopRefreshCost
+	p.shop.Refresh(pool)
 	return nil
 }
 
 // FreezeShop toggles the shop freeze state.
 func (p *Player) FreezeShop() {
-	p.Shop.Freeze()
+	p.shop.Freeze()
 }
 
 // CheckTriples scans hand + board for 3 non-golden copies of the same minion.
-// If found, removes all 3, creates a golden minion (2x stats) in hand,
-// and adds a Triple Reward spell to hand if there's room.
+// If found, removes all 3, creates a golden minion (2x stats) in hand.
 // Returns true if a triple was found and combined.
 func (p *Player) CheckTriples() bool {
 	type loc struct {
-		fromBoard bool
-		index     int
+		board bool
+		index int
 	}
 
-	counts := make(map[string][]loc)
+	groups := make(map[string][]loc)
+	minions := make(map[string]*Minion)
 
-	for i, m := range p.Board {
-		if m.Golden() {
+	for i, m := range p.board.Minions() {
+		if m.IsGolden() {
 			continue
 		}
-		counts[m.TemplateID()] = append(counts[m.TemplateID()], loc{fromBoard: true, index: i})
+		tid := m.TemplateID()
+		groups[tid] = append(groups[tid], loc{board: true, index: i})
+		minions[tid] = m
 	}
-	for i, c := range p.Hand {
+	for i, c := range p.hand {
 		m, ok := c.(*Minion)
-		if !ok || m.Golden() {
+		if !ok || m.IsGolden() {
 			continue
 		}
-		counts[m.TemplateID()] = append(counts[m.TemplateID()], loc{fromBoard: false, index: i})
+		tid := m.TemplateID()
+		groups[tid] = append(groups[tid], loc{index: i})
+		minions[tid] = m
 	}
 
-	for _, locs := range counts {
+	for tid, locs := range groups {
 		if len(locs) < 3 {
 			continue
 		}
 
-		// Save template before removal
-		first := locs[0]
-		var tmpl *CardTemplate
-		if first.fromBoard {
-			tmpl = p.Board[first.index].Template()
-		} else {
-			tmpl = p.Hand[first.index].(*Minion).Template()
-		}
-
-		// Remove in reverse index order to avoid shifting issues.
-		// Separate board and hand removals.
 		var boardIdxs, handIdxs []int
 		for _, l := range locs[:3] {
-			if l.fromBoard {
+			if l.board {
 				boardIdxs = append(boardIdxs, l.index)
 			} else {
 				handIdxs = append(handIdxs, l.index)
 			}
 		}
 
-		// Sort descending and remove
-		sortDesc(boardIdxs)
+		// Remove in descending order to preserve indices.
+		slices.Sort(boardIdxs)
+		slices.Reverse(boardIdxs)
+		slices.Sort(handIdxs)
+		slices.Reverse(handIdxs)
+
 		for _, idx := range boardIdxs {
-			p.Board = append(p.Board[:idx], p.Board[idx+1:]...)
+			p.board.Remove(idx)
 		}
-
-		sortDesc(handIdxs)
 		for _, idx := range handIdxs {
-			p.Hand = append(p.Hand[:idx], p.Hand[idx+1:]...)
+			p.hand = slices.Delete(p.hand, idx, idx+1)
 		}
-		golden := NewMinion(tmpl)
-		golden.SetGolden(true)
-		golden.SetAttack(tmpl.Golden.Attack)
-		golden.SetHealth(tmpl.Golden.Health)
-		p.Hand = append(p.Hand, golden)
 
+		p.hand = append(p.hand, minions[tid].ToGolden())
 		return true
 	}
 
@@ -266,27 +262,27 @@ func (p *Player) CheckTriples() bool {
 
 // PlaySpell plays a spell from hand.
 func (p *Player) PlaySpell(handIndex int, pool *CardPool) error {
-	if handIndex < 0 || handIndex >= len(p.Hand) {
+	if handIndex < 0 || handIndex >= len(p.hand) {
 		return ErrInvalidIndex
 	}
 
-	spell, ok := p.Hand[handIndex].(*Spell)
+	spell, ok := p.hand[handIndex].(*Spell)
 	if !ok {
 		return ErrNotASpell
 	}
 
-	if p.DiscoverOptions != nil {
+	if p.discoverOptions != nil {
 		return ErrDiscoverPending
 	}
 
 	// Remove spell from hand
-	p.Hand = append(p.Hand[:handIndex], p.Hand[handIndex+1:]...)
+	p.hand = append(p.hand[:handIndex], p.hand[handIndex+1:]...)
 
 	// Execute spell effect
 	effect := spell.Template().SpellEffect
 	if effect != nil && effect.Type == EffectDiscoverCard {
-		discoverTier := min(p.Shop.Tier()+1, Tier6)
-		p.DiscoverOptions = pool.RollExactTier(discoverTier, nil)
+		discoverTier := min(p.shop.Tier()+1, Tier6)
+		p.discoverOptions = pool.RollExactTier(discoverTier, nil)
 	}
 
 	return nil
@@ -295,58 +291,54 @@ func (p *Player) PlaySpell(handIndex int, pool *CardPool) error {
 // DiscoverPick picks one of the discover options and adds it to hand.
 // Unpicked options are returned to the pool.
 func (p *Player) DiscoverPick(index int, pool *CardPool) error {
-	if p.DiscoverOptions == nil {
+	if p.discoverOptions == nil {
 		return ErrNoDiscover
 	}
-	if index < 0 || index >= len(p.DiscoverOptions) {
+	if index < 0 || index >= len(p.discoverOptions) {
 		return ErrInvalidIndex
 	}
-	if len(p.Hand) >= MaxHandSize {
+	if len(p.hand) >= MaxHandSize {
 		return ErrHandFull
 	}
 
 	// Return unpicked options to pool
-	for i, c := range p.DiscoverOptions {
+	for i, c := range p.discoverOptions {
 		if i != index {
 			pool.ReturnCard(c)
 		}
 	}
 
-	p.Hand = append(p.Hand, p.DiscoverOptions[index])
-	p.DiscoverOptions = nil
+	p.hand = append(p.hand, p.discoverOptions[index])
+	p.discoverOptions = nil
 	return nil
 }
 
-func sortDesc(s []int) {
-	for i := range s {
-		for j := i + 1; j < len(s); j++ {
-			if s[j] > s[i] {
-				s[i], s[j] = s[j], s[i]
-			}
+// ResolveDiscover auto-picks a random discover option for the player.
+// If hand is full, all options are returned to the pool.
+// Always clears discover options when done.
+func (p *Player) ResolveDiscover(pool *CardPool) {
+	defer func() { p.discoverOptions = nil }()
+
+	if len(p.discoverOptions) == 0 {
+		return
+	}
+
+	if len(p.hand) >= MaxHandSize {
+		pool.ReturnCards(p.discoverOptions)
+		return
+	}
+
+	idx := rand.IntN(len(p.discoverOptions))
+	p.hand = append(p.hand, p.discoverOptions[idx])
+
+	for i, c := range p.discoverOptions {
+		if i != idx {
+			pool.ReturnCard(c)
 		}
 	}
 }
 
 // ReorderBoard reorders the board based on the given indices.
 func (p *Player) ReorderBoard(order []int) error {
-	if len(order) != len(p.Board) {
-		return ErrInvalidIndex
-	}
-
-	newBoard := make([]*Minion, len(p.Board))
-	used := make(map[int]struct{}, len(p.Board))
-
-	for i, idx := range order {
-		if idx < 0 || idx >= len(p.Board) {
-			return ErrInvalidIndex
-		}
-		if _, ok := used[idx]; ok {
-			return ErrInvalidIndex
-		}
-		newBoard[i] = p.Board[idx]
-		used[idx] = struct{}{}
-	}
-
-	p.Board = newBoard
-	return nil
+	return p.board.Reorder(order)
 }

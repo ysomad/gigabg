@@ -4,10 +4,8 @@ import (
 	"math/rand/v2"
 )
 
-const DiscoverCount = 3
-
-// TierPoolSize defines how many copies of each template exist per tier.
-var TierPoolSize = map[Tier]int{
+// tierPoolSize defines how many copies of each template exist per tier.
+var tierPoolSize = map[Tier]int{
 	Tier1: 16, Tier2: 15, Tier3: 13,
 	Tier4: 11, Tier5: 9, Tier6: 7,
 }
@@ -33,7 +31,7 @@ func NewCardPool(cards CardStore) *CardPool {
 	}
 
 	for tier := Tier1; tier <= Tier6; tier++ {
-		count := TierPoolSize[tier]
+		count := tierPoolSize[tier]
 		for _, tmpl := range cards.ByTierTribes(tier, nil) {
 			if !tmpl.IsSpell() {
 				pool.quantities[tmpl.ID] = count

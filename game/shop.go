@@ -10,12 +10,12 @@ type Shop struct {
 	discount int
 }
 
-func (s *Shop) Cards() []Card { return s.cards }
-func (s *Shop) Tier() Tier    { return s.tier }
-func (s *Shop) Frozen() bool  { return s.frozen }
+func (s Shop) Cards() []Card  { return s.cards }
+func (s Shop) Tier() Tier     { return s.tier }
+func (s Shop) IsFrozen() bool { return s.frozen }
 
 // Size returns how many cards to show based on shop tier.
-func (s *Shop) Size() int {
+func (s Shop) Size() int {
 	switch s.tier {
 	case Tier1:
 		return 3
@@ -33,7 +33,7 @@ func (s *Shop) Size() int {
 }
 
 // UpgradeCost returns the cost to upgrade to the next shop tier.
-func (s *Shop) UpgradeCost() int {
+func (s Shop) UpgradeCost() int {
 	if !s.tier.IsValid() {
 		return 0
 	}

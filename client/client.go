@@ -9,8 +9,8 @@ import (
 
 	"github.com/coder/websocket"
 
-	"github.com/ysomad/gigabg/game"
 	"github.com/ysomad/gigabg/api"
+	"github.com/ysomad/gigabg/game"
 )
 
 var (
@@ -22,8 +22,9 @@ var (
 type Client struct {
 	conn *websocket.Conn
 
-	state *api.GameState
-	mu    sync.RWMutex
+	state        *api.GameState
+	combatEvents []game.CombatEvent
+	mu           sync.RWMutex
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -80,11 +81,14 @@ func (c *Client) readPump() {
 }
 
 func (c *Client) handleMessage(msg *api.ServerMessage) {
-	if msg.State != nil {
-		c.mu.Lock()
-		c.state = msg.State
-		c.mu.Unlock()
+	c.mu.Lock()
+	if len(msg.CombatEvents) > 0 {
+		c.combatEvents = msg.CombatEvents
 	}
+	if msg.State != nil {
+		c.state = msg.State
+	}
+	c.mu.Unlock()
 
 	if msg.Error != nil {
 		select {
@@ -126,17 +130,17 @@ func (c *Client) PlayerID() string {
 	if c.state == nil {
 		return ""
 	}
-	return c.state.PlayerID
+	return c.state.Player.ID
 }
 
-// Players returns all players in the lobby.
-func (c *Client) Players() []api.Player {
+// Opponents returns all opponents in the lobby.
+func (c *Client) Opponents() []api.Opponent {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	if c.state == nil {
 		return nil
 	}
-	return c.state.Players
+	return c.state.Opponents
 }
 
 // Turn returns the current turn number.
@@ -179,14 +183,14 @@ func (c *Client) Shop() []api.Card {
 	return c.state.Shop
 }
 
-// ShopFrozen returns whether the shop is frozen.
-func (c *Client) ShopFrozen() bool {
+// IsShopFrozen returns whether the shop is frozen.
+func (c *Client) IsShopFrozen() bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	if c.state == nil {
 		return false
 	}
-	return c.state.ShopFrozen
+	return c.state.IsShopFrozen
 }
 
 // Hand returns the current hand cards.
@@ -216,12 +220,7 @@ func (c *Client) Player() *api.Player {
 	if c.state == nil {
 		return nil
 	}
-	for i := range c.state.Players {
-		if c.state.Players[i].ID == c.state.PlayerID {
-			return &c.state.Players[i]
-		}
-	}
-	return nil
+	return &c.state.Player
 }
 
 // BuyCard sends a buy card action.
@@ -229,9 +228,9 @@ func (c *Client) BuyCard(shopIndex int) error {
 	return c.send(api.ActionBuyCard, api.BuyCard{ShopIndex: shopIndex})
 }
 
-// SellCard sends a sell card action.
-func (c *Client) SellCard(handIndex int) error {
-	return c.send(api.ActionSellCard, api.SellCard{HandIndex: handIndex})
+// SellMinion sends a sell minion action.
+func (c *Client) SellMinion(boardIndex int) error {
+	return c.send(api.ActionSellMinion, api.SellMinion{BoardIndex: boardIndex})
 }
 
 // PlaceMinion sends a place minion action.
@@ -268,7 +267,7 @@ func (c *Client) SyncBoard(order []int) error {
 }
 
 // Discover returns the current discover offer, or nil if none pending.
-func (c *Client) Discover() *api.DiscoverOffer {
+func (c *Client) Discover() []api.Card {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	if c.state == nil {
@@ -285,6 +284,20 @@ func (c *Client) PlaySpell(handIndex int) error {
 // DiscoverPick sends a discover pick action.
 func (c *Client) DiscoverPick(index int) error {
 	return c.send(api.ActionDiscoverPick, api.DiscoverPick{Index: index})
+}
+
+// CombatAnimation returns the pending combat animation, or nil.
+func (c *Client) CombatEvents() []game.CombatEvent {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.combatEvents
+}
+
+// ClearCombatAnimation discards the pending combat animation.
+func (c *Client) ClearCombatAnimation() {
+	c.mu.Lock()
+	c.combatEvents = nil
+	c.mu.Unlock()
 }
 
 // Close closes the connection.

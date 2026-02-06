@@ -44,9 +44,9 @@ const (
 )
 
 // Scaled layout helpers.
-func sc(base int) float64    { return float64(base) * ActiveRes.Scale() }
+func sc(base int) float64      { return float64(base) * ActiveRes.Scale() }
 func scf(base float64) float64 { return base * ActiveRes.Scale() }
-func sci(base int) int        { return int(sc(base)) }
+func sci(base int) int         { return int(sc(base)) }
 
 // GameScene renders the game UI.
 type GameScene struct {
@@ -64,6 +64,9 @@ type GameScene struct {
 	// Local board order (indices into server board)
 	boardOrder []int
 	lastPhase  game.Phase
+
+	// Combat animation replay
+	combatAnimator *CombatAnimator
 }
 
 func NewGameScene(c *client.Client, cards *cards.Cards, font *text.GoTextFace) *GameScene {
@@ -84,6 +87,29 @@ func (g *GameScene) Update() error {
 		}
 	}
 	g.lastPhase = phase
+
+	// Check for incoming combat animation (events only, boards come from state).
+	if combatEvents := g.client.CombatEvents(); combatEvents != nil && g.combatAnimator == nil {
+		state := g.client.State()
+		g.combatAnimator = NewCombatAnimator(
+			g.client.Turn(),
+			state.CombatBoard,
+			state.OpponentBoard,
+			combatEvents,
+			g.cards,
+			g.font,
+		)
+		g.client.ClearCombatAnimation()
+	}
+
+	// If combat animation is playing, block all input and advance it.
+	if g.combatAnimator != nil {
+		const dt = 1.0 / 60.0
+		if g.combatAnimator.Update(dt) {
+			g.combatAnimator = nil
+		}
+		return nil
+	}
 
 	// Reset board order when board size changes (new card placed or removed)
 	board := g.client.Board()
@@ -163,7 +189,10 @@ func (g *GameScene) Update() error {
 	// End drag
 	if g.dragging && inpututil.IsMouseButtonJustReleased(ebiten.MouseButtonLeft) {
 		dropPad := sci(50)
-		if y >= boardYs-dropPad && y <= boardYs+cardH+dropPad {
+		if g.dragFromBoard && y >= shopYs-dropPad && y <= shopYs+cardH+dropPad {
+			// Sell minion by dragging from board to shop zone
+			g.client.SellMinion(g.boardOrder[g.dragIndex])
+		} else if y >= boardYs-dropPad && y <= boardYs+cardH+dropPad {
 			if g.dragFromBoard {
 				// Reorder locally
 				pos := g.getDropPosition(x)
@@ -255,9 +284,15 @@ func (g *GameScene) getDropPosition(x int) int {
 func (g *GameScene) Draw(screen *ebiten.Image) {
 	screen.Fill(ColorBackground)
 
-	playerCount := len(g.client.Players())
-	if playerCount == 0 {
+	if !g.client.Connected() {
 		g.drawConnecting(screen)
+		return
+	}
+
+	// Combat animation takes over the entire screen.
+	if g.combatAnimator != nil {
+		g.combatAnimator.Draw(screen)
+		g.drawPlayers(screen)
 		return
 	}
 
@@ -265,7 +300,7 @@ func (g *GameScene) Draw(screen *ebiten.Image) {
 
 	switch phase {
 	case game.PhaseWaiting:
-		g.drawWaiting(screen, playerCount)
+		g.drawWaiting(screen)
 	case game.PhaseRecruit:
 		g.drawRecruit(screen)
 	case game.PhaseCombat:
@@ -281,14 +316,27 @@ func (g *GameScene) drawConnecting(screen *ebiten.Image) {
 	drawText(screen, g.font, "Connecting...", w/2-scf(50), h/2, color.White)
 }
 
-func (g *GameScene) drawWaiting(screen *ebiten.Image, playerCount int) {
-	myID := g.client.PlayerID()
-
-	header := fmt.Sprintf("You are Player %s | Waiting for players... %d/%d", myID, playerCount, game.MaxPlayers)
+func (g *GameScene) drawWaiting(screen *ebiten.Image) {
+	playerCount := len(g.client.Opponents()) + 1
+	header := fmt.Sprintf(
+		"You are Player %s | Waiting for players... %d/%d",
+		g.client.PlayerID(),
+		playerCount,
+		game.MaxPlayers,
+	)
 	drawText(screen, g.font, header, sc(50), sc(50), color.RGBA{200, 200, 200, 255})
 
 	w := float64(ActiveRes.Width)
-	vector.StrokeLine(screen, float32(sc(40)), float32(sc(80)), float32(w-sc(40)), float32(sc(80)), 1, color.RGBA{60, 60, 80, 255}, false)
+	vector.StrokeLine(
+		screen,
+		float32(sc(40)),
+		float32(sc(80)),
+		float32(w-sc(40)),
+		float32(sc(80)),
+		1,
+		color.RGBA{60, 60, 80, 255},
+		false,
+	)
 }
 
 func (g *GameScene) drawRecruit(screen *ebiten.Image) {
@@ -302,7 +350,16 @@ func (g *GameScene) drawRecruit(screen *ebiten.Image) {
 	timer := fmt.Sprintf("%d:%02d", remaining/60, remaining%60)
 	drawText(screen, g.font, timer, w-sc(100), sc(50), color.RGBA{255, 255, 255, 255})
 
-	vector.StrokeLine(screen, float32(sc(40)), float32(sc(80)), float32(w-sc(40)), float32(sc(80)), 1, color.RGBA{60, 60, 80, 255}, false)
+	vector.StrokeLine(
+		screen,
+		float32(sc(40)),
+		float32(sc(80)),
+		float32(w-sc(40)),
+		float32(sc(80)),
+		1,
+		color.RGBA{60, 60, 80, 255},
+		false,
+	)
 
 	// Player stats
 	if p := g.client.Player(); p != nil {
@@ -340,7 +397,7 @@ func (g *GameScene) drawRecruit(screen *ebiten.Image) {
 	fby := float32(sc(baseFreezeBtnY))
 	fbw := float32(sc(baseFreezeBtnW))
 	fbh := float32(sc(baseFreezeBtnH))
-	frozen := g.client.ShopFrozen()
+	frozen := g.client.IsShopFrozen()
 	if frozen {
 		vector.FillRect(screen, fbx, fby, fbw, fbh, color.RGBA{40, 120, 200, 255}, false)
 		vector.StrokeRect(screen, fbx, fby, fbw, fbh, 1, color.RGBA{80, 160, 255, 255}, false)
@@ -406,7 +463,7 @@ func (g *GameScene) drawRecruit(screen *ebiten.Image) {
 	}
 }
 
-func (g *GameScene) drawDiscoverOverlay(screen *ebiten.Image, discover *api.DiscoverOffer) {
+func (g *GameScene) drawDiscoverOverlay(screen *ebiten.Image, discover []api.Card) {
 	w := float32(ActiveRes.Width)
 	h := float32(ActiveRes.Height)
 	vector.FillRect(screen, 0, 0, w, h, color.RGBA{0, 0, 0, 160}, false)
@@ -421,22 +478,22 @@ func (g *GameScene) drawDiscoverOverlay(screen *ebiten.Image, discover *api.Disc
 		color.RGBA{255, 215, 0, 255},
 	)
 
-	startX := g.discoverStartX(len(discover.Cards))
+	startX := g.discoverStartX(len(discover))
 	y := float64(ActiveRes.Height)/2 - cardH/2
-	for i, c := range discover.Cards {
+	for i, c := range discover {
 		x := startX + float64(i)*sc(baseCardWidth+baseCardGap)
 		g.drawCard(screen, c, x, y)
 	}
 }
 
-func (g *GameScene) handleDiscoverClick(discover *api.DiscoverOffer, x, y int) {
+func (g *GameScene) handleDiscoverClick(discover []api.Card, x, y int) {
 	cardH := sci(baseCardHeight)
 	cardW := sci(baseCardWidth)
 	cardStep := sci(baseCardWidth + baseCardGap)
 	discoverY := ActiveRes.Height/2 - cardH/2
-	startX := int(g.discoverStartX(len(discover.Cards)))
+	startX := int(g.discoverStartX(len(discover)))
 
-	for i := range discover.Cards {
+	for i := range discover {
 		cardX := startX + i*cardStep
 		if x >= cardX && x <= cardX+cardW && y >= discoverY && y <= discoverY+cardH {
 			g.client.DiscoverPick(i)
@@ -467,7 +524,7 @@ func (g *GameScene) drawCard(screen *ebiten.Image, c api.Card, x, y float64) {
 	// Border
 	border := color.RGBA{80, 80, 100, 255}
 	borderWidth := float32(2)
-	if c.Golden {
+	if c.IsGolden {
 		border = color.RGBA{255, 215, 0, 255}
 		borderWidth = 3
 	} else if isSpell {
@@ -489,23 +546,58 @@ func (g *GameScene) drawCard(screen *ebiten.Image, c api.Card, x, y float64) {
 
 	// Tier at top right
 	if t != nil && !isSpell && t.Tier.IsValid() {
-		drawText(screen, g.font, fmt.Sprintf("T%d", t.Tier), x+sc(baseCardWidth)-scf(30), y+scf(5), color.RGBA{180, 180, 180, 255})
+		drawText(
+			screen,
+			g.font,
+			fmt.Sprintf("T%d", t.Tier),
+			x+sc(baseCardWidth)-scf(30),
+			y+scf(5),
+			color.RGBA{180, 180, 180, 255},
+		)
 	}
 
 	// Description in center
 	drawText(screen, g.font, desc, x+scf(5), y+scf(40), color.RGBA{180, 180, 180, 255})
 
 	if isSpell {
-		drawText(screen, g.font, "SPELL", x+sc(baseCardWidth)/2-scf(20), y+sc(baseCardHeight)-scf(18), color.RGBA{200, 150, 255, 255})
+		drawText(
+			screen,
+			g.font,
+			"SPELL",
+			x+sc(baseCardWidth)/2-scf(20),
+			y+sc(baseCardHeight)-scf(18),
+			color.RGBA{200, 150, 255, 255},
+		)
 	} else {
 		// Tribe
-		drawText(screen, g.font, tribe, x+sc(baseCardWidth)/2-scf(20), y+sc(baseCardHeight)-scf(35), color.RGBA{150, 150, 200, 255})
+		drawText(
+			screen,
+			g.font,
+			tribe,
+			x+sc(baseCardWidth)/2-scf(20),
+			y+sc(baseCardHeight)-scf(35),
+			color.RGBA{150, 150, 200, 255},
+		)
 
 		// AP bottom-left
-		drawText(screen, g.font, fmt.Sprintf("%d", c.Attack), x+scf(5), y+sc(baseCardHeight)-scf(18), color.RGBA{255, 215, 0, 255})
+		drawText(
+			screen,
+			g.font,
+			fmt.Sprintf("%d", c.Attack),
+			x+scf(5),
+			y+sc(baseCardHeight)-scf(18),
+			color.RGBA{255, 215, 0, 255},
+		)
 
 		// HP bottom-right
-		drawText(screen, g.font, fmt.Sprintf("%d", c.Health), x+sc(baseCardWidth)-scf(20), y+sc(baseCardHeight)-scf(18), color.RGBA{255, 80, 80, 255})
+		drawText(
+			screen,
+			g.font,
+			fmt.Sprintf("%d", c.Health),
+			x+sc(baseCardWidth)-scf(20),
+			y+sc(baseCardHeight)-scf(18),
+			color.RGBA{255, 80, 80, 255},
+		)
 	}
 }
 
@@ -520,7 +612,41 @@ func (g *GameScene) drawCombat(screen *ebiten.Image) {
 	timer := fmt.Sprintf("%d:%02d", remaining/60, remaining%60)
 	drawText(screen, g.font, timer, w-sc(100), sc(50), color.RGBA{255, 255, 255, 255})
 
-	vector.StrokeLine(screen, float32(sc(40)), float32(sc(80)), float32(w-sc(40)), float32(sc(80)), 1, color.RGBA{60, 60, 80, 255}, false)
+	vector.StrokeLine(
+		screen,
+		float32(sc(40)),
+		float32(sc(80)),
+		float32(w-sc(40)),
+		float32(sc(80)),
+		1,
+		color.RGBA{60, 60, 80, 255},
+		false,
+	)
+
+	state := g.client.State()
+	if state == nil {
+		return
+	}
+
+	// Opponent board (top)
+	drawText(screen, g.font, "OPPONENT", sc(50), sc(baseOpponentBoardY)-scf(30), color.RGBA{255, 120, 120, 255})
+	g.drawCenteredBoard(screen, state.OpponentBoard, sc(baseOpponentBoardY))
+
+	// Player board (bottom)
+	drawText(screen, g.font, "YOUR BOARD", sc(50), sc(basePlayerBoardY)-scf(30), color.RGBA{120, 255, 120, 255})
+	g.drawCenteredBoard(screen, state.CombatBoard, sc(basePlayerBoardY))
+}
+
+func (g *GameScene) drawCenteredBoard(screen *ebiten.Image, cards []api.Card, y float64) {
+	if len(cards) == 0 {
+		return
+	}
+	totalW := float64(len(cards))*sc(baseCardWidth+baseCardGap) - sc(baseCardGap)
+	startX := (float64(ActiveRes.Width) - totalW) / 2
+	for i, c := range cards {
+		x := startX + float64(i)*sc(baseCardWidth+baseCardGap)
+		g.drawCard(screen, c, x, y)
+	}
 }
 
 func (g *GameScene) timeRemaining() int64 {
@@ -534,21 +660,18 @@ func (g *GameScene) timeRemaining() int64 {
 }
 
 func (g *GameScene) drawPlayers(screen *ebiten.Image) {
-	players := g.client.Players()
-	myID := g.client.PlayerID()
-
 	x := sc(50)
 	y := float64(ActiveRes.Height) - sc(30)
 
-	for _, p := range players {
+	if p := g.client.Player(); p != nil {
 		label := fmt.Sprintf("%s (%d)", p.ID, p.HP)
+		drawText(screen, g.font, label, x, y, color.RGBA{100, 255, 100, 255})
+		x += sc(80)
+	}
 
-		clr := color.RGBA{200, 200, 200, 255}
-		if p.ID == myID {
-			clr = color.RGBA{100, 255, 100, 255}
-		}
-
-		drawText(screen, g.font, label, x, y, clr)
+	for _, o := range g.client.Opponents() {
+		label := fmt.Sprintf("%s (%d)", o.ID, o.HP)
+		drawText(screen, g.font, label, x, y, color.RGBA{200, 200, 200, 255})
 		x += sc(80)
 	}
 }

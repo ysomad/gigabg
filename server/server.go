@@ -12,9 +12,9 @@ import (
 
 	"github.com/coder/websocket"
 
+	"github.com/ysomad/gigabg/api"
 	"github.com/ysomad/gigabg/game"
 	"github.com/ysomad/gigabg/lobby"
-	"github.com/ysomad/gigabg/api"
 )
 
 type Server struct {
@@ -65,6 +65,7 @@ func (s *Server) gameLoop() {
 					"phase", l.Phase().String(),
 				)
 				s.broadcastState(lobbyID, l)
+				s.sendCombatAnimations(lobbyID, l)
 			}
 		}
 	}
@@ -164,13 +165,13 @@ func (s *Server) handleMessage(client *ClientConn, msg *api.ClientMessage) {
 			return nil
 		})
 
-	case api.ActionSellCard:
+	case api.ActionSellMinion:
 		s.handleAction(client, msg.Action, func(l *lobby.Lobby, p *game.Player) error {
-			payload, err := decodePayload[api.SellCard](msg)
+			payload, err := decodePayload[api.SellMinion](msg)
 			if err != nil {
 				return err
 			}
-			return p.SellCard(payload.HandIndex, l.Pool())
+			return p.SellMinion(payload.BoardIndex, l.Pool())
 		})
 
 	case api.ActionPlaceMinion:
@@ -253,7 +254,6 @@ func (s *Server) handleAction(
 	}
 
 	if l.State() != lobby.StatePlaying || l.Phase() != game.PhaseRecruit {
-		s.sendError(client, "not in recruit phase")
 		return
 	}
 
@@ -263,12 +263,12 @@ func (s *Server) handleAction(
 		return
 	}
 
-	beforeGold := p.Gold
-	beforeHP := p.HP
-	beforeShopTier := p.Shop.Tier()
-	beforeBoard := len(p.Board)
-	beforeHand := len(p.Hand)
-	beforeShop := len(p.Shop.Cards())
+	beforeGold := p.Gold()
+	beforeHP := p.HP()
+	beforeShopTier := p.Shop().Tier()
+	beforeBoard := p.BoardSize()
+	beforeHand := p.HandSize()
+	beforeShop := len(p.Shop().Cards())
 
 	if err := fn(l, p); err != nil {
 		s.sendError(client, err.Error())
@@ -279,22 +279,22 @@ func (s *Server) handleAction(
 		slog.String("player", client.playerID),
 		slog.String("lobby", client.lobbyID),
 	}
-	if d := p.Gold - beforeGold; d != 0 {
+	if d := p.Gold() - beforeGold; d != 0 {
 		attrs = append(attrs, slog.Int("gold", d))
 	}
-	if d := p.HP - beforeHP; d != 0 {
+	if d := p.HP() - beforeHP; d != 0 {
 		attrs = append(attrs, slog.Int("hp", d))
 	}
-	if d := int(p.Shop.Tier()) - int(beforeShopTier); d != 0 {
+	if d := int(p.Shop().Tier()) - int(beforeShopTier); d != 0 {
 		attrs = append(attrs, slog.Int("shop_tier", d))
 	}
-	if d := len(p.Board) - beforeBoard; d != 0 {
+	if d := p.BoardSize() - beforeBoard; d != 0 {
 		attrs = append(attrs, slog.Int("board", d))
 	}
-	if d := len(p.Hand) - beforeHand; d != 0 {
+	if d := p.HandSize() - beforeHand; d != 0 {
 		attrs = append(attrs, slog.Int("hand", d))
 	}
-	if d := len(p.Shop.Cards()) - beforeShop; d != 0 {
+	if d := len(p.Shop().Cards()) - beforeShop; d != 0 {
 		attrs = append(attrs, slog.Int("shop", d))
 	}
 	slog.LogAttrs(context.Background(), slog.LevelInfo, action.String(), attrs...)
@@ -361,6 +361,26 @@ func (s *Server) handleJoin(client *ClientConn, join *api.JoinLobby) {
 	s.broadcastState(lobbyID, l)
 }
 
+func (s *Server) sendCombatAnimations(lobbyID string, l *lobby.Lobby) {
+	anims := l.CombatAnimations()
+	if len(anims) == 0 {
+		return
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	clients := s.clients[lobbyID]
+	for _, anim := range anims {
+		for _, c := range clients {
+			if c.playerID != anim.Player1ID && c.playerID != anim.Player2ID {
+				continue
+			}
+			s.sendMessage(c, &api.ServerMessage{CombatEvents: anim.Events})
+		}
+	}
+}
+
 func (s *Server) broadcastState(lobbyID string, l *lobby.Lobby) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -376,20 +396,27 @@ func (s *Server) broadcastState(lobbyID string, l *lobby.Lobby) {
 
 func (s *Server) sendPlayerState(client *ClientConn, l *lobby.Lobby, p *game.Player) {
 	state := &api.GameState{
-		PlayerID:          client.playerID,
+		Player:            api.NewPlayer(p),
+		Opponents:         api.NewOpponents(l.Players(), client.playerID),
 		Turn:              l.Turn(),
 		Phase:             l.Phase(),
 		PhaseEndTimestamp: l.PhaseEndTimestamp(),
-		Players:           api.NewPlayers(l.Players()),
-		Shop:              api.NewCards(p.Shop.Cards()),
-		ShopFrozen:        p.Shop.Frozen(),
-		Hand:              api.NewCards(p.Hand),
-		Board:             api.NewCardsFromMinions(p.Board),
+		Shop:              api.NewCards(p.Shop().Cards()),
+		IsShopFrozen:      p.Shop().IsFrozen(),
+		Hand:              api.NewCards(p.Hand()),
+		Board:             api.NewCardsFromMinions(p.Board().Minions()),
+		CombatResults:     l.CombatResults(client.playerID),
 	}
 
-	if len(p.DiscoverOptions) > 0 {
-		state.Discover = &api.DiscoverOffer{
-			Cards: api.NewCards(p.DiscoverOptions),
+	if p.HasDiscover() {
+		state.Discover = api.NewCards(p.DiscoverOptions())
+	}
+
+	if l.Phase() == game.PhaseCombat {
+		if opponentID, playerBoard, opponentBoard, ok := l.CombatPairing(client.playerID); ok {
+			state.OpponentID = opponentID
+			state.CombatBoard = api.CombatCards(playerBoard)
+			state.OpponentBoard = api.CombatCards(opponentBoard)
 		}
 	}
 

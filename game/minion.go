@@ -43,6 +43,8 @@ func (t Tribe) String() string {
 	}
 }
 
+var _ Card = (*Minion)(nil)
+
 // Minion is a runtime card instance with mutable state.
 type Minion struct {
 	template *CardTemplate
@@ -50,6 +52,7 @@ type Minion struct {
 	health   int
 	golden   bool
 	keywords Keywords
+	combatID int // unique within a single combat, 0 = not assigned
 }
 
 // NewMinion creates a minion from a card template.
@@ -110,22 +113,35 @@ func (m *Minion) EndOfTurn() *Effect {
 	return m.template.EndOfTurn
 }
 
+func (m *Minion) CombatID() int      { return m.combatID }
 func (m *Minion) Attack() int        { return m.attack }
 func (m *Minion) Health() int        { return m.health }
-func (m *Minion) Golden() bool       { return m.golden }
 func (m *Minion) Keywords() Keywords { return m.keywords }
 
-func (m *Minion) IsSpell() bool  { return false }
-func (m *Minion) IsMinion() bool { return true }
-func (m *Minion) IsGolden() bool { return m.golden }
+func (m *Minion) Alive() bool     { return m.health > 0 }
+func (m *Minion) CanAttack() bool { return m.health > 0 && m.attack > 0 }
+
+func (m *Minion) IsSpell() bool             { return false }
+func (m *Minion) IsMinion() bool            { return true }
+func (m *Minion) IsGolden() bool            { return m.golden }
 func (m *Minion) HasKeyword(k Keyword) bool { return m.keywords.Has(k) }
 
-func (m *Minion) SetAttack(v int)  { m.attack = v }
-func (m *Minion) SetHealth(v int)  { m.health = v }
-func (m *Minion) SetGolden(v bool) { m.golden = v }
+func (m *Minion) TakeDamage(amount int) { m.health -= amount }
 
 func (m *Minion) AddKeyword(k Keyword)    { m.keywords = m.keywords.Add(k) }
 func (m *Minion) RemoveKeyword(k Keyword) { m.keywords = m.keywords.Remove(k) }
+
+// ToGolden creates a golden version of the minion with 2x base stats,
+// preserving keywords from the original.
+func (m *Minion) ToGolden() *Minion {
+	return &Minion{
+		template: m.template,
+		attack:   m.template.Golden.Attack,
+		health:   m.template.Golden.Health,
+		keywords: m.keywords,
+		golden:   true,
+	}
+}
 
 func (m *Minion) Clone() *Minion {
 	if m == nil {

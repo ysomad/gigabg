@@ -79,6 +79,8 @@ Targets can be filtered by Tribe, Tier, or Keyword. Can also exclude self.
 - Loser takes damage = opponent's shop tier + sum of surviving minions' tiers
 - **Combat damage is temporary**: surviving minions restore to pre-combat stats (health resets)
 - After combat players goes to Recruit phase and their board is restored
+- Attacker choosed randomly
+- Save combat log to show players hp and winner damage
 
 ## Styleguide
 See `./STYLE.md`

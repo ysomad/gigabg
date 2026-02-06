@@ -9,11 +9,6 @@ import (
 )
 
 const (
-	RecruitDuration = 10 * time.Second
-	CombatDuration  = time.Second
-)
-
-const (
 	ErrGameStarted      errorsx.Error = "game already started"
 	ErrGameNotStarted   errorsx.Error = "game not started"
 	ErrLobbyFull        errorsx.Error = "lobby is full"
@@ -41,6 +36,14 @@ func (s State) String() string {
 	}
 }
 
+const maxCombatLogs = 3
+
+type combatPairing struct {
+	opponentID    string
+	playerBoard   game.Board // cloned with combat IDs
+	opponentBoard game.Board // cloned with combat IDs
+}
+
 type Lobby struct {
 	state             State
 	players           []*game.Player
@@ -48,7 +51,10 @@ type Lobby struct {
 	pool              *game.CardPool
 	turn              int
 	phase             game.Phase
-	phaseEndTimestamp int64 // unix seconds
+	phaseEndTimestamp int64                          // unix seconds
+	combatLogs        map[string][]game.CombatResult // playerID -> last N results
+	combatAnimations  []game.CombatAnimation         // ephemeral, cleared after send
+	combatPairings    map[string]combatPairing       // playerID -> pairing, combat phase only
 }
 
 func New(cards game.CardStore) *Lobby {
@@ -85,7 +91,7 @@ func (l *Lobby) start() {
 
 func (l *Lobby) startRecruit() {
 	l.phase = game.PhaseRecruit
-	l.phaseEndTimestamp = time.Now().Add(RecruitDuration).Unix()
+	l.phaseEndTimestamp = time.Now().Add(game.RecruitDuration).Unix()
 
 	for _, p := range l.players {
 		p.StartTurn(l.pool, l.turn)
@@ -94,9 +100,82 @@ func (l *Lobby) startRecruit() {
 
 func (l *Lobby) startCombat() {
 	l.phase = game.PhaseCombat
-	l.phaseEndTimestamp = time.Now().Add(CombatDuration).Unix()
+	l.phaseEndTimestamp = time.Now().Add(game.CombatDuration).Unix()
 	l.resolveDiscovers()
-	// TODO: run combat logic
+	l.runCombat()
+}
+
+func (l *Lobby) runCombat() {
+	if len(l.players) < 2 {
+		return
+	}
+
+	if l.combatLogs == nil {
+		l.combatLogs = make(map[string][]game.CombatResult, len(l.players))
+	}
+
+	// Shuffle for random pairing.
+	order := make([]*game.Player, len(l.players))
+	copy(order, l.players)
+	rand.Shuffle(len(order), func(i, j int) {
+		order[i], order[j] = order[j], order[i]
+	})
+
+	l.combatAnimations = l.combatAnimations[:0]
+	l.combatPairings = make(map[string]combatPairing, len(l.players))
+
+	// Pair consecutive players; odd player out gets a bye.
+	for i := 0; i+1 < len(order); i += 2 {
+		p1, p2 := order[i], order[i+1]
+		combat := game.NewCombat(p1, p2)
+
+		p1Board, p2Board := combat.Boards()
+		l.combatPairings[p1.ID()] = combatPairing{
+			opponentID:    p2.ID(),
+			playerBoard:   p1Board,
+			opponentBoard: p2Board,
+		}
+		l.combatPairings[p2.ID()] = combatPairing{
+			opponentID:    p1.ID(),
+			playerBoard:   p2Board,
+			opponentBoard: p1Board,
+		}
+
+		r1, r2 := combat.Run()
+
+		if r1.WinnerID != "" && r1.Damage > 0 {
+			loser := p2
+			if r1.WinnerID == p2.ID() {
+				loser = p1
+			}
+			if loser.Alive() {
+				loser.TakeDamage(r1.Damage)
+			}
+		}
+
+		l.appendCombatResult(p1.ID(), r1)
+		l.appendCombatResult(p2.ID(), r2)
+		l.combatAnimations = append(l.combatAnimations, combat.Animation())
+	}
+
+	// Last player standing wins.
+	alive := 0
+	for _, p := range l.players {
+		if p.Alive() {
+			alive++
+		}
+	}
+	if alive <= 1 {
+		l.state = StateFinished
+	}
+}
+
+func (l *Lobby) appendCombatResult(playerID string, result game.CombatResult) {
+	logs := append(l.combatLogs[playerID], result)
+	if len(logs) > maxCombatLogs {
+		logs = logs[len(logs)-maxCombatLogs:]
+	}
+	l.combatLogs[playerID] = logs
 }
 
 // resolveDiscovers auto-picks a random discover option for players who
@@ -109,25 +188,7 @@ func (l *Lobby) resolveDiscovers() {
 }
 
 func (l *Lobby) resolvePlayerDiscover(p *game.Player) {
-	defer func() { p.DiscoverOptions = nil }()
-
-	if len(p.DiscoverOptions) == 0 {
-		return
-	}
-
-	if len(p.Hand) >= game.MaxHandSize {
-		l.pool.ReturnCards(p.DiscoverOptions)
-		return
-	}
-
-	idx := rand.IntN(len(p.DiscoverOptions))
-	p.Hand = append(p.Hand, p.DiscoverOptions[idx])
-
-	for i, c := range p.DiscoverOptions {
-		if i != idx {
-			l.pool.ReturnCard(c)
-		}
-	}
+	p.ResolveDiscover(l.pool)
 }
 
 // AdvancePhase checks if phase should advance and does so.
@@ -171,7 +232,7 @@ func (l *Lobby) Players() []*game.Player {
 // Player returns the player with the given ID.
 func (l *Lobby) Player(id string) *game.Player {
 	for _, p := range l.players {
-		if p.ID == id {
+		if p.ID() == id {
 			return p
 		}
 	}
@@ -196,6 +257,27 @@ func (l *Lobby) PhaseEndTimestamp() int64 {
 // Cards returns the card store.
 func (l *Lobby) Cards() game.CardStore {
 	return l.cards
+}
+
+// CombatResults returns combat results for the given player (last 3).
+func (l *Lobby) CombatResults(playerID string) []game.CombatResult {
+	return l.combatLogs[playerID]
+}
+
+// CombatAnimations returns pending combat animations and clears them.
+func (l *Lobby) CombatAnimations() []game.CombatAnimation {
+	anims := l.combatAnimations
+	l.combatAnimations = nil
+	return anims
+}
+
+// CombatPairing returns the combat pairing for the given player (combat phase only).
+func (l *Lobby) CombatPairing(playerID string) (opponentID string, playerBoard, opponentBoard game.Board, ok bool) {
+	p, ok := l.combatPairings[playerID]
+	if !ok {
+		return "", game.Board{}, game.Board{}, false
+	}
+	return p.opponentID, p.playerBoard, p.opponentBoard, true
 }
 
 // Pool returns the card pool.
