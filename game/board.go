@@ -81,7 +81,13 @@ func (b Board) PickDefender() *Minion {
 }
 
 // Clone returns a deep copy of the board (each minion is cloned).
-func (b Board) Clone() Board { return Board{minions: slices.Clone(b.minions)} }
+func (b Board) Clone() Board {
+	cloned := make([]*Minion, len(b.minions))
+	for i, m := range b.minions {
+		cloned[i] = m.Clone()
+	}
+	return Board{minions: cloned}
+}
 
 // Place inserts a minion at the given position, clamped to valid range.
 func (b *Board) Place(m *Minion, pos int) {
