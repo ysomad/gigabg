@@ -68,18 +68,56 @@ func (m *Minion) Name() string            { return m.template.Name }
 func (m *Minion) Description() string     { return m.template.Description }
 func (m *Minion) Tribe() Tribe            { return m.template.Tribe }
 func (m *Minion) Tier() Tier              { return m.template.Tier }
-func (m *Minion) Battlecry() *Effect        { return m.template.Battlecry }
-func (m *Minion) Deathrattle() *Effect      { return m.template.Deathrattle }
-func (m *Minion) Avenge() *AvengeEffect     { return m.template.Avenge }
-func (m *Minion) StartOfCombat() *Effect    { return m.template.StartOfCombat }
-func (m *Minion) StartOfTurn() *Effect      { return m.template.StartOfTurn }
-func (m *Minion) EndOfTurn() *Effect        { return m.template.EndOfTurn }
+func (m *Minion) Battlecry() *Effect {
+	if m.golden && m.template.Golden != nil {
+		return m.template.Golden.Battlecry
+	}
+	return m.template.Battlecry
+}
+
+func (m *Minion) Deathrattle() *Effect {
+	if m.golden && m.template.Golden != nil {
+		return m.template.Golden.Deathrattle
+	}
+	return m.template.Deathrattle
+}
+
+func (m *Minion) Avenge() *AvengeEffect {
+	if m.golden && m.template.Golden != nil {
+		return m.template.Golden.Avenge
+	}
+	return m.template.Avenge
+}
+
+func (m *Minion) StartOfCombat() *Effect {
+	if m.golden && m.template.Golden != nil {
+		return m.template.Golden.StartOfCombat
+	}
+	return m.template.StartOfCombat
+}
+
+func (m *Minion) StartOfTurn() *Effect {
+	if m.golden && m.template.Golden != nil {
+		return m.template.Golden.StartOfTurn
+	}
+	return m.template.StartOfTurn
+}
+
+func (m *Minion) EndOfTurn() *Effect {
+	if m.golden && m.template.Golden != nil {
+		return m.template.Golden.EndOfTurn
+	}
+	return m.template.EndOfTurn
+}
 
 func (m *Minion) Attack() int        { return m.attack }
 func (m *Minion) Health() int        { return m.health }
 func (m *Minion) Golden() bool       { return m.golden }
 func (m *Minion) Keywords() Keywords { return m.keywords }
 
+func (m *Minion) IsSpell() bool  { return false }
+func (m *Minion) IsMinion() bool { return true }
+func (m *Minion) IsGolden() bool { return m.golden }
 func (m *Minion) HasKeyword(k Keyword) bool { return m.keywords.Has(k) }
 
 func (m *Minion) SetAttack(v int)  { m.attack = v }

@@ -2,16 +2,19 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
-	"log"
+	"io"
+	"log/slog"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/coder/websocket"
-	"google.golang.org/protobuf/proto"
 
+	"github.com/ysomad/gigabg/game"
 	"github.com/ysomad/gigabg/lobby"
-	pb "github.com/ysomad/gigabg/proto"
+	"github.com/ysomad/gigabg/message"
 )
 
 type Server struct {
@@ -28,9 +31,42 @@ type ClientConn struct {
 }
 
 func New(store LobbyStore) *Server {
-	return &Server{
+	s := &Server{
 		store:   store,
 		clients: make(map[string][]*ClientConn),
+	}
+	go s.gameLoop()
+	return s
+}
+
+// gameLoop runs periodically to advance phases in all lobbies.
+func (s *Server) gameLoop() {
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		s.mu.RLock()
+		lobbyIDs := make([]string, 0, len(s.clients))
+		for id := range s.clients {
+			lobbyIDs = append(lobbyIDs, id)
+		}
+		s.mu.RUnlock()
+
+		for _, lobbyID := range lobbyIDs {
+			l, err := s.store.Get(lobbyID)
+			if err != nil {
+				continue
+			}
+
+			if l.AdvancePhase() {
+				slog.Info("phase changed",
+					"lobby", lobbyID,
+					"turn", l.Turn(),
+					"phase", l.Phase().String(),
+				)
+				s.broadcastState(lobbyID, l)
+			}
+		}
 	}
 }
 
@@ -39,7 +75,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		OriginPatterns: []string{"*"},
 	})
 	if err != nil {
-		log.Printf("websocket accept error: %v", err)
+		slog.Error("websocket accept failed", "error", err)
 		return
 	}
 
@@ -64,7 +100,7 @@ func (s *Server) writePump(ctx context.Context, client *ClientConn) {
 				return
 			}
 			if err := client.conn.Write(ctx, websocket.MessageBinary, data); err != nil {
-				log.Printf("write error: %v", err)
+				slog.Error("write failed", "error", err)
 				return
 			}
 		}
@@ -80,15 +116,16 @@ func (s *Server) readPump(ctx context.Context, client *ClientConn) {
 	for {
 		_, data, err := client.conn.Read(ctx)
 		if err != nil {
-			if websocket.CloseStatus(err) != websocket.StatusNormalClosure {
-				log.Printf("read error: %v", err)
+			if websocket.CloseStatus(err) == websocket.StatusNormalClosure || errors.Is(err, io.EOF) {
+				return
 			}
+			slog.Error("read failed", "error", err)
 			return
 		}
 
-		var msg pb.ClientMessage
-		if err := proto.Unmarshal(data, &msg); err != nil {
-			log.Printf("unmarshal error: %v", err)
+		var msg message.ClientMessage
+		if err := json.Unmarshal(data, &msg); err != nil {
+			slog.Error("decode failed", "error", err)
 			continue
 		}
 
@@ -96,15 +133,121 @@ func (s *Server) readPump(ctx context.Context, client *ClientConn) {
 	}
 }
 
-func (s *Server) handleMessage(client *ClientConn, msg *pb.ClientMessage) {
-	switch m := msg.Msg.(type) {
-	case *pb.ClientMessage_Join:
-		s.handleJoin(client, m.Join)
+func (s *Server) handleMessage(client *ClientConn, msg *message.ClientMessage) {
+	switch {
+	case msg.Join != nil:
+		s.handleJoin(client, msg.Join)
+	case msg.Buy != nil:
+		s.handleAction(client, msg, func(l *lobby.Lobby, p *game.Player) error {
+			if err := p.BuyCard(msg.Buy.ShopIndex); err != nil {
+				return err
+			}
+			p.CheckTriples()
+			return nil
+		})
+	case msg.SellCard != nil:
+		s.handleAction(client, msg, func(l *lobby.Lobby, p *game.Player) error {
+			return p.SellCard(msg.SellCard.HandIndex, l.Pool())
+		})
+	case msg.PlaceMinion != nil:
+		s.handleAction(client, msg, func(l *lobby.Lobby, p *game.Player) error {
+			return p.PlaceMinion(msg.PlaceMinion.HandIndex, msg.PlaceMinion.BoardPosition, l.Cards())
+		})
+	case msg.RemoveMinion != nil:
+		s.handleAction(client, msg, func(l *lobby.Lobby, p *game.Player) error {
+			return p.RemoveMinion(msg.RemoveMinion.BoardIndex)
+		})
+	case msg.UpgradeShop != nil:
+		s.handleAction(client, msg, func(l *lobby.Lobby, p *game.Player) error {
+			return p.UpgradeShop()
+		})
+	case msg.RefreshShop != nil:
+		s.handleAction(client, msg, func(l *lobby.Lobby, p *game.Player) error {
+			return p.RefreshShop(l.Pool())
+		})
+	case msg.PlaySpell != nil:
+		s.handleAction(client, msg, func(l *lobby.Lobby, p *game.Player) error {
+			return p.PlaySpell(msg.PlaySpell.HandIndex, l.Pool())
+		})
+	case msg.DiscoverPick != nil:
+		s.handleAction(client, msg, func(l *lobby.Lobby, p *game.Player) error {
+			return p.DiscoverPick(msg.DiscoverPick.Index, l.Pool())
+		})
+	case msg.SyncBoard != nil:
+		s.handleAction(client, msg, func(l *lobby.Lobby, p *game.Player) error {
+			return p.ReorderBoard(msg.SyncBoard.Order)
+		})
 	}
 }
 
-func (s *Server) handleJoin(client *ClientConn, join *pb.JoinLobby) {
-	lobbyID := join.LobbyId
+func (s *Server) handleAction(
+	client *ClientConn,
+	msg *message.ClientMessage,
+	action func(l *lobby.Lobby, p *game.Player) error,
+) {
+	if client.lobbyID == "" {
+		s.sendError(client, "not in lobby")
+		return
+	}
+
+	l, err := s.store.Get(client.lobbyID)
+	if err != nil {
+		s.sendError(client, err.Error())
+		return
+	}
+
+	if l.State() != lobby.StatePlaying || l.Phase() != game.PhaseRecruit {
+		s.sendError(client, "not in recruit phase")
+		return
+	}
+
+	p := l.Player(client.playerID)
+	if p == nil {
+		s.sendError(client, "player not found")
+		return
+	}
+
+	beforeGold := p.Gold
+	beforeHP := p.HP
+	beforeShopTier := p.ShopTier
+	beforeBoard := len(p.Board)
+	beforeHand := len(p.Hand)
+	beforeShop := len(p.Shop)
+
+	if err := action(l, p); err != nil {
+		s.sendError(client, err.Error())
+		return
+	}
+
+	attrs := []slog.Attr{
+		slog.String("player", client.playerID),
+		slog.String("lobby", client.lobbyID),
+	}
+	if d := p.Gold - beforeGold; d != 0 {
+		attrs = append(attrs, slog.Int("gold", d))
+	}
+	if d := p.HP - beforeHP; d != 0 {
+		attrs = append(attrs, slog.Int("hp", d))
+	}
+	if d := int(p.ShopTier) - int(beforeShopTier); d != 0 {
+		attrs = append(attrs, slog.Int("shop_tier", d))
+	}
+	if d := len(p.Board) - beforeBoard; d != 0 {
+		attrs = append(attrs, slog.Int("board", d))
+	}
+	if d := len(p.Hand) - beforeHand; d != 0 {
+		attrs = append(attrs, slog.Int("hand", d))
+	}
+	if d := len(p.Shop) - beforeShop; d != 0 {
+		attrs = append(attrs, slog.Int("shop", d))
+	}
+	slog.LogAttrs(context.Background(), slog.LevelInfo, msg.Action(), attrs...)
+
+	s.sendPlayerState(client, l, p)
+}
+
+func (s *Server) handleJoin(client *ClientConn, join *message.JoinLobby) {
+	lobbyID := join.LobbyID
 	if lobbyID == "" {
 		s.sendError(client, "lobby_id required")
 		return
@@ -116,6 +259,8 @@ func (s *Server) handleJoin(client *ClientConn, join *pb.JoinLobby) {
 			s.sendError(client, err.Error())
 			return
 		}
+
+		slog.Info("lobby created", "lobby", lobbyID)
 	}
 
 	l, err := s.store.Get(lobbyID)
@@ -140,7 +285,21 @@ func (s *Server) handleJoin(client *ClientConn, join *pb.JoinLobby) {
 	s.clients[lobbyID] = append(clients, client)
 	s.mu.Unlock()
 
-	log.Printf("player %s joined lobby %s (%d/%d)", playerID, lobbyID, l.PlayerCount(), lobby.MaxPlayers)
+	slog.Info("player joined",
+		"player", playerID,
+		"lobby", lobbyID,
+		"lobby_players", l.PlayerCount(),
+		"lobby_max_players", game.MaxPlayers,
+	)
+
+	// Check if game started (all players joined)
+	if l.State() == lobby.StatePlaying {
+		slog.Info("game started",
+			"lobby", lobbyID,
+			"turn", l.Turn(),
+			"phase", l.Phase().String(),
+		)
+	}
 
 	// Broadcast state to all clients in lobby
 	s.broadcastState(lobbyID, l)
@@ -150,52 +309,64 @@ func (s *Server) broadcastState(lobbyID string, l *lobby.Lobby) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	// Build players list
-	players := make([]*pb.Player, 0, l.PlayerCount())
-	for _, p := range l.Players() {
-		players = append(players, &pb.Player{
-			Id: p.ID,
-			Hp: int32(p.HP),
-		})
-	}
-
-	// Send to each client with their player_id
 	for _, c := range s.clients[lobbyID] {
-		resp := &pb.ServerMessage{
-			Msg: &pb.ServerMessage_State{
-				State: &pb.GameState{
-					PlayerId:    c.playerID,
-					PlayerCount: int32(l.PlayerCount()),
-					Players:     players,
-				},
-			},
+		p := l.Player(c.playerID)
+		if p == nil {
+			continue
 		}
-		s.sendMessage(c, resp)
+		s.sendPlayerState(c, l, p)
 	}
 }
 
-func (s *Server) sendError(client *ClientConn, message string) {
-	resp := &pb.ServerMessage{
-		Msg: &pb.ServerMessage_Error{
-			Error: &pb.Error{
-				Message: message,
-			},
-		},
+func (s *Server) sendPlayerState(client *ClientConn, l *lobby.Lobby, p *game.Player) {
+	phase := message.PhaseWaiting
+	if l.State() == lobby.StatePlaying {
+		switch l.Phase() {
+		case game.PhaseRecruit:
+			phase = message.PhaseRecruit
+		case game.PhaseCombat:
+			phase = message.PhaseCombat
+		}
+	}
+
+	state := &message.GameState{
+		PlayerID:          client.playerID,
+		Turn:              l.Turn(),
+		Phase:             phase,
+		PhaseEndTimestamp: l.PhaseEndTimestamp(),
+		Players:           message.NewPlayers(l.Players()),
+		Shop:              message.NewCards(p.Shop),
+		Hand:              message.NewCards(p.Hand),
+		Board:             message.NewCardsFromMinions(p.Board),
+	}
+
+	if len(p.DiscoverOptions) > 0 {
+		state.Discover = &message.DiscoverOffer{
+			Cards: message.NewCards(p.DiscoverOptions),
+		}
+	}
+
+	s.sendMessage(client, &message.ServerMessage{State: state})
+}
+
+func (s *Server) sendError(client *ClientConn, msg string) {
+	resp := &message.ServerMessage{
+		Error: &message.Error{Message: msg},
 	}
 	s.sendMessage(client, resp)
 }
 
-func (s *Server) sendMessage(client *ClientConn, msg *pb.ServerMessage) {
-	data, err := proto.Marshal(msg)
+func (s *Server) sendMessage(client *ClientConn, msg *message.ServerMessage) {
+	data, err := json.Marshal(msg)
 	if err != nil {
-		log.Printf("marshal error: %v", err)
+		slog.Error("encode failed", "error", err)
 		return
 	}
 
 	select {
 	case client.send <- data:
 	default:
-		log.Printf("client %s send buffer full", client.playerID)
+		slog.Warn("send buffer full", "player", client.playerID)
 	}
 }
 
@@ -207,7 +378,10 @@ func (s *Server) removeClient(client *ClientConn) {
 		return
 	}
 
-	log.Printf("player %s disconnected from lobby %s", client.playerID, client.lobbyID)
+	slog.Info("player disconnected",
+		"player", client.playerID,
+		"lobby", client.lobbyID,
+	)
 
 	clients := s.clients[client.lobbyID]
 	for i, c := range clients {

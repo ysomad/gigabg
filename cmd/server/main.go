@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -25,7 +26,7 @@ func main() {
 	if err := memstore.Create("1", nil); err != nil {
 		log.Fatal(err)
 	}
-	log.Println("created lobby '1'")
+	slog.Info("created lobby '1'")
 
 	srv := &http.Server{
 		Addr:         *addr,
@@ -35,7 +36,7 @@ func main() {
 		IdleTimeout:  120 * time.Second,
 	}
 
-	log.Printf("starting server on %s", *addr)
+	slog.Info("starting server", "addr", *addr)
 
 	if err := srv.ListenAndServe(); err != nil {
 		log.Fatal(err)

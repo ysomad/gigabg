@@ -27,7 +27,7 @@ Heartstone Battlegrounds like game written in Go using Ebiten engine.
 - May have one or multiple Keywords)
 - Belongs to a Tribe (or no tribe)
 - Can be Tier 1-6
-- Golden: combine 3 copies for 2x stats + bonus effect
+- Golden: combine 3 copies (does not matter they're on board or hand of player) for 2x base stats, 2x effect, spell to discover a card from upper shop tier
 
 ### Tribes
 Beast, Demon, Dragon, Elemental, Mech, Murloc, Naga, Pirate, Quilboar, Undead (+ Neutral)

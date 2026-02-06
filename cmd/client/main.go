@@ -11,6 +11,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
 
 	"github.com/ysomad/gigabg/client"
+	"github.com/ysomad/gigabg/game/cards"
 	"github.com/ysomad/gigabg/ui"
 )
 
@@ -27,6 +28,7 @@ type ClientApp struct {
 	serverAddr string
 
 	font   *text.GoTextFace
+	cards  *cards.Cards
 	menu   *ui.Menu
 	game   *ui.GameScene
 	client *client.RemoteClient
@@ -34,9 +36,15 @@ type ClientApp struct {
 }
 
 func main() {
+	cardStore, err := cards.New()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	app := &ClientApp{
 		state:      stateMenu,
 		serverAddr: "ws://localhost:8080",
+		cards:      cardStore,
 	}
 	app.loadFont()
 	app.menu = ui.NewMenu(app.font, app.onJoin)
@@ -85,7 +93,7 @@ func (a *ClientApp) connect(lobbyID string) {
 	}
 
 	a.client = c
-	a.game = ui.NewGameScene(c, a.font)
+	a.game = ui.NewGameScene(c, a.cards, a.font)
 	a.state = stateGame
 }
 

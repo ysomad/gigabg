@@ -1,11 +1,17 @@
 package lobby
 
 import (
+	"math/rand/v2"
+	"time"
+
 	"github.com/ysomad/gigabg/errorsx"
 	"github.com/ysomad/gigabg/game"
 )
 
-const MaxPlayers = 8
+const (
+	RecruitDuration = 10 * time.Second
+	CombatDuration  = time.Second
+)
 
 const (
 	ErrGameStarted      errorsx.Error = "game already started"
@@ -22,18 +28,34 @@ const (
 	StateFinished
 )
 
+func (s State) String() string {
+	switch s {
+	case StateWaiting:
+		return "Waiting"
+	case StatePlaying:
+		return "Playing"
+	case StateFinished:
+		return "Finished"
+	default:
+		return "Unknown"
+	}
+}
+
 type Lobby struct {
-	state   State
-	players []*game.Player
-	pool    *game.CardPool
-	turn    uint32
-	phase   game.Phase
+	state             State
+	players           []*game.Player
+	cards             game.CardStore
+	pool              *game.CardPool
+	turn              int
+	phase             game.Phase
+	phaseEndTimestamp int64 // unix seconds
 }
 
 func New(cards game.CardStore) *Lobby {
 	return &Lobby{
 		state:   StateWaiting,
-		players: make([]*game.Player, 0, MaxPlayers),
+		players: make([]*game.Player, 0, game.MaxPlayers),
+		cards:   cards,
 		pool:    game.NewCardPool(cards),
 	}
 }
@@ -43,13 +65,13 @@ func (l *Lobby) AddPlayer(id string) error {
 	if l.state != StateWaiting {
 		return ErrGameStarted
 	}
-	if len(l.players) >= MaxPlayers {
+	if len(l.players) >= game.MaxPlayers {
 		return ErrLobbyFull
 	}
 
 	l.players = append(l.players, game.NewPlayer(id))
 
-	if len(l.players) == MaxPlayers {
+	if len(l.players) == game.MaxPlayers {
 		l.start()
 	}
 	return nil
@@ -58,11 +80,77 @@ func (l *Lobby) AddPlayer(id string) error {
 func (l *Lobby) start() {
 	l.state = StatePlaying
 	l.turn = 1
+	l.startRecruit()
+}
+
+func (l *Lobby) startRecruit() {
 	l.phase = game.PhaseRecruit
+	l.phaseEndTimestamp = time.Now().Add(RecruitDuration).Unix()
 
 	for _, p := range l.players {
-		p.StartTurn(l.pool)
+		p.StartTurn(l.pool, l.turn)
 	}
+}
+
+func (l *Lobby) startCombat() {
+	l.phase = game.PhaseCombat
+	l.phaseEndTimestamp = time.Now().Add(CombatDuration).Unix()
+	l.resolveDiscovers()
+	// TODO: run combat logic
+}
+
+// resolveDiscovers auto-picks a random discover option for players who
+// didn't pick before combat started, so the spell isn't wasted.
+// Unpicked options are returned to the pool.
+func (l *Lobby) resolveDiscovers() {
+	for _, p := range l.players {
+		l.resolvePlayerDiscover(p)
+	}
+}
+
+func (l *Lobby) resolvePlayerDiscover(p *game.Player) {
+	defer func() { p.DiscoverOptions = nil }()
+
+	if len(p.DiscoverOptions) == 0 {
+		return
+	}
+
+	if len(p.Hand) >= game.MaxHandSize {
+		l.pool.ReturnCards(p.DiscoverOptions)
+		return
+	}
+
+	idx := rand.IntN(len(p.DiscoverOptions))
+	p.Hand = append(p.Hand, p.DiscoverOptions[idx])
+
+	for i, c := range p.DiscoverOptions {
+		if i != idx {
+			l.pool.ReturnCard(c)
+		}
+	}
+}
+
+// AdvancePhase checks if phase should advance and does so.
+// Returns true if phase changed.
+func (l *Lobby) AdvancePhase() bool {
+	if l.state != StatePlaying {
+		return false
+	}
+
+	now := time.Now().Unix()
+	if now < l.phaseEndTimestamp {
+		return false
+	}
+
+	switch l.phase {
+	case game.PhaseRecruit:
+		l.startCombat()
+	case game.PhaseCombat:
+		l.turn++
+		l.startRecruit()
+	}
+
+	return true
 }
 
 // State returns the current lobby state.
@@ -91,7 +179,7 @@ func (l *Lobby) Player(id string) *game.Player {
 }
 
 // Turn returns the current turn number.
-func (l *Lobby) Turn() uint32 {
+func (l *Lobby) Turn() int {
 	return l.turn
 }
 
@@ -100,29 +188,17 @@ func (l *Lobby) Phase() game.Phase {
 	return l.phase
 }
 
+// PhaseEndTimestamp returns when the current phase ends (unix seconds).
+func (l *Lobby) PhaseEndTimestamp() int64 {
+	return l.phaseEndTimestamp
+}
+
+// Cards returns the card store.
+func (l *Lobby) Cards() game.CardStore {
+	return l.cards
+}
+
 // Pool returns the card pool.
 func (l *Lobby) Pool() *game.CardPool {
 	return l.pool
-}
-
-// nextTurn advances to the next turn.
-func (l *Lobby) nextTurn() {
-	l.turn++
-
-	for _, p := range l.players {
-		p.StartTurn(l.pool)
-	}
-
-	l.phase = game.PhaseRecruit
-}
-
-// StartCombat transitions from recruit phase to combat phase.
-func (l *Lobby) StartCombat() {
-	l.phase = game.PhaseCombat
-	// TODO: Pair players and run combat
-}
-
-// EndCombat transitions back to recruit phase.
-func (l *Lobby) EndCombat() {
-	l.nextTurn()
 }
