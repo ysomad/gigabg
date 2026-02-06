@@ -22,7 +22,7 @@ func (s *combatSide) nextLivingAttacker() *Minion {
 	for range n {
 		idx := s.nextAttacker % n
 		s.nextAttacker = (s.nextAttacker + 1) % n
-		if m := s.board.Get(idx); m != nil && m.CanAttack() {
+		if m := s.board.GetMinion(idx); m != nil && m.CanAttack() {
 			return m
 		}
 	}
@@ -71,7 +71,7 @@ func NewCombat(p1, p2 *Player) *Combat {
 
 func (c *Combat) assignCombatIDs(b *Board) {
 	for i := range b.Len() {
-		b.Get(i).combatID = c.nextCombatID
+		b.GetMinion(i).combatID = c.nextCombatID
 		c.nextCombatID++
 	}
 }
@@ -153,7 +153,7 @@ func (c *Combat) attack(src, dst *Minion) {
 // removeDeadWithEvents removes dead minions and emits death events.
 func (c *Combat) removeDeadWithEvents(side *combatSide) {
 	for i := 0; i < side.board.Len(); i++ {
-		m := side.board.Get(i)
+		m := side.board.GetMinion(i)
 		if m.Alive() {
 			continue
 		}
@@ -162,7 +162,7 @@ func (c *Combat) removeDeadWithEvents(side *combatSide) {
 			TargetID: m.combatID,
 			OwnerID:  side.player.ID(),
 		})
-		side.board.Remove(i)
+		side.board.RemoveMinion(i)
 		if side.nextAttacker > i {
 			side.nextAttacker--
 		}

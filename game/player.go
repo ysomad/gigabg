@@ -111,7 +111,7 @@ func (p *Player) SellMinion(boardIndex int, pool *CardPool) error {
 		return ErrInvalidIndex
 	}
 
-	minion := p.board.Remove(boardIndex)
+	minion := p.board.RemoveMinion(boardIndex)
 	pool.ReturnCard(minion)
 
 	p.gold += SellValue
@@ -138,7 +138,7 @@ func (p *Player) PlaceMinion(handIndex, boardPosition int, cards CardStore) erro
 	}
 
 	p.hand = append(p.hand[:handIndex], p.hand[handIndex+1:]...)
-	p.board.Place(minion, boardPosition)
+	p.board.PlaceMinion(minion, boardPosition)
 
 	// Golden minion placement grants Triple Reward spell
 	if minion.IsGolden() {
@@ -159,7 +159,7 @@ func (p *Player) RemoveMinion(boardIndex int) error {
 		return ErrHandFull
 	}
 
-	minion := p.board.Remove(boardIndex)
+	minion := p.board.RemoveMinion(boardIndex)
 	p.hand = append(p.hand, minion)
 	return nil
 }
@@ -247,7 +247,7 @@ func (p *Player) CheckTriples() bool {
 		slices.Reverse(handIdxs)
 
 		for _, idx := range boardIdxs {
-			p.board.Remove(idx)
+			p.board.RemoveMinion(idx)
 		}
 		for _, idx := range handIdxs {
 			p.hand = slices.Delete(p.hand, idx, idx+1)

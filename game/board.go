@@ -21,8 +21,8 @@ func (b Board) Len() int { return len(b.minions) }
 // IsFull returns true if the board has reached MaxBoardSize.
 func (b Board) IsFull() bool { return len(b.minions) >= MaxBoardSize }
 
-// Get returns the minion at the given index, or nil if out of range.
-func (b Board) Get(i int) *Minion {
+// GetMinion returns the minion at the given index, or nil if out of range.
+func (b Board) GetMinion(i int) *Minion {
 	if i < 0 || i >= len(b.minions) {
 		return nil
 	}
@@ -89,8 +89,8 @@ func (b Board) Clone() Board {
 	return Board{minions: cloned}
 }
 
-// Place inserts a minion at the given position, clamped to valid range.
-func (b *Board) Place(m *Minion, pos int) {
+// PlaceMinion inserts a minion at the given position, clamped to valid range.
+func (b *Board) PlaceMinion(m *Minion, pos int) {
 	if pos < 0 {
 		pos = 0
 	}
@@ -100,9 +100,9 @@ func (b *Board) Place(m *Minion, pos int) {
 	b.minions = append(b.minions[:pos], append([]*Minion{m}, b.minions[pos:]...)...)
 }
 
-// Remove removes and returns the minion at the given index.
+// RemoveMinion removes and returns the minion at the given index.
 // Returns nil if index is out of range.
-func (b *Board) Remove(i int) *Minion {
+func (b *Board) RemoveMinion(i int) *Minion {
 	if i < 0 || i >= len(b.minions) {
 		return nil
 	}

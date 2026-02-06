@@ -54,16 +54,16 @@ type floatingText struct {
 }
 
 type attackAnimation struct {
-	srcIdx   int
+	srcIdx      int
 	srcIsPlayer bool
-	dstIdx   int
+	dstIdx      int
 	dstIsPlayer bool
-	startX   float64
-	startY   float64
-	targetX  float64
-	targetY  float64
-	progress float64
-	phase    animPhase
+	startX      float64
+	startY      float64
+	targetX     float64
+	targetY     float64
+	progress    float64
+	phase       animPhase
 }
 
 // CombatAnimator replays combat events as animations.
@@ -336,7 +336,7 @@ func (ca *CombatAnimator) boardFor(isPlayer bool) []animMinion {
 
 func (ca *CombatAnimator) minionPos(idx int, isPlayer bool) (float64, float64) {
 	board := ca.boardFor(isPlayer)
-	totalW := float64(len(board)) * sc(baseCardWidth+baseCardGap) - sc(baseCardGap)
+	totalW := float64(len(board))*sc(baseCardWidth+baseCardGap) - sc(baseCardGap)
 	startX := (float64(ActiveRes.Width) - totalW) / 2
 	x := startX + float64(idx)*sc(baseCardWidth+baseCardGap)
 
@@ -358,7 +358,16 @@ func (ca *CombatAnimator) Draw(screen *ebiten.Image) {
 	// Header.
 	header := fmt.Sprintf("Turn %d | COMBAT", ca.turn)
 	drawText(screen, ca.font, header, sc(50), sc(50), color.RGBA{255, 100, 100, 255})
-	vector.StrokeLine(screen, float32(sc(40)), float32(sc(80)), float32(w-sc(40)), float32(sc(80)), 1, color.RGBA{60, 60, 80, 255}, false)
+	vector.StrokeLine(
+		screen,
+		float32(sc(40)),
+		float32(sc(80)),
+		float32(w-sc(40)),
+		float32(sc(80)),
+		1,
+		color.RGBA{60, 60, 80, 255},
+		false,
+	)
 
 	// Labels.
 	drawText(screen, ca.font, "OPPONENT", sc(50), sc(baseOpponentBoardY)-scf(30), color.RGBA{255, 120, 120, 255})

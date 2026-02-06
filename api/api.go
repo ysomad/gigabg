@@ -202,7 +202,7 @@ func NewCombatCard(m *game.Minion) Card {
 func CombatCards(b game.Board) []Card {
 	cards := make([]Card, b.Len())
 	for i := range b.Len() {
-		cards[i] = NewCombatCard(b.Get(i))
+		cards[i] = NewCombatCard(b.GetMinion(i))
 	}
 	return cards
 }

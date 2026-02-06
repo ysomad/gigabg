@@ -4,8 +4,6 @@ import "fmt"
 
 type Card interface {
 	TemplateID() string
-	Name() string
-	Tier() Tier
 	IsSpell() bool
 	IsMinion() bool
 	IsGolden() bool
@@ -68,7 +66,7 @@ type AvengeEffect struct {
 	Threshold int // number of friendly deaths to trigger
 }
 
-func (t *CardTemplate) IsSpell() bool              { return t.Kind == CardKindSpell }
+func (t *CardTemplate) IsSpell() bool             { return t.Kind == CardKindSpell }
 func (t *CardTemplate) HasKeyword(k Keyword) bool { return t.Keywords.Has(k) }
 
 func (t *CardTemplate) Validate() error {
