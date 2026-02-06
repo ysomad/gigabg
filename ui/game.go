@@ -38,7 +38,7 @@ type GameScene struct {
 
 	// Local board order (indices into server board)
 	boardOrder []int
-	lastPhase  message.Phase
+	lastPhase  game.Phase
 }
 
 func NewGameScene(c *client.RemoteClient, cards *cards.Cards, font *text.GoTextFace) *GameScene {
@@ -72,7 +72,7 @@ func (g *GameScene) Update() error {
 	phase := g.client.Phase()
 
 	// Sync board order when transitioning from recruit to combat
-	if g.lastPhase == message.PhaseRecruit && phase == message.PhaseCombat {
+	if g.lastPhase == game.PhaseRecruit && phase == game.PhaseCombat {
 		if len(g.boardOrder) > 0 {
 			g.client.SyncBoard(g.boardOrder)
 		}
@@ -88,7 +88,7 @@ func (g *GameScene) Update() error {
 		}
 	}
 
-	if phase != message.PhaseRecruit {
+	if phase != game.PhaseRecruit {
 		return nil
 	}
 
@@ -231,11 +231,11 @@ func (g *GameScene) Draw(screen *ebiten.Image) {
 	phase := g.client.Phase()
 
 	switch phase {
-	case message.PhaseWaiting:
+	case game.PhaseWaiting:
 		g.drawWaiting(screen, playerCount)
-	case message.PhaseRecruit:
+	case game.PhaseRecruit:
 		g.drawRecruit(screen)
-	case message.PhaseCombat:
+	case game.PhaseCombat:
 		g.drawCombat(screen)
 	}
 
@@ -368,7 +368,14 @@ func (g *GameScene) drawDiscoverOverlay(screen *ebiten.Image, discover *message.
 	// Semi-transparent background
 	vector.FillRect(screen, 0, 0, ScreenWidth, ScreenHeight, color.RGBA{0, 0, 0, 160}, false)
 
-	drawText(screen, g.font, "DISCOVER — Pick a card", float64(ScreenWidth/2-80), float64(ScreenHeight/2-cardHeight/2-30), color.RGBA{255, 215, 0, 255})
+	drawText(
+		screen,
+		g.font,
+		"DISCOVER — Pick a card",
+		float64(ScreenWidth/2-80),
+		float64(ScreenHeight/2-cardHeight/2-30),
+		color.RGBA{255, 215, 0, 255},
+	)
 
 	startX := discoverStartX(len(discover.Cards))
 	y := float64(ScreenHeight/2 - cardHeight/2)
@@ -448,7 +455,14 @@ func (g *GameScene) drawCard(screen *ebiten.Image, c message.Card, x, y float64)
 		drawText(screen, g.font, fmt.Sprintf("%d", c.Attack), x+5, y+cardHeight-18, color.RGBA{255, 215, 0, 255})
 
 		// HP in right bottom (red)
-		drawText(screen, g.font, fmt.Sprintf("%d", c.Health), x+cardWidth-20, y+cardHeight-18, color.RGBA{255, 80, 80, 255})
+		drawText(
+			screen,
+			g.font,
+			fmt.Sprintf("%d", c.Health),
+			x+cardWidth-20,
+			y+cardHeight-18,
+			color.RGBA{255, 80, 80, 255},
+		)
 	}
 }
 

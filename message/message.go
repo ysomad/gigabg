@@ -90,7 +90,7 @@ type ServerMessage struct {
 type GameState struct {
 	PlayerID          string
 	Turn              int
-	Phase             Phase
+	Phase             game.Phase
 	PhaseEndTimestamp int64
 	Players           []Player
 	Shop              []Card
@@ -118,14 +118,6 @@ type Card struct {
 	Health     int
 	Golden     bool
 }
-
-type Phase int
-
-const (
-	PhaseWaiting Phase = iota
-	PhaseRecruit
-	PhaseCombat
-)
 
 type Error struct {
 	Message string

@@ -319,20 +319,10 @@ func (s *Server) broadcastState(lobbyID string, l *lobby.Lobby) {
 }
 
 func (s *Server) sendPlayerState(client *ClientConn, l *lobby.Lobby, p *game.Player) {
-	phase := message.PhaseWaiting
-	if l.State() == lobby.StatePlaying {
-		switch l.Phase() {
-		case game.PhaseRecruit:
-			phase = message.PhaseRecruit
-		case game.PhaseCombat:
-			phase = message.PhaseCombat
-		}
-	}
-
 	state := &message.GameState{
 		PlayerID:          client.playerID,
 		Turn:              l.Turn(),
-		Phase:             phase,
+		Phase:             l.Phase(),
 		PhaseEndTimestamp: l.PhaseEndTimestamp(),
 		Players:           message.NewPlayers(l.Players()),
 		Shop:              message.NewCards(p.Shop),

@@ -9,6 +9,7 @@ import (
 
 	"github.com/coder/websocket"
 
+	"github.com/ysomad/gigabg/game"
 	"github.com/ysomad/gigabg/message"
 )
 
@@ -141,11 +142,11 @@ func (c *RemoteClient) Turn() int {
 }
 
 // Phase returns the current phase.
-func (c *RemoteClient) Phase() message.Phase {
+func (c *RemoteClient) Phase() game.Phase {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	if c.state == nil {
-		return message.PhaseWaiting
+		return game.PhaseWaiting
 	}
 	return c.state.Phase
 }

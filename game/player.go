@@ -324,7 +324,7 @@ func (p *Player) PlaySpell(handIndex int, pool *CardPool) error {
 
 	// Execute spell effect
 	effect := spell.Template().SpellEffect
-	if effect != nil && effect.Type == EffectDiscover {
+	if effect != nil && effect.Type == EffectDiscoverCard {
 		discoverTier := min(p.ShopTier+1, Tier6)
 		p.DiscoverOptions = pool.RollExactTier(discoverTier, nil)
 	}
