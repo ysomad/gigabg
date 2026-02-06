@@ -29,4 +29,14 @@ server:
 
 .PHONY: client
 client:
-	go run ./cmd/client -server=localhost:8080
+	go run ./cmd/client
+
+.PHONY: wasm
+wasm:
+	mkdir -p ./web
+	GOOS=js GOARCH=wasm go build -o ./web/client.wasm ./cmd/client
+	cp "$$(go env GOROOT)/lib/wasm/wasm_exec.js" ./web/
+
+.PHONY: web
+web: wasm
+	go run ./cmd/web

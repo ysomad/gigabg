@@ -60,17 +60,18 @@ func (m *Menu) handleTextInput() {
 func (m *Menu) Draw(screen *ebiten.Image) {
 	screen.Fill(color.RGBA{20, 20, 30, 255})
 
-	centerX := float32(ScreenWidth / 2)
-	centerY := float32(ScreenHeight / 2)
+	centerX := float64(ActiveRes.Width) / 2
+	centerY := float64(ActiveRes.Height) / 2
 
-	drawText(screen, m.font, "GIGA Battlegrounds", float64(centerX)-80, 100, color.RGBA{255, 215, 0, 255})
-	drawText(screen, m.font, "Lobby ID:", float64(centerX)-100, float64(centerY)-60, color.RGBA{200, 200, 200, 255})
+	drawText(screen, m.font, "GIGA Battlegrounds", centerX-scf(80), sc(100), color.RGBA{255, 215, 0, 255})
+
+	drawText(screen, m.font, "Lobby ID:", centerX-scf(100), centerY-scf(60), color.RGBA{200, 200, 200, 255})
 
 	// Input field
-	inputX := centerX - 100
-	inputY := centerY - 40
-	inputW := float32(200)
-	inputH := float32(30)
+	inputX := float32(centerX - scf(100))
+	inputY := float32(centerY - scf(40))
+	inputW := float32(scf(200))
+	inputH := float32(scf(30))
 
 	borderColor := color.RGBA{60, 60, 80, 255}
 	if m.selected {
@@ -83,13 +84,13 @@ func (m *Menu) Draw(screen *ebiten.Image) {
 	if m.selected && len(displayText) < 32 {
 		displayText += "_"
 	}
-	drawText(screen, m.font, displayText, float64(inputX)+8, float64(inputY)+8, color.White)
+	drawText(screen, m.font, displayText, float64(inputX)+scf(8), float64(inputY)+scf(8), color.White)
 
 	// Join button
-	btnX := centerX - 50
-	btnY := centerY + 20
-	btnW := float32(100)
-	btnH := float32(35)
+	btnX := float32(centerX - scf(50))
+	btnY := float32(centerY + scf(20))
+	btnW := float32(scf(100))
+	btnH := float32(scf(35))
 
 	btnColor := color.RGBA{50, 120, 50, 255}
 	if len(m.lobbyID) == 0 {
@@ -102,30 +103,30 @@ func (m *Menu) Draw(screen *ebiten.Image) {
 	if len(m.lobbyID) == 0 {
 		textColor = color.RGBA{100, 100, 100, 255}
 	}
-	drawText(screen, m.font, "Join", float64(btnX)+35, float64(btnY)+10, textColor)
+	drawText(screen, m.font, "Join", float64(btnX)+scf(35), float64(btnY)+scf(10), textColor)
 
 	drawText(
 		screen,
 		m.font,
 		"Enter lobby ID and click Join",
-		float64(centerX)-110,
-		float64(ScreenHeight)-100,
+		centerX-scf(110),
+		float64(ActiveRes.Height)-sc(100),
 		color.RGBA{100, 100, 100, 255},
 	)
 }
 
 func (m *Menu) inputContains(mx, my int) bool {
-	centerX := ScreenWidth / 2
-	centerY := ScreenHeight / 2
-	inputX := centerX - 100
-	inputY := centerY - 40
-	return mx >= inputX && mx <= inputX+200 && my >= inputY && my <= inputY+30
+	centerX := ActiveRes.Width / 2
+	centerY := ActiveRes.Height / 2
+	inputX := centerX - int(scf(100))
+	inputY := centerY - int(scf(40))
+	return mx >= inputX && mx <= inputX+int(scf(200)) && my >= inputY && my <= inputY+int(scf(30))
 }
 
 func (m *Menu) buttonContains(mx, my int) bool {
-	centerX := ScreenWidth / 2
-	centerY := ScreenHeight / 2
-	btnX := centerX - 50
-	btnY := centerY + 20
-	return mx >= btnX && mx <= btnX+100 && my >= btnY && my <= btnY+35
+	centerX := ActiveRes.Width / 2
+	centerY := ActiveRes.Height / 2
+	btnX := centerX - int(scf(50))
+	btnY := centerY + int(scf(20))
+	return mx >= btnX && mx <= btnX+int(scf(100)) && my >= btnY && my <= btnY+int(scf(35))
 }

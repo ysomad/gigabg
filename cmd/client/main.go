@@ -15,7 +15,7 @@ import (
 	"github.com/ysomad/gigabg/ui"
 )
 
-type state int
+type state uint8
 
 const (
 	stateMenu state = iota
@@ -27,12 +27,13 @@ type ClientApp struct {
 	state      state
 	serverAddr string
 
-	font   *text.GoTextFace
-	cards  *cards.Cards
-	menu   *ui.Menu
-	game   *ui.GameScene
-	client *client.Client
-	err    error
+	fontSource *text.GoTextFaceSource
+	font       *text.GoTextFace
+	cards      *cards.Cards
+	menu       *ui.Menu
+	game       *ui.GameScene
+	client     *client.Client
+	err        error
 }
 
 func main() {
@@ -49,7 +50,7 @@ func main() {
 	app.loadFont()
 	app.menu = ui.NewMenu(app.font, app.onJoin)
 
-	ebiten.SetWindowSize(ui.ScreenWidth, ui.ScreenHeight)
+	ebiten.SetWindowSize(ui.ActiveRes.Width, ui.ActiveRes.Height)
 	ebiten.SetWindowTitle("GIGA Battlegrounds")
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 
@@ -63,10 +64,18 @@ func (a *ClientApp) loadFont() {
 	if err != nil {
 		return
 	}
+	a.fontSource = src
 	a.font = &text.GoTextFace{
 		Source: src,
-		Size:   14,
+		Size:   14 * ui.ActiveRes.Scale(),
 	}
+}
+
+func (a *ClientApp) updateFontSize() {
+	if a.fontSource == nil {
+		return
+	}
+	a.font.Size = 14 * ui.ActiveRes.Scale()
 }
 
 func (a *ClientApp) onJoin(lobbyID string) {
@@ -98,6 +107,8 @@ func (a *ClientApp) connect(lobbyID string) {
 }
 
 func (a *ClientApp) Update() error {
+	a.updateFontSize()
+
 	switch a.state {
 	case stateMenu:
 		a.menu.Update()
@@ -124,9 +135,13 @@ func (a *ClientApp) Draw(screen *ebiten.Image) {
 
 func (a *ClientApp) drawConnecting(screen *ebiten.Image) {
 	screen.Fill(ui.ColorBackground)
-	ui.DrawTextAt(screen, a.font, "Connecting...", ui.ScreenWidth/2-50, ui.ScreenHeight/2)
+	w := float64(ui.ActiveRes.Width)
+	h := float64(ui.ActiveRes.Height)
+	ui.DrawTextAt(screen, a.font, "Connecting...", w/2-50, h/2)
 }
 
 func (a *ClientApp) Layout(outsideWidth, outsideHeight int) (int, int) {
-	return ui.ScreenWidth, ui.ScreenHeight
+	ui.ActiveRes.Width = outsideWidth
+	ui.ActiveRes.Height = outsideHeight
+	return outsideWidth, outsideHeight
 }
