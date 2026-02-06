@@ -4,18 +4,18 @@ import (
 	"math/rand/v2"
 	"time"
 
-	"github.com/ysomad/gigabg/errorsx"
+	"github.com/ysomad/gigabg/errors"
 	"github.com/ysomad/gigabg/game"
 )
 
 const (
-	ErrGameStarted      errorsx.Error = "game already started"
-	ErrGameNotStarted   errorsx.Error = "game not started"
-	ErrLobbyFull        errorsx.Error = "lobby is full"
-	ErrNotEnoughPlayers errorsx.Error = "not enough players"
+	ErrGameStarted      errors.Error = "game already started"
+	ErrGameNotStarted   errors.Error = "game not started"
+	ErrLobbyFull        errors.Error = "lobby is full"
+	ErrNotEnoughPlayers errors.Error = "not enough players"
 )
 
-type State int
+type State uint8
 
 const (
 	StateWaiting State = iota + 1
@@ -42,6 +42,14 @@ type combatPairing struct {
 	opponentID    string
 	playerBoard   game.Board // cloned with combat IDs
 	opponentBoard game.Board // cloned with combat IDs
+}
+
+func newCombatPairing(opponentID string, playerBoard, opponentBoard game.Board) combatPairing {
+	return combatPairing{
+		opponentID:    opponentID,
+		playerBoard:   playerBoard,
+		opponentBoard: opponentBoard,
+	}
 }
 
 type Lobby struct {
@@ -115,50 +123,20 @@ func (l *Lobby) runCombat() {
 	}
 
 	// Shuffle for random pairing.
-	order := make([]*game.Player, len(l.players))
-	copy(order, l.players)
-	rand.Shuffle(len(order), func(i, j int) {
-		order[i], order[j] = order[j], order[i]
-	})
+	perm := rand.Perm(len(l.players))
 
 	l.combatAnimations = l.combatAnimations[:0]
 	l.combatPairings = make(map[string]combatPairing, len(l.players))
 
 	// Pair consecutive players; odd player out gets a bye.
-	for i := 0; i+1 < len(order); i += 2 {
-		p1, p2 := order[i], order[i+1]
-		combat := game.NewCombat(p1, p2)
-
-		p1Board, p2Board := combat.Boards()
-		l.combatPairings[p1.ID()] = combatPairing{
-			opponentID:    p2.ID(),
-			playerBoard:   p1Board,
-			opponentBoard: p2Board,
-		}
-		l.combatPairings[p2.ID()] = combatPairing{
-			opponentID:    p1.ID(),
-			playerBoard:   p2Board,
-			opponentBoard: p1Board,
-		}
-
-		r1, r2 := combat.Run()
-
-		if r1.WinnerID != "" && r1.Damage > 0 {
-			loser := p2
-			if r1.WinnerID == p2.ID() {
-				loser = p1
-			}
-			if loser.Alive() {
-				loser.TakeDamage(r1.Damage)
-			}
-		}
-
-		l.appendCombatResult(p1.ID(), r1)
-		l.appendCombatResult(p2.ID(), r2)
-		l.combatAnimations = append(l.combatAnimations, combat.Animation())
+	for i := 0; i+1 < len(perm); i += 2 {
+		l.resolvePairing(l.players[perm[i]], l.players[perm[i+1]])
 	}
 
-	// Last player standing wins.
+	l.checkFinished()
+}
+
+func (l *Lobby) checkFinished() {
 	alive := 0
 	for _, p := range l.players {
 		if p.Alive() {
@@ -168,6 +146,30 @@ func (l *Lobby) runCombat() {
 	if alive <= 1 {
 		l.state = StateFinished
 	}
+}
+
+func (l *Lobby) resolvePairing(p1, p2 *game.Player) {
+	combat := game.NewCombat(p1, p2)
+
+	p1Board, p2Board := combat.Boards()
+	l.combatPairings[p1.ID()] = newCombatPairing(p2.ID(), p1Board, p2Board)
+	l.combatPairings[p2.ID()] = newCombatPairing(p1.ID(), p2Board, p1Board)
+
+	r1, r2 := combat.Run()
+
+	if r1.WinnerID != "" && r1.Damage > 0 {
+		loser := p2
+		if r1.WinnerID == p2.ID() {
+			loser = p1
+		}
+		if loser.Alive() {
+			loser.TakeDamage(r1.Damage)
+		}
+	}
+
+	l.appendCombatResult(p1.ID(), r1)
+	l.appendCombatResult(p2.ID(), r2)
+	l.combatAnimations = append(l.combatAnimations, combat.Animation())
 }
 
 func (l *Lobby) appendCombatResult(playerID string, result game.CombatResult) {
@@ -183,12 +185,8 @@ func (l *Lobby) appendCombatResult(playerID string, result game.CombatResult) {
 // Unpicked options are returned to the pool.
 func (l *Lobby) resolveDiscovers() {
 	for _, p := range l.players {
-		l.resolvePlayerDiscover(p)
+		p.ResolveDiscover(l.pool)
 	}
-}
-
-func (l *Lobby) resolvePlayerDiscover(p *game.Player) {
-	p.ResolveDiscover(l.pool)
 }
 
 // AdvancePhase checks if phase should advance and does so.

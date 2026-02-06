@@ -1,4 +1,4 @@
-package errorsx
+package errors
 
 // Error is the constant error type.
 //

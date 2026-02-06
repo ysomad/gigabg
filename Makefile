@@ -42,5 +42,5 @@ wasm:
 	cp "$$(go env GOROOT)/lib/wasm/wasm_exec.js" ./web/
 
 .PHONY: web
-web: wasm
-	go run ./cmd/web
+web:
+	air --build.cmd "make wasm && go build -o ./tmp/web ./cmd/web" --build.bin "./tmp/web"

@@ -1,10 +1,10 @@
 package server
 
-import "github.com/ysomad/gigabg/errorsx"
+import "github.com/ysomad/gigabg/errors"
 
 const (
-	ErrLobbyNotFound errorsx.Error = "lobby not found"
-	ErrLobbyExists   errorsx.Error = "lobby already exists"
-	ErrLobbyFull     errorsx.Error = "lobby is full"
-	ErrNotAllowed    errorsx.Error = "player not allowed in lobby"
+	ErrLobbyNotFound errors.Error = "lobby not found"
+	ErrLobbyExists   errors.Error = "lobby already exists"
+	ErrLobbyFull     errors.Error = "lobby is full"
+	ErrNotAllowed    errors.Error = "player not allowed in lobby"
 )

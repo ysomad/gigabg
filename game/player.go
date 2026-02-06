@@ -4,18 +4,18 @@ import (
 	"math/rand/v2"
 	"slices"
 
-	"github.com/ysomad/gigabg/errorsx"
+	"github.com/ysomad/gigabg/errors"
 )
 
 const (
-	ErrNotEnoughGold   errorsx.Error = "not enough gold"
-	ErrBoardFull       errorsx.Error = "board is full"
-	ErrHandFull        errorsx.Error = "hand is full"
-	ErrInvalidIndex    errorsx.Error = "invalid index"
-	ErrMaxTier         errorsx.Error = "already at max tier"
-	ErrNotASpell       errorsx.Error = "card is not a spell"
-	ErrDiscoverPending errorsx.Error = "discover already pending"
-	ErrNoDiscover      errorsx.Error = "no discover options"
+	ErrNotEnoughGold   errors.Error = "not enough gold"
+	ErrBoardFull       errors.Error = "board is full"
+	ErrHandFull        errors.Error = "hand is full"
+	ErrInvalidIndex    errors.Error = "invalid index"
+	ErrMaxTier         errors.Error = "already at max tier"
+	ErrNotASpell       errors.Error = "card is not a spell"
+	ErrDiscoverPending errors.Error = "discover already pending"
+	ErrNoDiscover      errors.Error = "no discover options"
 )
 
 type Player struct {

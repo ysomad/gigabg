@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"image/color"
+	"log/slog"
 	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -20,7 +21,7 @@ const (
 	attackBackDuration = 0.8
 	damageFlashTime    = 0.6
 	floatTextDuration  = 2.0
-	deathFadeDuration  = 1.2
+	deathFadeDuration  = 0.4
 	eventPause         = 0.5
 )
 
@@ -39,11 +40,11 @@ const (
 
 type animMinion struct {
 	card    api.Card
-	alive   bool
 	offsetX float64
 	offsetY float64
 	flash   float64 // remaining flash time
-	opacity float64 // 1.0 = fully visible
+	opacity float64 // 1.0 = fully visible, fades to 0 on death
+	dying   bool
 }
 
 type floatingText struct {
@@ -54,6 +55,7 @@ type floatingText struct {
 }
 
 type attackAnimation struct {
+	srcCombatID int
 	srcIdx      int
 	srcIsPlayer bool
 	dstIdx      int
@@ -81,7 +83,6 @@ type CombatAnimator struct {
 
 	attackAnim  *attackAnimation
 	floatingDmg []floatingText
-	deathAnims  []int // indices being faded (tracked via opacity on animMinion)
 
 	done bool
 }
@@ -93,6 +94,10 @@ func NewCombatAnimator(
 	c *cards.Cards,
 	font *text.GoTextFace,
 ) *CombatAnimator {
+	slog.Info("combat animator created",
+		"player_board", len(playerBoard),
+		"opponent_board", len(opponentBoard),
+		"events", len(events))
 	return &CombatAnimator{
 		cards:         c,
 		font:          font,
@@ -106,7 +111,7 @@ func NewCombatAnimator(
 func buildAnimBoard(cards []api.Card) []animMinion {
 	board := make([]animMinion, len(cards))
 	for i, c := range cards {
-		board[i] = animMinion{card: c, alive: true, opacity: 1.0}
+		board[i] = animMinion{card: c, opacity: 1.0}
 	}
 	return board
 }
@@ -147,30 +152,21 @@ func (ca *CombatAnimator) Update(dt float64) bool {
 		return false
 	}
 
-	// Process next event.
-	if ca.eventIndex >= len(ca.events) {
-		// Wait for remaining animations to finish.
-		if len(ca.floatingDmg) == 0 && !ca.hasDeathFading() {
-			ca.done = true
-			return true
+	// Skip to the next attack event (damage/death are consumed on hit).
+	for ca.eventIndex < len(ca.events) {
+		ev := ca.events[ca.eventIndex]
+		ca.eventIndex++
+		if ev.Type == game.CombatEventAttack {
+			ca.startAttack(ev)
+			return false
 		}
-		return false
 	}
 
-	ev := ca.events[ca.eventIndex]
-	ca.eventIndex++
-
-	switch ev.Type {
-	case game.CombatEventAttack:
-		ca.startAttack(ev)
-	case game.CombatEventDamage:
-		ca.applyDamage(ev)
-		ca.pauseTimer = eventPause
-	case game.CombatEventDeath:
-		ca.startDeath(ev)
-		ca.pauseTimer = deathFadeDuration
+	// All events processed, wait for remaining animations to finish.
+	if len(ca.floatingDmg) == 0 && !ca.hasDying() {
+		ca.done = true
+		return true
 	}
-
 	return false
 }
 
@@ -185,6 +181,7 @@ func (ca *CombatAnimator) startAttack(ev game.CombatEvent) {
 	dstX, dstY := ca.minionPos(dstIdx, dstIsPlayer)
 
 	ca.attackAnim = &attackAnimation{
+		srcCombatID: ev.SourceID,
 		srcIdx:      srcIdx,
 		srcIsPlayer: srcIsPlayer,
 		dstIdx:      dstIdx,
@@ -204,13 +201,26 @@ func (ca *CombatAnimator) updateAttackAnim(dt float64) {
 	case animPhaseForward:
 		a.progress += dt / attackMoveDuration
 		if a.progress >= 1.0 {
+			// Hit moment: apply damage and remove dead minions.
+			ca.consumeHitEvents()
+
+			// Re-find attacker; skip back phase if it died from counter-damage.
+			srcIdx, srcIsPlayer := ca.findMinion(a.srcCombatID)
+			if srcIdx < 0 || ca.boardFor(srcIsPlayer)[srcIdx].dying {
+				ca.attackAnim = nil
+				ca.pauseTimer = eventPause
+				return
+			}
+
+			a.srcIdx = srcIdx
+			a.srcIsPlayer = srcIsPlayer
+			a.startX, a.startY = ca.minionPos(srcIdx, srcIsPlayer)
 			a.progress = 0
 			a.phase = animPhaseBack
 		}
 	case animPhaseBack:
 		a.progress += dt / attackBackDuration
 		if a.progress >= 1.0 {
-			// Reset offset.
 			board := ca.boardFor(a.srcIsPlayer)
 			if a.srcIdx < len(board) {
 				board[a.srcIdx].offsetX = 0
@@ -262,14 +272,72 @@ func (ca *CombatAnimator) applyDamage(ev game.CombatEvent) {
 	})
 }
 
-func (ca *CombatAnimator) startDeath(ev game.CombatEvent) {
-	idx, isPlayer := ca.findMinion(ev.TargetID)
-	if idx < 0 {
-		return
+func (ca *CombatAnimator) markDying(combatID int) {
+	for i, m := range ca.playerBoard {
+		if m.card.CombatID == combatID {
+			ca.playerBoard[i].dying = true
+			return
+		}
 	}
-	board := ca.boardFor(isPlayer)
-	board[idx].alive = false
-	// Opacity will be faded in updateDeathFades.
+	for i, m := range ca.opponentBoard {
+		if m.card.CombatID == combatID {
+			ca.opponentBoard[i].dying = true
+			return
+		}
+	}
+}
+
+// consumeHitEvents peeks ahead in the event queue and applies all
+// consecutive damage and death events that follow the current attack.
+func (ca *CombatAnimator) consumeHitEvents() {
+	for ca.eventIndex < len(ca.events) {
+		ev := ca.events[ca.eventIndex]
+		switch ev.Type {
+		case game.CombatEventDamage:
+			ca.applyDamage(ev)
+			ca.eventIndex++
+		case game.CombatEventDeath:
+			ca.markDying(ev.TargetID)
+			ca.eventIndex++
+		default:
+			return
+		}
+	}
+}
+
+func (ca *CombatAnimator) updateDeathFades(dt float64) {
+	fade := dt / deathFadeDuration
+	ca.playerBoard = fadeAndRemove(ca.playerBoard, fade)
+	ca.opponentBoard = fadeAndRemove(ca.opponentBoard, fade)
+}
+
+func fadeAndRemove(board []animMinion, fade float64) []animMinion {
+	n := 0
+	for i := range board {
+		if board[i].dying {
+			board[i].opacity -= fade
+			if board[i].opacity <= 0 {
+				continue // remove
+			}
+		}
+		board[n] = board[i]
+		n++
+	}
+	return board[:n]
+}
+
+func (ca *CombatAnimator) hasDying() bool {
+	for _, m := range ca.playerBoard {
+		if m.dying {
+			return true
+		}
+	}
+	for _, m := range ca.opponentBoard {
+		if m.dying {
+			return true
+		}
+	}
+	return false
 }
 
 func (ca *CombatAnimator) updateFloatingText(dt float64) {
@@ -283,34 +351,6 @@ func (ca *CombatAnimator) updateFloatingText(dt float64) {
 		}
 	}
 	ca.floatingDmg = ca.floatingDmg[:n]
-}
-
-func (ca *CombatAnimator) updateDeathFades(dt float64) {
-	fade := dt / deathFadeDuration
-	for i := range ca.playerBoard {
-		if !ca.playerBoard[i].alive && ca.playerBoard[i].opacity > 0 {
-			ca.playerBoard[i].opacity -= fade
-		}
-	}
-	for i := range ca.opponentBoard {
-		if !ca.opponentBoard[i].alive && ca.opponentBoard[i].opacity > 0 {
-			ca.opponentBoard[i].opacity -= fade
-		}
-	}
-}
-
-func (ca *CombatAnimator) hasDeathFading() bool {
-	for i := range ca.playerBoard {
-		if !ca.playerBoard[i].alive && ca.playerBoard[i].opacity > 0 {
-			return true
-		}
-	}
-	for i := range ca.opponentBoard {
-		if !ca.opponentBoard[i].alive && ca.opponentBoard[i].opacity > 0 {
-			return true
-		}
-	}
-	return false
 }
 
 func (ca *CombatAnimator) findMinion(combatID int) (idx int, isPlayer bool) {
@@ -387,19 +427,15 @@ func (ca *CombatAnimator) Draw(screen *ebiten.Image) {
 
 func (ca *CombatAnimator) drawBoard(screen *ebiten.Image, board []animMinion, isPlayer bool) {
 	for i, m := range board {
-		if m.opacity <= 0 {
-			continue
-		}
-
 		x, y := ca.minionPos(i, isPlayer)
 		x += m.offsetX
 		y += m.offsetY
 
 		cw := float32(sc(baseCardWidth))
 		ch := float32(sc(baseCardHeight))
-
-		// Card background with opacity.
 		alpha := uint8(255 * m.opacity)
+
+		// Card background.
 		bg := color.RGBA{40, 40, 60, alpha}
 		if m.flash > 0 {
 			bg = color.RGBA{180, 40, 40, alpha}
@@ -428,10 +464,9 @@ func (ca *CombatAnimator) drawBoard(screen *ebiten.Image, board []animMinion, is
 			color.RGBA{255, 215, 0, alpha})
 
 		// Health (bottom-right).
-		hpClr := color.RGBA{255, 80, 80, alpha}
 		drawText(screen, ca.font, fmt.Sprintf("%d", m.card.Health),
 			x+sc(baseCardWidth)-scf(20), y+sc(baseCardHeight)-scf(18),
-			hpClr)
+			color.RGBA{255, 80, 80, alpha})
 	}
 }
 
