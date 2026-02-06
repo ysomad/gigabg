@@ -36,6 +36,11 @@ const (
 	baseUpgradeBtnY = 130
 	baseUpgradeBtnW = 150
 	baseUpgradeBtnH = 30
+
+	baseFreezeBtnX = 690
+	baseFreezeBtnY = 130
+	baseFreezeBtnW = 100
+	baseFreezeBtnH = 30
 )
 
 // Scaled layout helpers.
@@ -202,6 +207,16 @@ func (g *GameScene) Update() error {
 			return nil
 		}
 
+		// Freeze shop button
+		fbx := sci(baseFreezeBtnX)
+		fby := sci(baseFreezeBtnY)
+		fbw := sci(baseFreezeBtnW)
+		fbh := sci(baseFreezeBtnH)
+		if x >= fbx && x <= fbx+fbw && y >= fby && y <= fby+fbh {
+			g.client.FreezeShop()
+			return nil
+		}
+
 		// Buy from shop
 		if y >= shopYs && y <= shopYs+cardH {
 			shop := g.client.Shop()
@@ -320,10 +335,31 @@ func (g *GameScene) drawRecruit(screen *ebiten.Image) {
 		drawText(screen, g.font, label, float64(ubx)+scf(8), float64(uby)+scf(7), color.RGBA{200, 255, 200, 255})
 	}
 
+	// Freeze button
+	fbx := float32(sc(baseFreezeBtnX))
+	fby := float32(sc(baseFreezeBtnY))
+	fbw := float32(sc(baseFreezeBtnW))
+	fbh := float32(sc(baseFreezeBtnH))
+	frozen := g.client.ShopFrozen()
+	if frozen {
+		vector.FillRect(screen, fbx, fby, fbw, fbh, color.RGBA{40, 120, 200, 255}, false)
+		vector.StrokeRect(screen, fbx, fby, fbw, fbh, 1, color.RGBA{80, 160, 255, 255}, false)
+		drawText(screen, g.font, "Unfreeze", float64(fbx)+scf(8), float64(fby)+scf(7), color.RGBA{200, 230, 255, 255})
+	} else {
+		vector.FillRect(screen, fbx, fby, fbw, fbh, color.RGBA{40, 60, 90, 255}, false)
+		vector.StrokeRect(screen, fbx, fby, fbw, fbh, 1, color.RGBA{80, 100, 140, 255}, false)
+		drawText(screen, g.font, "Freeze", float64(fbx)+scf(8), float64(fby)+scf(7), color.RGBA{150, 200, 255, 255})
+	}
+
 	shop := g.client.Shop()
 	for i, c := range shop {
 		x := sc(50) + float64(i)*sc(baseCardWidth+baseCardGap)
 		g.drawCard(screen, c, x, sc(baseShopY))
+		if frozen {
+			vector.StrokeRect(screen, float32(x), float32(sc(baseShopY)),
+				float32(sc(baseCardWidth)), float32(sc(baseCardHeight)),
+				3, color.RGBA{80, 160, 255, 255}, false)
+		}
 	}
 
 	// Board (use local order)

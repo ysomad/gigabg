@@ -179,6 +179,16 @@ func (c *Client) Shop() []api.Card {
 	return c.state.Shop
 }
 
+// ShopFrozen returns whether the shop is frozen.
+func (c *Client) ShopFrozen() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.state == nil {
+		return false
+	}
+	return c.state.ShopFrozen
+}
+
 // Hand returns the current hand cards.
 func (c *Client) Hand() []api.Card {
 	c.mu.RLock()
@@ -245,6 +255,11 @@ func (c *Client) UpgradeShop() error {
 // RefreshShop sends a refresh shop action.
 func (c *Client) RefreshShop() error {
 	return c.send(api.ActionRefreshShop, nil)
+}
+
+// FreezeShop sends a freeze shop action.
+func (c *Client) FreezeShop() error {
+	return c.send(api.ActionFreezeShop, nil)
 }
 
 // SyncBoard sends the board order to server.

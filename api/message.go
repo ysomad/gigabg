@@ -17,6 +17,7 @@ const (
 	ActionSyncBoard
 	ActionUpgradeShop
 	ActionRefreshShop
+	ActionFreezeShop
 	ActionPlaySpell
 	ActionDiscoverPick
 )
@@ -39,6 +40,8 @@ func (a Action) String() string {
 		return "upgrade_shop"
 	case ActionRefreshShop:
 		return "refresh_shop"
+	case ActionFreezeShop:
+		return "freeze_shop"
 	case ActionPlaySpell:
 		return "play_spell"
 	case ActionDiscoverPick:
@@ -100,6 +103,7 @@ type GameState struct {
 	PhaseEndTimestamp int64
 	Players           []Player
 	Shop              []Card
+	ShopFrozen        bool
 	Hand              []Card
 	Board             []Card
 	Discover          *DiscoverOffer
@@ -114,7 +118,7 @@ type Player struct {
 	HP          int
 	Gold        int
 	MaxGold     int
-	ShopTier    int
+	ShopTier    game.Tier
 	UpgradeCost int
 }
 
@@ -135,8 +139,8 @@ func NewPlayer(p *game.Player) Player {
 		HP:          p.HP,
 		Gold:        p.Gold,
 		MaxGold:     p.MaxGold,
-		ShopTier:    int(p.ShopTier),
-		UpgradeCost: p.UpgradeCost(),
+		ShopTier:    p.Shop.Tier(),
+		UpgradeCost: p.Shop.UpgradeCost(),
 	}
 }
 

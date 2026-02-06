@@ -219,6 +219,12 @@ func (s *Server) handleMessage(client *ClientConn, msg *api.ClientMessage) {
 			return p.DiscoverPick(payload.Index, l.Pool())
 		})
 
+	case api.ActionFreezeShop:
+		s.handleAction(client, msg.Action, func(l *lobby.Lobby, p *game.Player) error {
+			p.FreezeShop()
+			return nil
+		})
+
 	case api.ActionSyncBoard:
 		s.handleAction(client, msg.Action, func(l *lobby.Lobby, p *game.Player) error {
 			payload, err := decodePayload[api.SyncBoard](msg)
@@ -259,10 +265,10 @@ func (s *Server) handleAction(
 
 	beforeGold := p.Gold
 	beforeHP := p.HP
-	beforeShopTier := p.ShopTier
+	beforeShopTier := p.Shop.Tier()
 	beforeBoard := len(p.Board)
 	beforeHand := len(p.Hand)
-	beforeShop := len(p.Shop)
+	beforeShop := len(p.Shop.Cards())
 
 	if err := fn(l, p); err != nil {
 		s.sendError(client, err.Error())
@@ -279,7 +285,7 @@ func (s *Server) handleAction(
 	if d := p.HP - beforeHP; d != 0 {
 		attrs = append(attrs, slog.Int("hp", d))
 	}
-	if d := int(p.ShopTier) - int(beforeShopTier); d != 0 {
+	if d := int(p.Shop.Tier()) - int(beforeShopTier); d != 0 {
 		attrs = append(attrs, slog.Int("shop_tier", d))
 	}
 	if d := len(p.Board) - beforeBoard; d != 0 {
@@ -288,7 +294,7 @@ func (s *Server) handleAction(
 	if d := len(p.Hand) - beforeHand; d != 0 {
 		attrs = append(attrs, slog.Int("hand", d))
 	}
-	if d := len(p.Shop) - beforeShop; d != 0 {
+	if d := len(p.Shop.Cards()) - beforeShop; d != 0 {
 		attrs = append(attrs, slog.Int("shop", d))
 	}
 	slog.LogAttrs(context.Background(), slog.LevelInfo, action.String(), attrs...)
@@ -375,7 +381,8 @@ func (s *Server) sendPlayerState(client *ClientConn, l *lobby.Lobby, p *game.Pla
 		Phase:             l.Phase(),
 		PhaseEndTimestamp: l.PhaseEndTimestamp(),
 		Players:           api.NewPlayers(l.Players()),
-		Shop:              api.NewCards(p.Shop),
+		Shop:              api.NewCards(p.Shop.Cards()),
+		ShopFrozen:        p.Shop.Frozen(),
 		Hand:              api.NewCards(p.Hand),
 		Board:             api.NewCardsFromMinions(p.Board),
 	}

@@ -27,64 +27,39 @@ const (
 	ErrCannotSellSpell errorsx.Error = "cannot sell spells"
 )
 
-// Shop tier upgrade costs (index = current tier)
-var _upgradeCosts = [6]int{0, 5, 7, 8, 9, 10} // tier 1->2 costs 5, etc.
-
 type Player struct {
 	ID      string
 	HP      int
 	Gold    int
 	MaxGold int
 
-	ShopTier         Tier
-	turnShopDiscount int
+	Shop Shop
 
 	Board           []*Minion // only minions on board
 	Hand            []Card    // can hold minions and spells
-	Shop            []Card    // shop offerings
 	DiscoverOptions []Card    // pending discover choices
 }
 
 func NewPlayer(id string) *Player {
 	return &Player{
-		ID:       id,
-		HP:       40,
-		Gold:     InitialGold,
-		MaxGold:  MaxGold,
-		ShopTier: 1,
-		Board:    make([]*Minion, 0, MaxBoardSize),
-		Hand:     make([]Card, 0, MaxHandSize),
-		Shop:     make([]Card, 0),
+		ID:      id,
+		HP:      40,
+		Gold:    InitialGold,
+		MaxGold: MaxGold,
+		Shop:    Shop{tier: 1},
+		Board:   make([]*Minion, 0, MaxBoardSize),
+		Hand:    make([]Card, 0, MaxHandSize),
 	}
-}
-
-// UpgradeCost returns the cost to upgrade to the next shop tier.
-// The base cost decreases by 1 gold each turn.
-func (p *Player) UpgradeCost() int {
-	if !p.ShopTier.IsValid() {
-		return 0
-	}
-	cost := _upgradeCosts[p.ShopTier] - p.turnShopDiscount
-	if cost < 0 {
-		return 0
-	}
-	return cost
 }
 
 // StartTurn prepares the player for a new turn.
 func (p *Player) StartTurn(pool *CardPool, turn int) {
-	// First turn keeps starting gold, subsequent turns increase
 	if turn > 1 && p.MaxGold < MaxGold {
 		p.MaxGold++
 	}
 	p.Gold = p.MaxGold
-	p.turnShopDiscount++
 
-	// Return unsold shop cards to pool, then refresh for free
-	for _, c := range p.Shop {
-		pool.ReturnCard(c)
-	}
-	p.Shop = pool.Roll(p.ShopTier, nil, p.ShopSize())
+	p.Shop.StartTurn(pool)
 }
 
 // TakeDamage reduces player HP and returns true if player is dead.
@@ -93,29 +68,8 @@ func (p *Player) TakeDamage(damage int) bool {
 	return p.HP <= 0
 }
 
-// ShopSize returns how many minions to show based on shop tier.
-func (p *Player) ShopSize() int {
-	switch p.ShopTier {
-	case Tier1:
-		return 3
-	case Tier2, Tier3:
-		return 4
-	case Tier4:
-		return 5
-	case Tier5:
-		return 6
-	case Tier6:
-		return 7
-	default:
-		return 0
-	}
-}
-
 // BuyCard buys a card from the shop and adds it to hand.
 func (p *Player) BuyCard(shopIndex int) error {
-	if shopIndex < 0 || shopIndex >= len(p.Shop) {
-		return ErrInvalidIndex
-	}
 	if p.Gold < BuyCost {
 		return ErrNotEnoughGold
 	}
@@ -123,8 +77,11 @@ func (p *Player) BuyCard(shopIndex int) error {
 		return ErrHandFull
 	}
 
-	card := p.Shop[shopIndex]
-	p.Shop = append(p.Shop[:shopIndex], p.Shop[shopIndex+1:]...)
+	card, err := p.Shop.BuyCard(shopIndex)
+	if err != nil {
+		return err
+	}
+
 	p.Hand = append(p.Hand, card)
 	p.Gold -= BuyCost
 	return nil
@@ -204,18 +161,17 @@ func (p *Player) RemoveMinion(boardIndex int) error {
 
 // UpgradeShop upgrades the shop tier.
 func (p *Player) UpgradeShop() error {
-	if p.ShopTier >= Tier6 {
+	if p.Shop.Tier() >= Tier6 {
 		return ErrMaxTier
 	}
 
-	cost := p.UpgradeCost()
+	cost := p.Shop.UpgradeCost()
 	if p.Gold < cost {
 		return ErrNotEnoughGold
 	}
 
 	p.Gold -= cost
-	p.ShopTier++
-	p.turnShopDiscount = 0
+	p.Shop.Upgrade()
 	return nil
 }
 
@@ -226,9 +182,13 @@ func (p *Player) RefreshShop(pool *CardPool) error {
 	}
 
 	p.Gold -= RefreshCost
-	pool.ReturnCards(p.Shop)
-	p.Shop = pool.Roll(p.ShopTier, nil, p.ShopSize())
+	p.Shop.Refresh(pool)
 	return nil
+}
+
+// FreezeShop toggles the shop freeze state.
+func (p *Player) FreezeShop() {
+	p.Shop.Freeze()
 }
 
 // CheckTriples scans hand + board for 3 non-golden copies of the same minion.
@@ -325,7 +285,7 @@ func (p *Player) PlaySpell(handIndex int, pool *CardPool) error {
 	// Execute spell effect
 	effect := spell.Template().SpellEffect
 	if effect != nil && effect.Type == EffectDiscoverCard {
-		discoverTier := min(p.ShopTier+1, Tier6)
+		discoverTier := min(p.Shop.Tier()+1, Tier6)
 		p.DiscoverOptions = pool.RollExactTier(discoverTier, nil)
 	}
 

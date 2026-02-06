@@ -31,6 +31,10 @@ server:
 client:
 	go run ./cmd/client
 
+.PHONY: clients
+clients:
+	go run ./cmd/client & go run ./cmd/client
+
 .PHONY: wasm
 wasm:
 	mkdir -p ./web
