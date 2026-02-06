@@ -31,7 +31,7 @@ type ClientApp struct {
 	cards  *cards.Cards
 	menu   *ui.Menu
 	game   *ui.GameScene
-	client *client.RemoteClient
+	client *client.Client
 	err    error
 }
 
@@ -78,7 +78,7 @@ func (a *ClientApp) connect(lobbyID string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	c, err := client.NewRemote(ctx, a.serverAddr, lobbyID)
+	c, err := client.New(ctx, a.serverAddr, lobbyID)
 	if err != nil {
 		a.err = err
 		a.state = stateMenu

@@ -1,59 +1,57 @@
-package message
+package api
 
-import "github.com/ysomad/gigabg/game"
+import (
+	"encoding/json"
 
-// Client -> Server
-type ClientMessage struct {
-	Join         *JoinLobby
-	Buy          *BuyCard
-	SellCard     *SellCard
-	PlaceMinion  *PlaceMinion
-	RemoveMinion *RemoveMinion
-	SyncBoard    *SyncBoard
-	UpgradeShop  *UpgradeShop
-	RefreshShop  *RefreshShop
-	PlaySpell    *PlaySpell
-	DiscoverPick *DiscoverPick
-}
+	"github.com/ysomad/gigabg/game"
+)
 
-// Action returns a human-readable name of the action in the message.
-func (m *ClientMessage) Action() string {
-	switch {
-	case m.Join != nil:
+type Action uint8
+
+const (
+	ActionJoinLobby Action = iota + 1
+	ActionBuyCard
+	ActionSellCard
+	ActionPlaceMinion
+	ActionRemoveMinion
+	ActionSyncBoard
+	ActionUpgradeShop
+	ActionRefreshShop
+	ActionPlaySpell
+	ActionDiscoverPick
+)
+
+func (a Action) String() string {
+	switch a {
+	case ActionJoinLobby:
 		return "join_lobby"
-	case m.Buy != nil:
+	case ActionBuyCard:
 		return "buy_card"
-	case m.SellCard != nil:
+	case ActionSellCard:
 		return "sell_card"
-	case m.PlaceMinion != nil:
+	case ActionPlaceMinion:
 		return "place_minion"
-	case m.RemoveMinion != nil:
+	case ActionRemoveMinion:
 		return "remove_minion"
-	case m.SyncBoard != nil:
+	case ActionSyncBoard:
 		return "sync_board"
-	case m.UpgradeShop != nil:
+	case ActionUpgradeShop:
 		return "upgrade_shop"
-	case m.RefreshShop != nil:
+	case ActionRefreshShop:
 		return "refresh_shop"
-	case m.PlaySpell != nil:
+	case ActionPlaySpell:
 		return "play_spell"
-	case m.DiscoverPick != nil:
+	case ActionDiscoverPick:
 		return "discover_pick"
 	default:
 		return "unknown"
 	}
 }
 
-type PlaySpell struct {
-	HandIndex int
-}
-
-type DiscoverPick struct {
-	Index int
-}
-
-type SyncBoard struct {
-	Order []int // indices representing new order
+// Client -> Server
+type ClientMessage struct {
+	Action  Action
+	Payload json.RawMessage
 }
 
 type JoinLobby struct {
@@ -77,9 +75,17 @@ type RemoveMinion struct {
 	BoardIndex int
 }
 
-type UpgradeShop struct{}
+type SyncBoard struct {
+	Order []int
+}
 
-type RefreshShop struct{}
+type PlaySpell struct {
+	HandIndex int
+}
+
+type DiscoverPick struct {
+	Index int
+}
 
 // Server -> Client
 type ServerMessage struct {

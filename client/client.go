@@ -10,7 +10,7 @@ import (
 	"github.com/coder/websocket"
 
 	"github.com/ysomad/gigabg/game"
-	"github.com/ysomad/gigabg/message"
+	"github.com/ysomad/gigabg/api"
 )
 
 var (
@@ -18,11 +18,11 @@ var (
 	ErrNotJoined    = errors.New("not joined to lobby")
 )
 
-// RemoteClient connects to a game server via WebSocket.
-type RemoteClient struct {
+// Client connects to a game server via WebSocket.
+type Client struct {
 	conn *websocket.Conn
 
-	state *message.GameState
+	state *api.GameState
 	mu    sync.RWMutex
 
 	ctx    context.Context
@@ -31,15 +31,15 @@ type RemoteClient struct {
 	errCh chan error
 }
 
-// NewRemote connects to a game server and joins the specified lobby.
-func NewRemote(ctx context.Context, serverAddr, lobbyID string) (*RemoteClient, error) {
+// New connects to a game server and joins the specified lobby.
+func New(ctx context.Context, serverAddr, lobbyID string) (*Client, error) {
 	conn, _, err := websocket.Dial(ctx, serverAddr, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	connCtx, cancel := context.WithCancel(context.Background())
-	c := &RemoteClient{
+	c := &Client{
 		conn:   conn,
 		ctx:    connCtx,
 		cancel: cancel,
@@ -49,9 +49,7 @@ func NewRemote(ctx context.Context, serverAddr, lobbyID string) (*RemoteClient, 
 	go c.readPump()
 
 	// Send join message
-	if err := c.sendMessage(&message.ClientMessage{
-		Join: &message.JoinLobby{LobbyID: lobbyID},
-	}); err != nil {
+	if err := c.send(api.ActionJoinLobby, api.JoinLobby{LobbyID: lobbyID}); err != nil {
 		conn.CloseNow()
 		return nil, err
 	}
@@ -59,7 +57,7 @@ func NewRemote(ctx context.Context, serverAddr, lobbyID string) (*RemoteClient, 
 	return c, nil
 }
 
-func (c *RemoteClient) readPump() {
+func (c *Client) readPump() {
 	defer c.conn.CloseNow()
 
 	for {
@@ -72,7 +70,7 @@ func (c *RemoteClient) readPump() {
 			return
 		}
 
-		var msg message.ServerMessage
+		var msg api.ServerMessage
 		if err := json.Unmarshal(data, &msg); err != nil {
 			continue
 		}
@@ -81,7 +79,7 @@ func (c *RemoteClient) readPump() {
 	}
 }
 
-func (c *RemoteClient) handleMessage(msg *message.ServerMessage) {
+func (c *Client) handleMessage(msg *api.ServerMessage) {
 	if msg.State != nil {
 		c.mu.Lock()
 		c.state = msg.State
@@ -96,7 +94,17 @@ func (c *RemoteClient) handleMessage(msg *message.ServerMessage) {
 	}
 }
 
-func (c *RemoteClient) sendMessage(msg *message.ClientMessage) error {
+func (c *Client) send(action api.Action, payload any) error {
+	msg := api.ClientMessage{Action: action}
+
+	if payload != nil {
+		raw, err := json.Marshal(payload)
+		if err != nil {
+			return err
+		}
+		msg.Payload = raw
+	}
+
 	data, err := json.Marshal(msg)
 	if err != nil {
 		return err
@@ -105,14 +113,14 @@ func (c *RemoteClient) sendMessage(msg *message.ClientMessage) error {
 }
 
 // State returns the current game state.
-func (c *RemoteClient) State() *message.GameState {
+func (c *Client) State() *api.GameState {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.state
 }
 
 // PlayerID returns this client's player ID.
-func (c *RemoteClient) PlayerID() string {
+func (c *Client) PlayerID() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	if c.state == nil {
@@ -122,7 +130,7 @@ func (c *RemoteClient) PlayerID() string {
 }
 
 // Players returns all players in the lobby.
-func (c *RemoteClient) Players() []message.Player {
+func (c *Client) Players() []api.Player {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	if c.state == nil {
@@ -132,7 +140,7 @@ func (c *RemoteClient) Players() []message.Player {
 }
 
 // Turn returns the current turn number.
-func (c *RemoteClient) Turn() int {
+func (c *Client) Turn() int {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	if c.state == nil {
@@ -142,7 +150,7 @@ func (c *RemoteClient) Turn() int {
 }
 
 // Phase returns the current phase.
-func (c *RemoteClient) Phase() game.Phase {
+func (c *Client) Phase() game.Phase {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	if c.state == nil {
@@ -152,7 +160,7 @@ func (c *RemoteClient) Phase() game.Phase {
 }
 
 // PhaseEndTimestamp returns when the current phase ends (unix seconds).
-func (c *RemoteClient) PhaseEndTimestamp() int64 {
+func (c *Client) PhaseEndTimestamp() int64 {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	if c.state == nil {
@@ -162,7 +170,7 @@ func (c *RemoteClient) PhaseEndTimestamp() int64 {
 }
 
 // Shop returns the current shop cards.
-func (c *RemoteClient) Shop() []message.Card {
+func (c *Client) Shop() []api.Card {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	if c.state == nil {
@@ -172,7 +180,7 @@ func (c *RemoteClient) Shop() []message.Card {
 }
 
 // Hand returns the current hand cards.
-func (c *RemoteClient) Hand() []message.Card {
+func (c *Client) Hand() []api.Card {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	if c.state == nil {
@@ -182,7 +190,7 @@ func (c *RemoteClient) Hand() []message.Card {
 }
 
 // Board returns the current board cards.
-func (c *RemoteClient) Board() []message.Card {
+func (c *Client) Board() []api.Card {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	if c.state == nil {
@@ -192,7 +200,7 @@ func (c *RemoteClient) Board() []message.Card {
 }
 
 // Player returns the current player's info.
-func (c *RemoteClient) Player() *message.Player {
+func (c *Client) Player() *api.Player {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	if c.state == nil {
@@ -207,59 +215,45 @@ func (c *RemoteClient) Player() *message.Player {
 }
 
 // BuyCard sends a buy card action.
-func (c *RemoteClient) BuyCard(shopIndex int) error {
-	return c.sendMessage(&message.ClientMessage{
-		Buy: &message.BuyCard{ShopIndex: shopIndex},
-	})
+func (c *Client) BuyCard(shopIndex int) error {
+	return c.send(api.ActionBuyCard, api.BuyCard{ShopIndex: shopIndex})
 }
 
 // SellCard sends a sell card action.
-func (c *RemoteClient) SellCard(handIndex int) error {
-	return c.sendMessage(&message.ClientMessage{
-		SellCard: &message.SellCard{HandIndex: handIndex},
-	})
+func (c *Client) SellCard(handIndex int) error {
+	return c.send(api.ActionSellCard, api.SellCard{HandIndex: handIndex})
 }
 
 // PlaceMinion sends a place minion action.
-func (c *RemoteClient) PlaceMinion(handIndex, boardPosition int) error {
-	return c.sendMessage(&message.ClientMessage{
-		PlaceMinion: &message.PlaceMinion{
-			HandIndex:     handIndex,
-			BoardPosition: boardPosition,
-		},
+func (c *Client) PlaceMinion(handIndex, boardPosition int) error {
+	return c.send(api.ActionPlaceMinion, api.PlaceMinion{
+		HandIndex:     handIndex,
+		BoardPosition: boardPosition,
 	})
 }
 
 // RemoveMinion sends a remove minion action.
-func (c *RemoteClient) RemoveMinion(boardIndex int) error {
-	return c.sendMessage(&message.ClientMessage{
-		RemoveMinion: &message.RemoveMinion{BoardIndex: boardIndex},
-	})
+func (c *Client) RemoveMinion(boardIndex int) error {
+	return c.send(api.ActionRemoveMinion, api.RemoveMinion{BoardIndex: boardIndex})
 }
 
 // UpgradeShop sends an upgrade shop action.
-func (c *RemoteClient) UpgradeShop() error {
-	return c.sendMessage(&message.ClientMessage{
-		UpgradeShop: &message.UpgradeShop{},
-	})
+func (c *Client) UpgradeShop() error {
+	return c.send(api.ActionUpgradeShop, nil)
 }
 
 // RefreshShop sends a refresh shop action.
-func (c *RemoteClient) RefreshShop() error {
-	return c.sendMessage(&message.ClientMessage{
-		RefreshShop: &message.RefreshShop{},
-	})
+func (c *Client) RefreshShop() error {
+	return c.send(api.ActionRefreshShop, nil)
 }
 
 // SyncBoard sends the board order to server.
-func (c *RemoteClient) SyncBoard(order []int) error {
-	return c.sendMessage(&message.ClientMessage{
-		SyncBoard: &message.SyncBoard{Order: order},
-	})
+func (c *Client) SyncBoard(order []int) error {
+	return c.send(api.ActionSyncBoard, api.SyncBoard{Order: order})
 }
 
 // Discover returns the current discover offer, or nil if none pending.
-func (c *RemoteClient) Discover() *message.DiscoverOffer {
+func (c *Client) Discover() *api.DiscoverOffer {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	if c.state == nil {
@@ -269,34 +263,30 @@ func (c *RemoteClient) Discover() *message.DiscoverOffer {
 }
 
 // PlaySpell sends a play spell action.
-func (c *RemoteClient) PlaySpell(handIndex int) error {
-	return c.sendMessage(&message.ClientMessage{
-		PlaySpell: &message.PlaySpell{HandIndex: handIndex},
-	})
+func (c *Client) PlaySpell(handIndex int) error {
+	return c.send(api.ActionPlaySpell, api.PlaySpell{HandIndex: handIndex})
 }
 
 // DiscoverPick sends a discover pick action.
-func (c *RemoteClient) DiscoverPick(index int) error {
-	return c.sendMessage(&message.ClientMessage{
-		DiscoverPick: &message.DiscoverPick{Index: index},
-	})
+func (c *Client) DiscoverPick(index int) error {
+	return c.send(api.ActionDiscoverPick, api.DiscoverPick{Index: index})
 }
 
 // Close closes the connection.
-func (c *RemoteClient) Close() error {
+func (c *Client) Close() error {
 	c.cancel()
 	return c.conn.Close(websocket.StatusNormalClosure, "")
 }
 
 // Connected returns true if the client has received state.
-func (c *RemoteClient) Connected() bool {
+func (c *Client) Connected() bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.state != nil
 }
 
 // WaitForState blocks until state is received or context is cancelled.
-func (c *RemoteClient) WaitForState(ctx context.Context) error {
+func (c *Client) WaitForState(ctx context.Context) error {
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
 

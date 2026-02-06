@@ -14,7 +14,7 @@ import (
 
 	"github.com/ysomad/gigabg/game"
 	"github.com/ysomad/gigabg/lobby"
-	"github.com/ysomad/gigabg/message"
+	"github.com/ysomad/gigabg/api"
 )
 
 type Server struct {
@@ -123,7 +123,7 @@ func (s *Server) readPump(ctx context.Context, client *ClientConn) {
 			return
 		}
 
-		var msg message.ClientMessage
+		var msg api.ClientMessage
 		if err := json.Unmarshal(data, &msg); err != nil {
 			slog.Error("decode failed", "error", err)
 			continue
@@ -133,57 +133,107 @@ func (s *Server) readPump(ctx context.Context, client *ClientConn) {
 	}
 }
 
-func (s *Server) handleMessage(client *ClientConn, msg *message.ClientMessage) {
-	switch {
-	case msg.Join != nil:
-		s.handleJoin(client, msg.Join)
-	case msg.Buy != nil:
-		s.handleAction(client, msg, func(l *lobby.Lobby, p *game.Player) error {
-			if err := p.BuyCard(msg.Buy.ShopIndex); err != nil {
+func decodePayload[T any](msg *api.ClientMessage) (T, error) {
+	var v T
+	if err := json.Unmarshal(msg.Payload, &v); err != nil {
+		return v, err
+	}
+	return v, nil
+}
+
+func (s *Server) handleMessage(client *ClientConn, msg *api.ClientMessage) {
+	switch msg.Action {
+	case api.ActionJoinLobby:
+		payload, err := decodePayload[api.JoinLobby](msg)
+		if err != nil {
+			s.sendError(client, "invalid payload")
+			return
+		}
+		s.handleJoin(client, &payload)
+
+	case api.ActionBuyCard:
+		s.handleAction(client, msg.Action, func(l *lobby.Lobby, p *game.Player) error {
+			payload, err := decodePayload[api.BuyCard](msg)
+			if err != nil {
+				return err
+			}
+			if err := p.BuyCard(payload.ShopIndex); err != nil {
 				return err
 			}
 			p.CheckTriples()
 			return nil
 		})
-	case msg.SellCard != nil:
-		s.handleAction(client, msg, func(l *lobby.Lobby, p *game.Player) error {
-			return p.SellCard(msg.SellCard.HandIndex, l.Pool())
+
+	case api.ActionSellCard:
+		s.handleAction(client, msg.Action, func(l *lobby.Lobby, p *game.Player) error {
+			payload, err := decodePayload[api.SellCard](msg)
+			if err != nil {
+				return err
+			}
+			return p.SellCard(payload.HandIndex, l.Pool())
 		})
-	case msg.PlaceMinion != nil:
-		s.handleAction(client, msg, func(l *lobby.Lobby, p *game.Player) error {
-			return p.PlaceMinion(msg.PlaceMinion.HandIndex, msg.PlaceMinion.BoardPosition, l.Cards())
+
+	case api.ActionPlaceMinion:
+		s.handleAction(client, msg.Action, func(l *lobby.Lobby, p *game.Player) error {
+			payload, err := decodePayload[api.PlaceMinion](msg)
+			if err != nil {
+				return err
+			}
+			return p.PlaceMinion(payload.HandIndex, payload.BoardPosition, l.Cards())
 		})
-	case msg.RemoveMinion != nil:
-		s.handleAction(client, msg, func(l *lobby.Lobby, p *game.Player) error {
-			return p.RemoveMinion(msg.RemoveMinion.BoardIndex)
+
+	case api.ActionRemoveMinion:
+		s.handleAction(client, msg.Action, func(l *lobby.Lobby, p *game.Player) error {
+			payload, err := decodePayload[api.RemoveMinion](msg)
+			if err != nil {
+				return err
+			}
+			return p.RemoveMinion(payload.BoardIndex)
 		})
-	case msg.UpgradeShop != nil:
-		s.handleAction(client, msg, func(l *lobby.Lobby, p *game.Player) error {
+
+	case api.ActionUpgradeShop:
+		s.handleAction(client, msg.Action, func(l *lobby.Lobby, p *game.Player) error {
 			return p.UpgradeShop()
 		})
-	case msg.RefreshShop != nil:
-		s.handleAction(client, msg, func(l *lobby.Lobby, p *game.Player) error {
+
+	case api.ActionRefreshShop:
+		s.handleAction(client, msg.Action, func(l *lobby.Lobby, p *game.Player) error {
 			return p.RefreshShop(l.Pool())
 		})
-	case msg.PlaySpell != nil:
-		s.handleAction(client, msg, func(l *lobby.Lobby, p *game.Player) error {
-			return p.PlaySpell(msg.PlaySpell.HandIndex, l.Pool())
+
+	case api.ActionPlaySpell:
+		s.handleAction(client, msg.Action, func(l *lobby.Lobby, p *game.Player) error {
+			payload, err := decodePayload[api.PlaySpell](msg)
+			if err != nil {
+				return err
+			}
+			return p.PlaySpell(payload.HandIndex, l.Pool())
 		})
-	case msg.DiscoverPick != nil:
-		s.handleAction(client, msg, func(l *lobby.Lobby, p *game.Player) error {
-			return p.DiscoverPick(msg.DiscoverPick.Index, l.Pool())
+
+	case api.ActionDiscoverPick:
+		s.handleAction(client, msg.Action, func(l *lobby.Lobby, p *game.Player) error {
+			payload, err := decodePayload[api.DiscoverPick](msg)
+			if err != nil {
+				return err
+			}
+			return p.DiscoverPick(payload.Index, l.Pool())
 		})
-	case msg.SyncBoard != nil:
-		s.handleAction(client, msg, func(l *lobby.Lobby, p *game.Player) error {
-			return p.ReorderBoard(msg.SyncBoard.Order)
+
+	case api.ActionSyncBoard:
+		s.handleAction(client, msg.Action, func(l *lobby.Lobby, p *game.Player) error {
+			payload, err := decodePayload[api.SyncBoard](msg)
+			if err != nil {
+				return err
+			}
+			return p.ReorderBoard(payload.Order)
 		})
 	}
 }
 
 func (s *Server) handleAction(
 	client *ClientConn,
-	msg *message.ClientMessage,
-	action func(l *lobby.Lobby, p *game.Player) error,
+	action api.Action,
+	fn func(l *lobby.Lobby, p *game.Player) error,
 ) {
 	if client.lobbyID == "" {
 		s.sendError(client, "not in lobby")
@@ -214,7 +264,7 @@ func (s *Server) handleAction(
 	beforeHand := len(p.Hand)
 	beforeShop := len(p.Shop)
 
-	if err := action(l, p); err != nil {
+	if err := fn(l, p); err != nil {
 		s.sendError(client, err.Error())
 		return
 	}
@@ -241,12 +291,12 @@ func (s *Server) handleAction(
 	if d := len(p.Shop) - beforeShop; d != 0 {
 		attrs = append(attrs, slog.Int("shop", d))
 	}
-	slog.LogAttrs(context.Background(), slog.LevelInfo, msg.Action(), attrs...)
+	slog.LogAttrs(context.Background(), slog.LevelInfo, action.String(), attrs...)
 
 	s.sendPlayerState(client, l, p)
 }
 
-func (s *Server) handleJoin(client *ClientConn, join *message.JoinLobby) {
+func (s *Server) handleJoin(client *ClientConn, join *api.JoinLobby) {
 	lobbyID := join.LobbyID
 	if lobbyID == "" {
 		s.sendError(client, "lobby_id required")
@@ -319,34 +369,34 @@ func (s *Server) broadcastState(lobbyID string, l *lobby.Lobby) {
 }
 
 func (s *Server) sendPlayerState(client *ClientConn, l *lobby.Lobby, p *game.Player) {
-	state := &message.GameState{
+	state := &api.GameState{
 		PlayerID:          client.playerID,
 		Turn:              l.Turn(),
 		Phase:             l.Phase(),
 		PhaseEndTimestamp: l.PhaseEndTimestamp(),
-		Players:           message.NewPlayers(l.Players()),
-		Shop:              message.NewCards(p.Shop),
-		Hand:              message.NewCards(p.Hand),
-		Board:             message.NewCardsFromMinions(p.Board),
+		Players:           api.NewPlayers(l.Players()),
+		Shop:              api.NewCards(p.Shop),
+		Hand:              api.NewCards(p.Hand),
+		Board:             api.NewCardsFromMinions(p.Board),
 	}
 
 	if len(p.DiscoverOptions) > 0 {
-		state.Discover = &message.DiscoverOffer{
-			Cards: message.NewCards(p.DiscoverOptions),
+		state.Discover = &api.DiscoverOffer{
+			Cards: api.NewCards(p.DiscoverOptions),
 		}
 	}
 
-	s.sendMessage(client, &message.ServerMessage{State: state})
+	s.sendMessage(client, &api.ServerMessage{State: state})
 }
 
 func (s *Server) sendError(client *ClientConn, msg string) {
-	resp := &message.ServerMessage{
-		Error: &message.Error{Message: msg},
+	resp := &api.ServerMessage{
+		Error: &api.Error{Message: msg},
 	}
 	s.sendMessage(client, resp)
 }
 
-func (s *Server) sendMessage(client *ClientConn, msg *message.ServerMessage) {
+func (s *Server) sendMessage(client *ClientConn, msg *api.ServerMessage) {
 	data, err := json.Marshal(msg)
 	if err != nil {
 		slog.Error("encode failed", "error", err)

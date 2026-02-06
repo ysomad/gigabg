@@ -13,7 +13,7 @@ import (
 	"github.com/ysomad/gigabg/client"
 	"github.com/ysomad/gigabg/game"
 	"github.com/ysomad/gigabg/game/cards"
-	"github.com/ysomad/gigabg/message"
+	"github.com/ysomad/gigabg/api"
 )
 
 const (
@@ -25,7 +25,7 @@ var ColorBackground = color.RGBA{20, 20, 30, 255}
 
 // GameScene renders the game UI.
 type GameScene struct {
-	client *client.RemoteClient
+	client *client.Client
 	cards  *cards.Cards
 	font   *text.GoTextFace
 
@@ -41,7 +41,7 @@ type GameScene struct {
 	lastPhase  game.Phase
 }
 
-func NewGameScene(c *client.RemoteClient, cards *cards.Cards, font *text.GoTextFace) *GameScene {
+func NewGameScene(c *client.Client, cards *cards.Cards, font *text.GoTextFace) *GameScene {
 	return &GameScene{
 		client: c,
 		cards:  cards,
@@ -346,7 +346,7 @@ func (g *GameScene) drawRecruit(screen *ebiten.Image) {
 
 	// Draw dragged card at cursor
 	if g.dragging {
-		var c message.Card
+		var c api.Card
 		if g.dragFromBoard {
 			serverIdx := g.boardOrder[g.dragIndex]
 			if serverIdx >= 0 && serverIdx < len(board) {
@@ -364,7 +364,7 @@ func (g *GameScene) drawRecruit(screen *ebiten.Image) {
 	}
 }
 
-func (g *GameScene) drawDiscoverOverlay(screen *ebiten.Image, discover *message.DiscoverOffer) {
+func (g *GameScene) drawDiscoverOverlay(screen *ebiten.Image, discover *api.DiscoverOffer) {
 	// Semi-transparent background
 	vector.FillRect(screen, 0, 0, ScreenWidth, ScreenHeight, color.RGBA{0, 0, 0, 160}, false)
 
@@ -385,7 +385,7 @@ func (g *GameScene) drawDiscoverOverlay(screen *ebiten.Image, discover *message.
 	}
 }
 
-func (g *GameScene) handleDiscoverClick(discover *message.DiscoverOffer, x, y int) {
+func (g *GameScene) handleDiscoverClick(discover *api.DiscoverOffer, x, y int) {
 	discoverY := ScreenHeight/2 - cardHeight/2
 	for i := range discover.Cards {
 		cardX := discoverStartX(len(discover.Cards)) + i*(cardWidth+cardGap)
@@ -401,7 +401,7 @@ func discoverStartX(count int) int {
 	return (ScreenWidth - totalW) / 2
 }
 
-func (g *GameScene) drawCard(screen *ebiten.Image, c message.Card, x, y float64) {
+func (g *GameScene) drawCard(screen *ebiten.Image, c api.Card, x, y float64) {
 	t := g.cards.ByTemplateID(c.TemplateID)
 	isSpell := t != nil && t.IsSpell()
 
