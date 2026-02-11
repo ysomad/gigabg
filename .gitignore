@@ -5,3 +5,4 @@ bin/
 coverage.out
 coverage.html
 web/
+*.env

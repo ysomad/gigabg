@@ -1,3 +1,9 @@
+include .local.env
+export
+
+export GOOSE_DRIVER=postgres
+export GOOSE_DBSTRING=${PG_URL}
+
 .PHONY: run
 run:
 	go run .
@@ -6,26 +12,13 @@ run:
 test:
 	go test -v -cover -race ./...
 
-.PHONY: testcov
-testcov:
-	go test -v -race -covermode=atomic -coverprofile=coverage.out ./... && \
-	go tool cover -html=coverage.out -o coverage.html
-
-.PHONY: opencov
-opencov:
-	go tool cover -html=coverage.out
-
 .PHONY: lint
 lint:
 	golangci-lint run ./...
 
-.PHONY: proto
-proto:
-	protoc --go_out=. --go_opt=paths=source_relative proto/game.proto
-
-.PHONY: server
-server:
-	air --build.cmd "go build -o ./tmp/server ./cmd/server" --build.bin "./tmp/server"
+.PHONY: gameserver
+gameserver:
+	air --build.cmd "go build -o ./tmp/gameserver ./cmd/gameserver" --build.bin "./tmp/gameserver"
 
 .PHONY: client
 client:
@@ -44,3 +37,29 @@ wasm:
 .PHONY: web
 web:
 	air --build.cmd "make wasm && go build -o ./tmp/web ./cmd/web" --build.bin "./tmp/web"
+
+.PHONY: goose-new
+goose-new:
+	@read -p "Enter the name of the new migration: " name; \
+	goose -dir migrations create "$${name// /_}" sql
+
+.PHONY: goose-up
+goose-up:
+	@echo "Running all new database migrations..."
+	goose -dir migrations validate
+	goose -dir migrations up
+
+.PHONY: goose-down
+goose-down:
+	@echo "Running all down database migrations..."
+	goose -dir migrations down
+
+.PHONY: goose-reset
+goose-reset:
+	@echo "Dropping everything in database..."
+	goose -dir migrations reset
+
+.PHONY: goose-status
+goose-status:
+	goose -dir migrations status
+

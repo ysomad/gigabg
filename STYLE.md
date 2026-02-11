@@ -12,6 +12,7 @@
 - No type embedding in public structs
 - Avoid `init()`; prefer explicit initialization
 - Call `os.Exit`/`log.Fatal` only in `main()`
+- Use `var _ Interface = (*Implementation)(nil)` to check interface implementations
 
 ## Errors
 
@@ -20,7 +21,7 @@ Decision table:
 |----------------|--------------|-----|
 | No | static | `errors.New` |
 | No | dynamic | `fmt.Errorf` |
-| Yes | static | `var ErrX = errors.New(...)` |
+| Yes | static | `const ErrX errors.Error = "error"` |
 | Yes | dynamic | custom error type |
 
 Rules:

@@ -1,147 +1,112 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"log"
+	"flag"
+	"log/slog"
+	"os"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/examples/resources/fonts"
-	"github.com/hajimehoshi/ebiten/v2/text/v2"
 
-	"github.com/ysomad/gigabg/client"
-	"github.com/ysomad/gigabg/game/cards"
-	"github.com/ysomad/gigabg/ui"
+	"github.com/ysomad/gigabg/internal/client"
+	"github.com/ysomad/gigabg/internal/game/cards"
+	"github.com/ysomad/gigabg/internal/ui"
+	"github.com/ysomad/gigabg/internal/ui/scene"
+	"github.com/ysomad/gigabg/internal/ui/widget"
 )
-
-type state uint8
-
-const (
-	stateMenu state = iota
-	stateConnecting
-	stateGame
-)
-
-type ClientApp struct {
-	state      state
-	serverAddr string
-
-	fontSource *text.GoTextFaceSource
-	font       *text.GoTextFace
-	cards      *cards.Cards
-	menu       *ui.Menu
-	game       *ui.GameScene
-	client     *client.Client
-	err        error
-}
 
 func main() {
+	serverAddr := flag.String("addr", "localhost:8080", "game server address")
+	flag.Parse()
 	cardStore, err := cards.New()
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("load cards failed", "error", err)
+		return
 	}
 
-	app := &ClientApp{
-		state:      stateMenu,
-		serverAddr: "ws://localhost:8080",
-		cards:      cardStore,
+	app, err := ui.NewApp()
+	if err != nil {
+		slog.Error("init app failed", "error", err)
+		return
 	}
-	app.loadFont()
-	app.menu = ui.NewMenu(app.font, app.onJoin)
 
-	ebiten.SetWindowSize(ui.ActiveRes.Width, ui.ActiveRes.Height)
+	httpClient := client.New(*serverAddr)
+
+	connectAndPlay := func(p *widget.Popup, playerID, lobbyID string) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		p.SetMessage("Connecting to server...")
+		slog.Info("connecting", "player", playerID, "lobby", lobbyID)
+
+		gc, err := httpClient.ConnectToLobby(ctx, playerID, lobbyID)
+		if err != nil {
+			slog.Error("connection failed", "error", err)
+			p.SetTitle("Error")
+			p.SetMessage(err.Error())
+			p.ShowButton("Close", func() { app.HideOverlay() })
+			return
+		}
+
+		p.SetMessage("Waiting for game state...")
+		slog.Info("waiting for state", "player", playerID, "lobby", lobbyID)
+
+		if err := gc.WaitForState(ctx); err != nil {
+			gc.Close()
+			slog.Error("wait for state failed", "error", err)
+			p.SetTitle("Error")
+			p.SetMessage(err.Error())
+			p.ShowButton("Close", func() { app.HideOverlay() })
+			return
+		}
+
+		slog.Info("joined game", "player", playerID, "lobby", lobbyID)
+		app.HideOverlay()
+		app.SwitchScene(scene.NewGame(gc, cardStore, app.Font()))
+	}
+
+	onJoin := func(playerID, lobbyID string) {
+		p := widget.NewPopup(app.Font(), "", "Connecting...")
+		app.ShowOverlay(p)
+
+		go func() {
+			connectAndPlay(p, playerID, lobbyID)
+		}()
+	}
+
+	onCreate := func(playerID string, lobbySize int) {
+		p := widget.NewPopup(app.Font(), "", "Creating lobby...")
+		app.ShowOverlay(p)
+
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+
+			slog.Info("creating lobby", "player", playerID, "size", lobbySize)
+
+			lobbyID, err := httpClient.CreateLobby(ctx, lobbySize)
+			if err != nil {
+				slog.Error("create lobby failed", "error", err)
+				p.SetTitle("Error")
+				p.SetMessage(err.Error())
+				p.ShowButton("Close", func() { app.HideOverlay() })
+				return
+			}
+
+			slog.Info("lobby created", "lobby", lobbyID)
+			connectAndPlay(p, playerID, lobbyID)
+		}()
+	}
+
+	app.SwitchScene(scene.NewMenu(app.Font(), onJoin, onCreate))
+
+	ebiten.SetWindowSize(ui.BaseWidth, ui.BaseHeight)
 	ebiten.SetWindowTitle("GIGA Battlegrounds")
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 
 	if err := ebiten.RunGame(app); err != nil {
-		log.Fatal(err)
+		slog.Error("run game failed", "error", err)
+		os.Exit(1)
 	}
-}
-
-func (a *ClientApp) loadFont() {
-	src, err := text.NewGoTextFaceSource(bytes.NewReader(fonts.MPlus1pRegular_ttf))
-	if err != nil {
-		return
-	}
-	a.fontSource = src
-	a.font = &text.GoTextFace{
-		Source: src,
-		Size:   14 * ui.ActiveRes.Scale(),
-	}
-}
-
-func (a *ClientApp) updateFontSize() {
-	if a.fontSource == nil {
-		return
-	}
-	a.font.Size = 14 * ui.ActiveRes.Scale()
-}
-
-func (a *ClientApp) onJoin(lobbyID string) {
-	a.state = stateConnecting
-	go a.connect(lobbyID)
-}
-
-func (a *ClientApp) connect(lobbyID string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	c, err := client.New(ctx, a.serverAddr, lobbyID)
-	if err != nil {
-		a.err = err
-		a.state = stateMenu
-		return
-	}
-
-	if err := c.WaitForState(ctx); err != nil {
-		c.Close()
-		a.err = err
-		a.state = stateMenu
-		return
-	}
-
-	a.client = c
-	a.game = ui.NewGameScene(c, a.cards, a.font)
-	a.state = stateGame
-}
-
-func (a *ClientApp) Update() error {
-	a.updateFontSize()
-
-	switch a.state {
-	case stateMenu:
-		a.menu.Update()
-	case stateGame:
-		if a.game != nil {
-			return a.game.Update()
-		}
-	}
-	return nil
-}
-
-func (a *ClientApp) Draw(screen *ebiten.Image) {
-	switch a.state {
-	case stateMenu:
-		a.menu.Draw(screen)
-	case stateConnecting:
-		a.drawConnecting(screen)
-	case stateGame:
-		if a.game != nil {
-			a.game.Draw(screen)
-		}
-	}
-}
-
-func (a *ClientApp) drawConnecting(screen *ebiten.Image) {
-	screen.Fill(ui.ColorBackground)
-	w := float64(ui.ActiveRes.Width)
-	h := float64(ui.ActiveRes.Height)
-	ui.DrawTextAt(screen, a.font, "Connecting...", w/2-50, h/2)
-}
-
-func (a *ClientApp) Layout(outsideWidth, outsideHeight int) (int, int) {
-	ui.ActiveRes.Width = outsideWidth
-	ui.ActiveRes.Height = outsideHeight
-	return outsideWidth, outsideHeight
 }
