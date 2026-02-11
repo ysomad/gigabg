@@ -342,3 +342,8 @@ func (p *Player) ResolveDiscover(pool *CardPool) {
 func (p *Player) ReorderBoard(order []int) error {
 	return p.board.Reorder(order)
 }
+
+// ReorderShop reorders the shop cards based on the given indices.
+func (p *Player) ReorderShop(order []int) error {
+	return p.shop.Reorder(order)
+}

@@ -40,7 +40,7 @@ func main() {
 		p.SetMessage("Connecting to server...")
 		slog.Info("connecting", "player", playerID, "lobby", lobbyID)
 
-		gc, err := httpClient.ConnectToLobby(ctx, playerID, lobbyID)
+		gc, err := client.NewGameClient(ctx, *serverAddr, playerID, lobbyID)
 		if err != nil {
 			slog.Error("connection failed", "error", err)
 			p.SetTitle("Error")

@@ -86,3 +86,27 @@ func (s *Shop) Upgrade() {
 func (s *Shop) Freeze() {
 	s.frozen = !s.frozen
 }
+
+// Reorder reorders the shop cards based on the given indices.
+func (s *Shop) Reorder(order []int) error {
+	if len(order) != len(s.cards) {
+		return ErrInvalidIndex
+	}
+
+	reordered := make([]Card, len(s.cards))
+	used := make(map[int]struct{}, len(s.cards))
+
+	for i, idx := range order {
+		if idx < 0 || idx >= len(s.cards) {
+			return ErrInvalidIndex
+		}
+		if _, ok := used[idx]; ok {
+			return ErrInvalidIndex
+		}
+		reordered[i] = s.cards[idx]
+		used[idx] = struct{}{}
+	}
+
+	s.cards = reordered
+	return nil
+}

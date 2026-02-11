@@ -362,11 +362,34 @@ func (ca *CombatAnimator) Draw(screen *ebiten.Image) {
 	sh := lay.Header.Screen()
 	lineY := float32(sh.Bottom())
 	sw := float32(ui.ActiveRes.Scale())
-	vector.StrokeLine(screen, float32(sh.X+sh.W*0.03), lineY, float32(sh.X+sh.W*0.97), lineY, sw, color.RGBA{60, 60, 80, 255}, false)
+	vector.StrokeLine(
+		screen,
+		float32(sh.X+sh.W*0.03),
+		lineY,
+		float32(sh.X+sh.W*0.97),
+		lineY,
+		sw,
+		color.RGBA{60, 60, 80, 255},
+		false,
+	)
 
 	// Labels.
-	ui.DrawText(screen, ca.font, "OPPONENT", lay.Opponent.W*0.04, lay.Opponent.Y+lay.Opponent.H*0.02, color.RGBA{255, 120, 120, 255})
-	ui.DrawText(screen, ca.font, "YOUR BOARD", lay.Player.W*0.04, lay.Player.Y+lay.Player.H*0.02, color.RGBA{120, 255, 120, 255})
+	ui.DrawText(
+		screen,
+		ca.font,
+		"OPPONENT",
+		lay.Opponent.W*0.04,
+		lay.Opponent.Y+lay.Opponent.H*0.02,
+		color.RGBA{255, 120, 120, 255},
+	)
+	ui.DrawText(
+		screen,
+		ca.font,
+		"YOUR BOARD",
+		lay.Player.W*0.04,
+		lay.Player.Y+lay.Player.H*0.02,
+		color.RGBA{120, 255, 120, 255},
+	)
 
 	ca.drawBoard(screen, lay, ca.opponentBoard, false)
 	ca.drawBoard(screen, lay, ca.playerBoard, true)

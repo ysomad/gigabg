@@ -11,6 +11,7 @@ import (
 
 	"github.com/ysomad/gigabg/game/cards"
 	"github.com/ysomad/gigabg/gameserver"
+	"github.com/ysomad/gigabg/lobby"
 	"github.com/ysomad/gigabg/pkg/httpserver"
 )
 
@@ -33,11 +34,19 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("cards: %w", err)
 	}
 
-	memstore := gameserver.NewMemoryStore(cardStore)
+	memstore := lobby.NewMemoryStore()
 
-	memstore.CreateLobby("1", 2)
+	testLobby, err := lobby.New(cardStore, 2)
+	if err != nil {
+		return err
+	}
+	testLobby.SetID("1")
 
-	gameServer := gameserver.New(memstore)
+	if err := memstore.CreateLobby(testLobby); err != nil {
+		return err
+	}
+
+	gameServer := gameserver.New(memstore, cardStore)
 
 	srv := httpserver.New(ctx, gameServer, httpserver.WithPort(*port))
 

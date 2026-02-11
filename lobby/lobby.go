@@ -2,16 +2,21 @@ package lobby
 
 import (
 	"math/rand/v2"
+	"strconv"
 	"time"
 
-	"github.com/ysomad/gigabg/pkg/errors"
+	"github.com/google/uuid"
 	"github.com/ysomad/gigabg/game"
+	"github.com/ysomad/gigabg/pkg/errors"
 )
 
 const (
 	ErrGameStarted        errors.Error = "game already started"
 	ErrGameNotStarted     errors.Error = "game not started"
 	ErrLobbyFull          errors.Error = "lobby is full"
+	ErrLobbyNotFound      errors.Error = "lobby not found"
+	ErrLobbyExists        errors.Error = "lobby already exists"
+	ErrNotAllowed         errors.Error = "player not allowed in lobby"
 	ErrNotEnoughPlayers   errors.Error = "not enough players"
 	ErrInvalidPlayerCount errors.Error = "max players must be even, between 2 and 8"
 	ErrAlreadyConnected   errors.Error = "player already connected"
@@ -40,21 +45,22 @@ func (s State) String() string {
 
 const maxCombatLogs = 3
 
-type combatPairing struct {
-	opponentID    string
-	playerBoard   game.Board // cloned with combat IDs
-	opponentBoard game.Board // cloned with combat IDs
+type CombatPairing struct {
+	OpponentID    string
+	PlayerBoard   game.Board // cloned with combat IDs
+	OpponentBoard game.Board // cloned with combat IDs
 }
 
-func newCombatPairing(opponentID string, playerBoard, opponentBoard game.Board) combatPairing {
-	return combatPairing{
-		opponentID:    opponentID,
-		playerBoard:   playerBoard,
-		opponentBoard: opponentBoard,
+func newCombatPairing(opponentID string, pb, ob game.Board) CombatPairing {
+	return CombatPairing{
+		OpponentID:    opponentID,
+		PlayerBoard:   pb,
+		OpponentBoard: ob,
 	}
 }
 
 type Lobby struct {
+	id                string
 	state             State
 	maxPlayers        int
 	players           []*game.Player
@@ -65,7 +71,7 @@ type Lobby struct {
 	phaseEndTimestamp int64                          // unix seconds
 	combatLogs        map[string][]game.CombatResult // playerID -> last N results
 	combatAnimations  []game.CombatAnimation         // ephemeral, cleared after send
-	combatPairings    map[string]combatPairing       // playerID -> pairing, combat phase only
+	combatPairings    map[string]CombatPairing       // playerID -> pairing, combat phase only
 }
 
 func New(cards game.CardStore, maxPlayers int) (*Lobby, error) {
@@ -73,6 +79,7 @@ func New(cards game.CardStore, maxPlayers int) (*Lobby, error) {
 		return nil, ErrInvalidPlayerCount
 	}
 	return &Lobby{
+		id:         strconv.FormatUint(uint64(uuid.New().ID()), 32),
 		state:      StateWaiting,
 		maxPlayers: maxPlayers,
 		players:    make([]*game.Player, 0, maxPlayers),
@@ -80,6 +87,9 @@ func New(cards game.CardStore, maxPlayers int) (*Lobby, error) {
 		pool:       game.NewCardPool(cards),
 	}, nil
 }
+
+func (l *Lobby) ID() string      { return l.id }
+func (l *Lobby) SetID(id string) { l.id = id }
 
 // MaxPlayers returns the lobby's max player count.
 func (l *Lobby) MaxPlayers() int { return l.maxPlayers }
@@ -103,6 +113,7 @@ func (l *Lobby) AddPlayer(id string) error {
 	if len(l.players) == l.maxPlayers {
 		l.start()
 	}
+
 	return nil
 }
 
@@ -156,7 +167,7 @@ func (l *Lobby) runCombat() {
 	perm := rand.Perm(len(l.players))
 
 	l.combatAnimations = l.combatAnimations[:0]
-	l.combatPairings = make(map[string]combatPairing, len(l.players))
+	l.combatPairings = make(map[string]CombatPairing, len(l.players))
 
 	// Pair consecutive players; odd player out gets a bye.
 	for i := 0; i+1 < len(perm); i += 2 {
@@ -300,12 +311,9 @@ func (l *Lobby) CombatAnimations() []game.CombatAnimation {
 }
 
 // CombatPairing returns the combat pairing for the given player (combat phase only).
-func (l *Lobby) CombatPairing(playerID string) (opponentID string, playerBoard, opponentBoard game.Board, ok bool) {
+func (l *Lobby) CombatPairing(playerID string) (CombatPairing, bool) {
 	p, ok := l.combatPairings[playerID]
-	if !ok {
-		return "", game.Board{}, game.Board{}, false
-	}
-	return p.opponentID, p.playerBoard, p.opponentBoard, true
+	return p, ok
 }
 
 // Pool returns the card pool.

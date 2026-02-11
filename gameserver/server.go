@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -12,7 +11,6 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
-	"github.com/google/uuid"
 
 	"github.com/ysomad/gigabg/api"
 	"github.com/ysomad/gigabg/game"
@@ -23,7 +21,8 @@ var _ http.Handler = (*Server)(nil)
 
 type Server struct {
 	mux     *http.ServeMux
-	store   *MemoryStore
+	store   *lobby.MemoryStore
+	cards   game.CardStore
 	clients map[string][]*ClientConn // lobbyID -> clients
 	mu      sync.RWMutex
 }
@@ -35,9 +34,10 @@ type ClientConn struct {
 	send     chan []byte
 }
 
-func New(store *MemoryStore) *Server {
+func New(store *lobby.MemoryStore, cards game.CardStore) *Server {
 	s := &Server{
 		store:   store,
+		cards:   cards,
 		clients: make(map[string][]*ClientConn),
 		mux:     http.NewServeMux(),
 	}
@@ -69,17 +69,21 @@ func (s *Server) createLobby(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	lobbyID := fmt.Sprintf("%d", uuid.New().ID())
-
-	if err := s.store.CreateLobby(lobbyID, req.MaxPlayers); err != nil {
+	l, err := lobby.New(s.cards, req.MaxPlayers)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	slog.Info("lobby created", "lobby", lobbyID, "max_players", req.MaxPlayers)
+	if err := s.store.CreateLobby(l); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	slog.Info("lobby created", "lobby", l.ID(), "max_players", req.MaxPlayers)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(api.CreateLobbyResp{LobbyID: lobbyID})
+	json.NewEncoder(w).Encode(api.CreateLobbyResp{LobbyID: l.ID()})
 }
 
 // gameLoop runs periodically to advance phases in all lobbies.
@@ -316,13 +320,17 @@ func (s *Server) handleMessage(client *ClientConn, msg *api.ClientMessage) {
 			return nil
 		})
 
-	case api.ActionSyncBoard:
+	case api.ActionSyncBoards:
+		slog.Info(msg.Action.String(), "player", client.playerID, "lobby", client.lobbyID)
 		s.handleAction(client, msg.Action, func(l *lobby.Lobby, p *game.Player) error {
-			payload, err := decodePayload[api.SyncBoard](msg)
+			payload, err := decodePayload[api.SyncBoards](msg)
 			if err != nil {
 				return err
 			}
-			return p.ReorderBoard(payload.Order)
+			if err := p.ReorderBoard(payload.BoardOrder); err != nil {
+				return err
+			}
+			return p.ReorderShop(payload.ShopOrder)
 		})
 	}
 }
@@ -440,14 +448,14 @@ func (s *Server) sendPlayerState(client *ClientConn, l *lobby.Lobby, p *game.Pla
 	}
 
 	if p.HasDiscover() {
-		state.Discover = api.NewCards(p.DiscoverOptions())
+		state.Discovers = api.NewCards(p.DiscoverOptions())
 	}
 
 	if l.Phase() == game.PhaseCombat {
-		if opponentID, playerBoard, opponentBoard, ok := l.CombatPairing(client.playerID); ok {
-			state.OpponentID = opponentID
-			state.CombatBoard = api.CombatCards(playerBoard)
-			state.OpponentBoard = api.CombatCards(opponentBoard)
+		if pair, ok := l.CombatPairing(client.playerID); ok {
+			state.OpponentID = pair.OpponentID
+			state.CombatBoard = api.CombatCards(pair.PlayerBoard)
+			state.OpponentBoard = api.CombatCards(pair.OpponentBoard)
 		}
 	}
 
@@ -500,4 +508,3 @@ func (s *Server) removeClient(client *ClientConn) {
 		delete(s.clients, client.lobbyID)
 	}
 }
-

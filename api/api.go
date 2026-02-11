@@ -13,12 +13,12 @@ const (
 	ActionSellMinion
 	ActionPlaceMinion
 	ActionRemoveMinion
-	ActionSyncBoard
 	ActionUpgradeShop
 	ActionRefreshShop
 	ActionFreezeShop
 	ActionPlaySpell
 	ActionDiscoverPick
+	ActionSyncBoards
 )
 
 func (a Action) String() string {
@@ -31,8 +31,6 @@ func (a Action) String() string {
 		return "place_minion"
 	case ActionRemoveMinion:
 		return "remove_minion"
-	case ActionSyncBoard:
-		return "sync_board"
 	case ActionUpgradeShop:
 		return "upgrade_shop"
 	case ActionRefreshShop:
@@ -43,6 +41,8 @@ func (a Action) String() string {
 		return "play_spell"
 	case ActionDiscoverPick:
 		return "discover_pick"
+	case ActionSyncBoards:
+		return "sync_boards"
 	default:
 		return "unknown"
 	}
@@ -71,8 +71,9 @@ type RemoveMinion struct {
 	BoardIndex int `json:"board_index"`
 }
 
-type SyncBoard struct {
-	Order []int `json:"order"`
+type SyncBoards struct {
+	BoardOrder []int `json:"board_order"`
+	ShopOrder  []int `json:"shop_order"`
 }
 
 type PlaySpell struct {
@@ -110,11 +111,11 @@ type GameState struct {
 	IsShopFrozen      bool                `json:"shop_frozen"`
 	Hand              []Card              `json:"hand"`
 	Board             []Card              `json:"board"`
-	Discover          []Card              `json:"discover"`
+	Discovers         []Card              `json:"discovers"`
 	CombatResults     []game.CombatResult `json:"combat_results"`
 	OpponentID        string              `json:"opponent_id"`    // combat phase only
-	CombatBoard       []Card              `json:"combat_board"`   // player's board with combat IDs, combat phase only
-	OpponentBoard     []Card              `json:"opponent_board"` // opponent's board with combat IDs, combat phase only
+	CombatBoard       []Card              `json:"combat_board"`   // combat phase only
+	OpponentBoard     []Card              `json:"opponent_board"` // combat phase only
 }
 
 type Player struct {

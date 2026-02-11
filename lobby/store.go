@@ -1,44 +1,38 @@
-package gameserver
+package lobby
 
 import (
+	"log/slog"
 	"sync"
-
-	"github.com/ysomad/gigabg/game"
-	"github.com/ysomad/gigabg/lobby"
 )
 
 // MemoryStore is an in-memory lobby store.
 type MemoryStore struct {
-	cards   game.CardStore
-	lobbies map[string]*lobby.Lobby
+	lobbies map[string]*Lobby
 	mu      sync.RWMutex
 }
 
-func NewMemoryStore(cards game.CardStore) *MemoryStore {
+func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{
-		cards:   cards,
-		lobbies: make(map[string]*lobby.Lobby),
+		lobbies: make(map[string]*Lobby),
 	}
 }
 
-func (s *MemoryStore) CreateLobby(lobbyID string, maxPlayers int) error {
+func (s *MemoryStore) CreateLobby(l *Lobby) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if _, exists := s.lobbies[lobbyID]; exists {
+	if _, exists := s.lobbies[l.ID()]; exists {
 		return ErrLobbyExists
 	}
 
-	l, err := lobby.New(s.cards, maxPlayers)
-	if err != nil {
-		return err
-	}
+	s.lobbies[l.ID()] = l
 
-	s.lobbies[lobbyID] = l
+	slog.Info("lobby created", "id", l.ID())
+
 	return nil
 }
 
-func (s *MemoryStore) Lobby(lobbyID string) (*lobby.Lobby, error) {
+func (s *MemoryStore) Lobby(lobbyID string) (*Lobby, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -59,5 +53,8 @@ func (s *MemoryStore) DeleteLobby(lobbyID string) error {
 	}
 
 	delete(s.lobbies, lobbyID)
+
+	slog.Info("lobby deleted", "id", lobbyID)
+
 	return nil
 }
