@@ -9,9 +9,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/ysomad/gigabg/internal/game/cards"
-	"github.com/ysomad/gigabg/internal/gameserver"
-	"github.com/ysomad/gigabg/internal/pkg/httpserver"
+	"github.com/ysomad/gigabg/game/cards"
+	"github.com/ysomad/gigabg/gameserver"
+	"github.com/ysomad/gigabg/pkg/httpserver"
 )
 
 func main() {

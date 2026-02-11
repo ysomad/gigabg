@@ -15,52 +15,50 @@ No auth. Players choose a player ID (string) when connecting to a lobby. This ID
 
 ```
 gigabg/
-├── internal/
-│   ├── game/                     # Pure domain logic (no I/O)
-│   │   ├── cards/                # Card template definitions
-│   │   └── *.go                 # board, combat, minion, player, shop, etc.
-│   │
-│   ├── lobby/                    # Game orchestration
-│   │   └── lobby.go             # Phase management, pairing, combat execution
-│   │
-│   ├── pkg/errors/               # Constant error type
-│   │
-│   ├── gameserver/               # Game server (WebSocket)
-│   │   └── server.go            # WS handler, game loop, message dispatch
-│   │
-│   ├── api/                      # API types
-│   │   └── api.go               # WS messages, game state, card types
-│   │
-│   ├── client/                   # WebSocket client
-│   │   └── client.go
-│   │
-│   └── ui/                       # Ebiten UI
-│       ├── app.go               # Root ebiten.Game, owns SceneManager + font
-│       ├── scene.go             # Scene interface + SceneManager
-│       ├── layout.go            # Rect, CalcGameLayout, CalcCombatLayout
-│       ├── draw.go              # DrawText, EaseOut, ColorBackground
-│       ├── scene/               # Scene implementations
-│       │   ├── menu.go          # Player ID + lobby ID entry
-│       │   ├── game.go          # Recruit phase + combat display
-│       │   └── combat.go        # CombatAnimator (animation replay)
-│       └── widget/              # Reusable UI components
-│           ├── button.go        # Clickable button
-│           ├── textinput.go     # Text input field
-│           └── card.go          # CardRenderer: hand/shop/board/combat cards
+├── game/                     # Pure domain logic (no I/O)
+│   ├── cards/                # Card template definitions
+│   └── *.go                 # board, combat, minion, player, shop, etc.
 │
-├── migrations/                   # SQL migration files (goose)
+├── lobby/                    # Game orchestration
+│   └── lobby.go             # Phase management, pairing, combat execution
+│
+├── pkg/errors/               # Constant error type
+│
+├── gameserver/               # Game server (WebSocket)
+│   └── server.go            # WS handler, game loop, message dispatch
+│
+├── api/                      # API types
+│   └── api.go               # WS messages, game state, card types
+│
+├── client/                   # WebSocket client
+│   └── client.go
+│
+├── ui/                       # Ebiten UI
+│   ├── app.go               # Root ebiten.Game, owns SceneManager + font
+│   ├── scene.go             # Scene interface + SceneManager
+│   ├── layout.go            # Rect, CalcGameLayout, CalcCombatLayout
+│   ├── draw.go              # DrawText, EaseOut, ColorBackground
+│   ├── scene/               # Scene implementations
+│   │   ├── menu.go          # Player ID + lobby ID entry
+│   │   ├── game.go          # Recruit phase + combat display
+│   │   └── combat.go        # CombatAnimator (animation replay)
+│   └── widget/              # Reusable UI components
+│       ├── button.go        # Clickable button
+│       ├── textinput.go     # Text input field
+│       └── card.go          # CardRenderer: hand/shop/board/combat cards
+│
+├── migrations/               # SQL migration files (goose)
 │
 ├── cmd/
-│   ├── client/main.go           # ui.NewApp(), scene wiring, ebiten.RunGame()
-│   ├── gameserver/main.go       # Loads cards, starts WS server
-│   └── web/main.go              # WASM web server
+│   ├── client/main.go       # ui.NewApp(), scene wiring, ebiten.RunGame()
+│   ├── gameserver/main.go   # Loads cards, starts WS server
+│   └── web/main.go          # WASM web server
 │
-└── web/                          # WASM assets
+└── web/                      # WASM assets
 ```
 
 ## Package Dependency Graph
 
-All paths under `internal/`:
 ```
 pkg/errors/     (leaf)
 game/           → pkg/errors/
@@ -81,7 +79,6 @@ No circular dependencies.
 ## Key Design Decisions
 
 - **No auth** — players identify by self-chosen player ID, no JWT/sessions
-- **`internal/` for all packages** — single binary consumers in `cmd/`, everything else is internal
 - **No interfaces unless necessary** — concrete types everywhere; interfaces only for testing or breaking circular deps
 - **Scene interface is needed** — breaks circular dependency between `ui/` and `ui/scene/`
 - **Widgets are concrete structs** — no layout engine; Ebiten immediate-mode drawing

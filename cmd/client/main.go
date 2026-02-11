@@ -9,11 +9,11 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 
-	"github.com/ysomad/gigabg/internal/client"
-	"github.com/ysomad/gigabg/internal/game/cards"
-	"github.com/ysomad/gigabg/internal/ui"
-	"github.com/ysomad/gigabg/internal/ui/scene"
-	"github.com/ysomad/gigabg/internal/ui/widget"
+	"github.com/ysomad/gigabg/client"
+	"github.com/ysomad/gigabg/game/cards"
+	"github.com/ysomad/gigabg/ui"
+	"github.com/ysomad/gigabg/ui/scene"
+	"github.com/ysomad/gigabg/ui/widget"
 )
 
 func main() {
