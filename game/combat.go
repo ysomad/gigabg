@@ -50,8 +50,8 @@ func NewCombat(p1, p2 *Player) *Combat {
 		player2ID:    p2.ID(),
 	}
 
-	side1 := &combatSide{player: p1, board: p1.Board().Clone()}
-	side2 := &combatSide{player: p2, board: p2.Board().Clone()}
+	side1 := &combatSide{player: p1, board: p1.Board()}
+	side2 := &combatSide{player: p2, board: p2.Board()}
 
 	c.assignCombatIDs(&side1.board)
 	c.assignCombatIDs(&side2.board)
@@ -187,12 +187,10 @@ func (c *Combat) Boards() (p1Board, p2Board Board) {
 
 // Animation returns the combat animation data for client replay.
 func (c *Combat) Animation() CombatAnimation {
-	events := make([]CombatEvent, len(c.events))
-	copy(events, c.events)
 	return CombatAnimation{
 		Player1ID: c.player1ID,
 		Player2ID: c.player2ID,
-		Events:    events,
+		Events:    c.events,
 	}
 }
 
