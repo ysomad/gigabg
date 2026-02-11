@@ -33,6 +33,7 @@ type Game struct {
 	lastPhase      game.Phase
 	sidebarHover   int
 	tierFades      map[string]tierFade
+	sidebarSnap    []client.PlayerEntry // frozen sidebar during combat animation
 }
 
 func NewGame(c *client.GameClient, cs *cards.Cards, font *text.GoTextFace) *Game {
@@ -59,7 +60,7 @@ func (g *Game) updateSidebarHover() {
 		return
 	}
 	rowH := sb.H / float64(game.MaxPlayers)
-	players := g.client.PlayerList()
+	players := g.sidebarPlayers()
 	for i := range players {
 		row := ui.Rect{X: sb.X, Y: sb.Y + float64(i)*rowH, W: sb.W, H: rowH}
 		if row.Contains(mx, my) {
@@ -90,6 +91,11 @@ func (g *Game) Update() error {
 	}
 
 	phase := g.client.Phase()
+
+	// Keep sidebar snapshot fresh during recruit, but freeze it during combat animation and toasts.
+	if phase == game.PhaseRecruit && !g.toast.Active() && g.combatAnimator == nil {
+		g.sidebarSnap = g.client.PlayerList()
+	}
 
 	// Phase transition toasts.
 	if g.lastPhase == game.PhaseRecruit && phase == game.PhaseCombat {
@@ -244,6 +250,13 @@ func (g *Game) drawCombat(screen *ebiten.Image) {
 	}
 }
 
+func (g *Game) sidebarPlayers() []client.PlayerEntry {
+	if g.sidebarSnap != nil {
+		return g.sidebarSnap
+	}
+	return g.client.PlayerList()
+}
+
 func (g *Game) drawSidebar(screen *ebiten.Image) {
 	lay := ui.CalcGameLayout()
 	sb := lay.Sidebar
@@ -263,7 +276,7 @@ func (g *Game) drawSidebar(screen *ebiten.Image) {
 		opponentID = state.OpponentID
 	}
 
-	players := g.client.PlayerList()
+	players := g.sidebarPlayers()
 	rowH := sb.H / float64(game.MaxPlayers)
 	scale := float32(ui.ActiveRes.Scale())
 
@@ -330,7 +343,7 @@ func (g *Game) drawSidebarTooltip(screen *ebiten.Image) {
 	if g.sidebarHover < 0 {
 		return
 	}
-	players := g.client.PlayerList()
+	players := g.sidebarPlayers()
 	if g.sidebarHover >= len(players) {
 		return
 	}

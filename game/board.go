@@ -127,33 +127,46 @@ func (b Board) MajorityTribe() (Tribe, int) {
 	return CalcMajorityTribe(tribes)
 }
 
-// CalcMajorityTribe returns the most common non-neutral tribe and its count.
-// Returns (TribeNeutral, 0) if no non-neutral tribe has >= 2 entries.
+// CalcMajorityTribe returns the dominant non-neutral tribe and its count.
+// Returns TribeMixed when multiple tribes exist but none dominates.
+// Returns TribeNeutral when no non-neutral tribes are present.
 func CalcMajorityTribe(tribes []Tribe) (Tribe, int) {
 	counts := make(map[Tribe]int)
 	for _, t := range tribes {
-		if t == TribeNeutral {
-			continue
-		}
-		counts[t]++
-	}
-
-	var bestTribe Tribe
-	var bestCount int
-	for t, c := range counts {
-		if c > bestCount {
-			bestTribe = t
-			bestCount = c
+		if t != TribeNeutral {
+			counts[t]++
 		}
 	}
 
-	if bestCount < 2 {
-		if len(counts) > 1 {
-			return TribeMixed, 0
+	switch len(counts) {
+	case 0:
+		return TribeNeutral, 0
+	case 1:
+		for t, n := range counts {
+			if n >= 2 {
+				return t, n
+			}
 		}
 		return TribeNeutral, 0
 	}
-	return bestTribe, bestCount
+
+	// 2+ tribes: find single dominant with count >= 2.
+	var best Tribe
+	var bestN int
+	var tied bool
+	for t, n := range counts {
+		switch {
+		case n > bestN:
+			best, bestN, tied = t, n, false
+		case n == bestN:
+			tied = true
+		}
+	}
+
+	if !tied && bestN >= 2 {
+		return best, bestN
+	}
+	return TribeMixed, 0
 }
 
 // Reorder reorders the board based on the given index mapping.
