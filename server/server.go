@@ -1,4 +1,4 @@
-package gameserver
+package server
 
 import (
 	"context"
@@ -115,6 +115,18 @@ func (s *Server) gameLoop() {
 				)
 				s.broadcastState(lobbyID, l)
 				s.sendCombatAnimations(lobbyID, l)
+
+				if l.State() == lobby.StateFinished {
+					if err := s.store.DeleteLobby(lobbyID); err != nil {
+						slog.Error("delete lobby", "error", err, "lobby", lobbyID)
+					}
+
+					s.mu.Lock()
+					delete(s.clients, lobbyID)
+					s.mu.Unlock()
+
+					slog.Info("game finished, lobby removed", "lobby", lobbyID)
+				}
 			}
 		}
 	}
@@ -196,11 +208,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) writePump(ctx context.Context, client *ClientConn) {
-	defer func() {
-		if err := client.conn.CloseNow(); err != nil {
-			slog.Error("close conn", "error", err, "player", client.playerID)
-		}
-	}()
+	defer client.conn.CloseNow() //nolint:errcheck // best-effort cleanup
 
 	for {
 		select {
@@ -464,6 +472,10 @@ func (s *Server) sendPlayerState(client *ClientConn, l *lobby.Lobby, p *game.Pla
 			state.CombatBoard = api.CombatCards(pair.PlayerBoard)
 			state.OpponentBoard = api.CombatCards(pair.OpponentBoard)
 		}
+	}
+
+	if l.Phase() == game.PhaseFinished {
+		state.GameResult = api.NewGameResult(l.GameResult())
 	}
 
 	s.sendMessage(client, &api.ServerMessage{State: state})

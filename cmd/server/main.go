@@ -10,7 +10,7 @@ import (
 	"syscall"
 
 	"github.com/ysomad/gigabg/game/cards"
-	"github.com/ysomad/gigabg/gameserver"
+	"github.com/ysomad/gigabg/server"
 	"github.com/ysomad/gigabg/lobby"
 	"github.com/ysomad/gigabg/pkg/httpserver"
 )
@@ -46,7 +46,7 @@ func run(ctx context.Context) error {
 		return err
 	}
 
-	gameServer := gameserver.New(memstore, cardStore)
+	gameServer := server.New(memstore, cardStore)
 
 	srv := httpserver.New(ctx, gameServer, httpserver.WithPort(*port))
 

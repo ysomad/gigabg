@@ -57,8 +57,9 @@ type attackAnimation struct {
 	phase       animPhase
 }
 
-// CombatAnimator replays combat events as visual animations.
-type CombatAnimator struct {
+// combatPanel replays combat events as visual animations using GameLayout zones.
+// Opponent board renders in the Shop zone, player board in the Board zone.
+type combatPanel struct {
 	cr   *widget.CardRenderer
 	font *text.GoTextFace
 	turn int
@@ -74,18 +75,18 @@ type CombatAnimator struct {
 	done       bool
 }
 
-func NewCombatAnimator(
+func newCombatPanel(
 	turn int,
 	playerBoard, opponentBoard []api.Card,
 	events []game.CombatEvent,
 	c *cards.Cards,
 	font *text.GoTextFace,
-) *CombatAnimator {
-	slog.Info("combat animator created",
+) *combatPanel {
+	slog.Info("combat panel created",
 		"player_board", len(playerBoard),
 		"opponent_board", len(opponentBoard),
 		"events", len(events))
-	return &CombatAnimator{
+	return &combatPanel{
 		cr:            &widget.CardRenderer{Cards: c, Font: font},
 		font:          font,
 		turn:          turn,
@@ -104,62 +105,62 @@ func buildAnimBoard(cards []api.Card) []animMinion {
 }
 
 // Update advances animation state. Returns true when all animations are done.
-func (ca *CombatAnimator) Update(dt float64) bool {
-	if ca.done {
+func (cp *combatPanel) Update(dt float64) bool {
+	if cp.done {
 		return true
 	}
 
-	ca.updateDeathFades(dt)
+	cp.updateDeathFades(dt)
 
-	for i := range ca.playerBoard {
-		if ca.playerBoard[i].flash > 0 {
-			ca.playerBoard[i].flash -= dt
+	for i := range cp.playerBoard {
+		if cp.playerBoard[i].flash > 0 {
+			cp.playerBoard[i].flash -= dt
 		}
 	}
-	for i := range ca.opponentBoard {
-		if ca.opponentBoard[i].flash > 0 {
-			ca.opponentBoard[i].flash -= dt
+	for i := range cp.opponentBoard {
+		if cp.opponentBoard[i].flash > 0 {
+			cp.opponentBoard[i].flash -= dt
 		}
 	}
 
-	if ca.attackAnim != nil {
-		ca.updateAttackAnim(dt)
+	if cp.attackAnim != nil {
+		cp.updateAttackAnim(dt)
 		return false
 	}
 
-	if ca.pauseTimer > 0 {
-		ca.pauseTimer -= dt
+	if cp.pauseTimer > 0 {
+		cp.pauseTimer -= dt
 		return false
 	}
 
-	for ca.eventIndex < len(ca.events) {
-		ev := ca.events[ca.eventIndex]
-		ca.eventIndex++
+	for cp.eventIndex < len(cp.events) {
+		ev := cp.events[cp.eventIndex]
+		cp.eventIndex++
 		if ev.Type == game.CombatEventAttack {
-			ca.startAttack(ev)
+			cp.startAttack(ev)
 			return false
 		}
 	}
 
-	if !ca.hasActiveIndicator() && !ca.hasDying() {
-		ca.done = true
+	if !cp.hasActiveIndicator() && !cp.hasDying() {
+		cp.done = true
 		return true
 	}
 	return false
 }
 
-func (ca *CombatAnimator) startAttack(ev game.CombatEvent) {
-	srcIdx, srcIsPlayer := ca.findMinion(ev.SourceID)
-	dstIdx, dstIsPlayer := ca.findMinion(ev.TargetID)
+func (cp *combatPanel) startAttack(ev game.CombatEvent) {
+	srcIdx, srcIsPlayer := cp.findMinion(ev.SourceID)
+	dstIdx, dstIsPlayer := cp.findMinion(ev.TargetID)
 	if srcIdx < 0 || dstIdx < 0 {
 		return
 	}
 
-	lay := ui.CalcCombatLayout()
-	srcX, srcY := ca.minionPos(lay, srcIdx, srcIsPlayer)
-	dstX, dstY := ca.minionPos(lay, dstIdx, dstIsPlayer)
+	lay := ui.CalcGameLayout()
+	srcX, srcY := cp.minionPos(lay, srcIdx, srcIsPlayer)
+	dstX, dstY := cp.minionPos(lay, dstIdx, dstIsPlayer)
 
-	ca.attackAnim = &attackAnimation{
+	cp.attackAnim = &attackAnimation{
 		srcCombatID: ev.SourceID,
 		srcIdx:      srcIdx,
 		srcIsPlayer: srcIsPlayer,
@@ -173,46 +174,46 @@ func (ca *CombatAnimator) startAttack(ev game.CombatEvent) {
 	}
 }
 
-func (ca *CombatAnimator) updateAttackAnim(dt float64) {
-	a := ca.attackAnim
+func (cp *combatPanel) updateAttackAnim(dt float64) {
+	a := cp.attackAnim
 
 	switch a.phase {
 	case animPhaseForward:
 		a.progress += dt / attackMoveDuration
 		if a.progress >= 1.0 {
-			ca.consumeHitEvents()
+			cp.consumeHitEvents()
 
-			srcIdx, srcIsPlayer := ca.findMinion(a.srcCombatID)
-			if srcIdx < 0 || ca.boardFor(srcIsPlayer)[srcIdx].dying {
-				ca.attackAnim = nil
-				ca.pauseTimer = eventPause
+			srcIdx, srcIsPlayer := cp.findMinion(a.srcCombatID)
+			if srcIdx < 0 || cp.boardFor(srcIsPlayer)[srcIdx].dying {
+				cp.attackAnim = nil
+				cp.pauseTimer = eventPause
 				return
 			}
 
-			lay := ui.CalcCombatLayout()
+			lay := ui.CalcGameLayout()
 			a.srcIdx = srcIdx
 			a.srcIsPlayer = srcIsPlayer
-			a.startX, a.startY = ca.minionPos(lay, srcIdx, srcIsPlayer)
+			a.startX, a.startY = cp.minionPos(lay, srcIdx, srcIsPlayer)
 			a.progress = 0
 			a.phase = animPhaseBack
 		}
 	case animPhaseBack:
 		a.progress += dt / attackBackDuration
 		if a.progress >= 1.0 {
-			board := ca.boardFor(a.srcIsPlayer)
+			board := cp.boardFor(a.srcIsPlayer)
 			if a.srcIdx < len(board) {
 				board[a.srcIdx].offsetX = 0
 				board[a.srcIdx].offsetY = 0
 			}
-			ca.attackAnim = nil
-			ca.pauseTimer = eventPause
+			cp.attackAnim = nil
+			cp.pauseTimer = eventPause
 			return
 		}
 	}
 
-	board := ca.boardFor(a.srcIsPlayer)
+	board := cp.boardFor(a.srcIsPlayer)
 	if a.srcIdx >= len(board) {
-		ca.attackAnim = nil
+		cp.attackAnim = nil
 		return
 	}
 
@@ -228,52 +229,52 @@ func (ca *CombatAnimator) updateAttackAnim(dt float64) {
 	}
 }
 
-func (ca *CombatAnimator) applyDamage(ev game.CombatEvent) {
-	idx, isPlayer := ca.findMinion(ev.TargetID)
+func (cp *combatPanel) applyDamage(ev game.CombatEvent) {
+	idx, isPlayer := cp.findMinion(ev.TargetID)
 	if idx < 0 {
 		return
 	}
-	board := ca.boardFor(isPlayer)
+	board := cp.boardFor(isPlayer)
 	board[idx].card.Health -= ev.Amount
 	board[idx].flash = damageIndicatorTime
 	board[idx].dmgText = fmt.Sprintf("-%d", ev.Amount)
 }
 
-func (ca *CombatAnimator) markDying(combatID int) {
-	for i, m := range ca.playerBoard {
+func (cp *combatPanel) markDying(combatID int) {
+	for i, m := range cp.playerBoard {
 		if m.card.CombatID == combatID {
-			ca.playerBoard[i].dying = true
+			cp.playerBoard[i].dying = true
 			return
 		}
 	}
-	for i, m := range ca.opponentBoard {
+	for i, m := range cp.opponentBoard {
 		if m.card.CombatID == combatID {
-			ca.opponentBoard[i].dying = true
+			cp.opponentBoard[i].dying = true
 			return
 		}
 	}
 }
 
-func (ca *CombatAnimator) consumeHitEvents() {
-	for ca.eventIndex < len(ca.events) {
-		ev := ca.events[ca.eventIndex]
+func (cp *combatPanel) consumeHitEvents() {
+	for cp.eventIndex < len(cp.events) {
+		ev := cp.events[cp.eventIndex]
 		switch ev.Type {
 		case game.CombatEventDamage:
-			ca.applyDamage(ev)
-			ca.eventIndex++
+			cp.applyDamage(ev)
+			cp.eventIndex++
 		case game.CombatEventDeath:
-			ca.markDying(ev.TargetID)
-			ca.eventIndex++
+			cp.markDying(ev.TargetID)
+			cp.eventIndex++
 		default:
 			return
 		}
 	}
 }
 
-func (ca *CombatAnimator) updateDeathFades(dt float64) {
+func (cp *combatPanel) updateDeathFades(dt float64) {
 	fade := dt / deathFadeDuration
-	ca.playerBoard = fadeAndRemove(ca.playerBoard, fade)
-	ca.opponentBoard = fadeAndRemove(ca.opponentBoard, fade)
+	cp.playerBoard = fadeAndRemove(cp.playerBoard, fade)
+	cp.opponentBoard = fadeAndRemove(cp.opponentBoard, fade)
 }
 
 func fadeAndRemove(board []animMinion, fade float64) []animMinion {
@@ -291,13 +292,13 @@ func fadeAndRemove(board []animMinion, fade float64) []animMinion {
 	return board[:n]
 }
 
-func (ca *CombatAnimator) hasDying() bool {
-	for _, m := range ca.playerBoard {
+func (cp *combatPanel) hasDying() bool {
+	for _, m := range cp.playerBoard {
 		if m.dying {
 			return true
 		}
 	}
-	for _, m := range ca.opponentBoard {
+	for _, m := range cp.opponentBoard {
 		if m.dying {
 			return true
 		}
@@ -305,13 +306,13 @@ func (ca *CombatAnimator) hasDying() bool {
 	return false
 }
 
-func (ca *CombatAnimator) hasActiveIndicator() bool {
-	for _, m := range ca.playerBoard {
+func (cp *combatPanel) hasActiveIndicator() bool {
+	for _, m := range cp.playerBoard {
 		if m.flash > 0 {
 			return true
 		}
 	}
-	for _, m := range ca.opponentBoard {
+	for _, m := range cp.opponentBoard {
 		if m.flash > 0 {
 			return true
 		}
@@ -319,13 +320,13 @@ func (ca *CombatAnimator) hasActiveIndicator() bool {
 	return false
 }
 
-func (ca *CombatAnimator) findMinion(combatID int) (idx int, isPlayer bool) {
-	for i, m := range ca.playerBoard {
+func (cp *combatPanel) findMinion(combatID int) (idx int, isPlayer bool) {
+	for i, m := range cp.playerBoard {
 		if m.card.CombatID == combatID {
 			return i, true
 		}
 	}
-	for i, m := range ca.opponentBoard {
+	for i, m := range cp.opponentBoard {
 		if m.card.CombatID == combatID {
 			return i, false
 		}
@@ -333,76 +334,38 @@ func (ca *CombatAnimator) findMinion(combatID int) (idx int, isPlayer bool) {
 	return -1, false
 }
 
-func (ca *CombatAnimator) boardFor(isPlayer bool) []animMinion {
+func (cp *combatPanel) boardFor(isPlayer bool) []animMinion {
 	if isPlayer {
-		return ca.playerBoard
+		return cp.playerBoard
 	}
-	return ca.opponentBoard
+	return cp.opponentBoard
 }
 
-func (ca *CombatAnimator) minionPos(lay ui.CombatLayout, idx int, isPlayer bool) (float64, float64) {
-	board := ca.boardFor(isPlayer)
-	zone := lay.Opponent
+// minionPos returns the base-space position (top-left) for the given minion.
+// Opponent board uses the Shop zone, player board uses the Board zone.
+func (cp *combatPanel) minionPos(lay ui.GameLayout, idx int, isPlayer bool) (float64, float64) {
+	board := cp.boardFor(isPlayer)
+	zone := lay.Shop // opponent board in shop zone
 	if isPlayer {
-		zone = lay.Player
+		zone = lay.Board // player board in board zone
 	}
 	r := ui.CardRect(zone, idx, len(board), lay.CardW, lay.CardH, lay.Gap)
 	return r.X, r.Y
 }
 
-// Draw renders the combat animation.
-func (ca *CombatAnimator) Draw(screen *ebiten.Image) {
-	screen.Fill(ui.ColorBackground)
-	lay := ui.CalcCombatLayout()
-
-	// Header.
-	header := fmt.Sprintf("Turn %d | COMBAT", ca.turn)
-	ui.DrawText(screen, ca.font, header, lay.Header.X+lay.Header.W*0.04, lay.Header.H*0.5, color.RGBA{255, 100, 100, 255})
-
-	sh := lay.Header.Screen()
-	lineY := float32(sh.Bottom())
-	sw := float32(ui.ActiveRes.Scale())
-	vector.StrokeLine(
-		screen,
-		float32(sh.X+sh.W*0.03),
-		lineY,
-		float32(sh.X+sh.W*0.97),
-		lineY,
-		sw,
-		color.RGBA{60, 60, 80, 255},
-		false,
-	)
-
-	// Labels.
-	ui.DrawText(
-		screen,
-		ca.font,
-		"OPPONENT",
-		lay.Opponent.X+lay.Opponent.W*0.04,
-		lay.Opponent.Y+lay.Opponent.H*0.02,
-		color.RGBA{255, 120, 120, 255},
-	)
-	ui.DrawText(
-		screen,
-		ca.font,
-		"YOUR BOARD",
-		lay.Player.X+lay.Player.W*0.04,
-		lay.Player.Y+lay.Player.H*0.02,
-		color.RGBA{120, 255, 120, 255},
-	)
-
-	ca.drawBoard(screen, lay, ca.opponentBoard, false)
-	ca.drawBoard(screen, lay, ca.playerBoard, true)
+// drawOpponentBoard renders opponent minions with animations into the Shop zone.
+func (cp *combatPanel) drawOpponentBoard(screen *ebiten.Image, lay ui.GameLayout) {
+	cp.drawBoard(screen, lay.Shop, cp.opponentBoard, lay.CardW, lay.CardH, lay.Gap)
 }
 
-func (ca *CombatAnimator) drawBoard(screen *ebiten.Image, lay ui.CombatLayout, board []animMinion, isPlayer bool) {
-	zone := lay.Opponent
-	if isPlayer {
-		zone = lay.Player
-	}
+// drawPlayerBoard renders player minions with animations into the Board zone.
+func (cp *combatPanel) drawPlayerBoard(screen *ebiten.Image, lay ui.GameLayout) {
+	cp.drawBoard(screen, lay.Board, cp.playerBoard, lay.CardW, lay.CardH, lay.Gap)
+}
 
+func (cp *combatPanel) drawBoard(screen *ebiten.Image, zone ui.Rect, board []animMinion, cardW, cardH, gap float64) {
 	for i, m := range board {
-		r := ui.CardRect(zone, i, len(board), lay.CardW, lay.CardH, lay.Gap)
+		r := ui.CardRect(zone, i, len(board), cardW, cardH, gap)
 		r.X += m.offsetX
 		r.Y += m.offsetY
 
@@ -417,16 +380,16 @@ func (ca *CombatAnimator) drawBoard(screen *ebiten.Image, lay ui.CombatLayout, b
 		alpha := uint8(255 * m.opacity)
 		flashPct := m.flash / damageIndicatorTime
 
-		ca.cr.DrawMinion(screen, m.card, r, alpha, flashPct)
+		cp.cr.DrawMinion(screen, m.card, r, alpha, flashPct)
 
 		// Damage splat.
 		if m.flash > 0 && m.dmgText != "" {
-			ca.drawDamageSplat(screen, m, r, alpha)
+			cp.drawDamageSplat(screen, m, r, alpha)
 		}
 	}
 }
 
-func (ca *CombatAnimator) drawDamageSplat(screen *ebiten.Image, m animMinion, r ui.Rect, alpha uint8) {
+func (cp *combatPanel) drawDamageSplat(screen *ebiten.Image, m animMinion, r ui.Rect, alpha uint8) {
 	sr := r.Screen()
 	cx := float32(sr.X + sr.W/2)
 	cy := float32(sr.Y + sr.H/2)
@@ -460,5 +423,5 @@ func (ca *CombatAnimator) drawDamageSplat(screen *ebiten.Image, m animMinion, r 
 	op.GeoM.Scale(textScale, textScale)
 	op.GeoM.Translate(float64(cx)-textW/2, float64(cy)-textH/2)
 	op.ColorScale.ScaleWithColor(color.RGBA{180, 20, 0, alpha})
-	text.Draw(screen, m.dmgText, ca.font, op)
+	text.Draw(screen, m.dmgText, cp.font, op)
 }

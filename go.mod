@@ -4,7 +4,6 @@ go 1.25
 
 require (
 	github.com/coder/websocket v1.8.14
-	github.com/google/uuid v1.6.0
 	github.com/hajimehoshi/ebiten/v2 v2.9.8
 	golang.design/x/clipboard v0.7.1
 )

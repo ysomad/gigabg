@@ -123,15 +123,16 @@ type GameState struct {
 	OpponentID        string              `json:"opponent_id"`    // combat phase only
 	CombatBoard       []Card              `json:"combat_board"`   // combat phase only
 	OpponentBoard     []Card              `json:"opponent_board"` // combat phase only
+	GameResult        *GameResult         `json:"game_result,omitempty"`
 }
 
 type Player struct {
-	ID          string    `json:"id"`
-	HP          int       `json:"hp"`
-	Gold        int       `json:"gold"`
-	MaxGold     int       `json:"max_gold"`
-	ShopTier    game.Tier `json:"shop_tier"`
-	UpgradeCost int       `json:"upgrade_cost"`
+	ID             string    `json:"id"`
+	HP             int       `json:"hp"`
+	Gold           int       `json:"gold"`
+	MaxGold        int       `json:"max_gold"`
+	ShopTier       game.Tier `json:"shop_tier"`
+	UpgradeCost    int       `json:"upgrade_cost"`
 }
 
 type Opponent struct {
@@ -158,12 +159,12 @@ type Error struct {
 
 func NewPlayer(p *game.Player) Player {
 	return Player{
-		ID:          p.ID(),
-		HP:          p.HP(),
-		Gold:        p.Gold(),
-		MaxGold:     p.MaxGold(),
-		ShopTier:    p.Shop().Tier(),
-		UpgradeCost: p.Shop().UpgradeCost(),
+		ID:             p.ID(),
+		HP:             p.HP(),
+		Gold:           p.Gold(),
+		MaxGold:        p.MaxGold(),
+		ShopTier:       p.Shop().Tier(),
+		UpgradeCost:    p.Shop().UpgradeCost(),
 	}
 }
 
@@ -248,4 +249,41 @@ func NewCardsFromMinions(minions []*game.Minion) []Card {
 		res = append(res, NewCardFromMinion(m))
 	}
 	return res
+}
+
+type PlayerPlacement struct {
+	PlayerID      string     `json:"player_id"`
+	Placement     int        `json:"placement"`
+	MajorityTribe game.Tribe `json:"majority_tribe"`
+	MajorityCount int        `json:"majority_count"`
+}
+
+type GameResult struct {
+	WinnerID   string            `json:"winner_id"`
+	Placements []PlayerPlacement `json:"placements"`
+	Duration   int64             `json:"duration"`
+	StartedAt  int64             `json:"started_at"`
+	FinishedAt int64             `json:"finished_at"`
+}
+
+func NewGameResult(r *game.GameResult) *GameResult {
+	if r == nil {
+		return nil
+	}
+	placements := make([]PlayerPlacement, len(r.Placements))
+	for i, p := range r.Placements {
+		placements[i] = PlayerPlacement{
+			PlayerID:      p.PlayerID,
+			Placement:     p.Placement,
+			MajorityTribe: p.MajorityTribe,
+			MajorityCount: p.MajorityCount,
+		}
+	}
+	return &GameResult{
+		WinnerID:   r.WinnerID,
+		Placements: placements,
+		Duration:   int64(r.Duration.Seconds()),
+		StartedAt:  r.StartedAt.Unix(),
+		FinishedAt: r.FinishedAt.Unix(),
+	}
 }

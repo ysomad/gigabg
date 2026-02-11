@@ -6,6 +6,7 @@ const (
 	PhaseWaiting Phase = iota
 	PhaseRecruit
 	PhaseCombat
+	PhaseFinished
 )
 
 func (p Phase) String() string {
@@ -14,6 +15,8 @@ func (p Phase) String() string {
 		return "Recruit"
 	case PhaseCombat:
 		return "Combat"
+	case PhaseFinished:
+		return "Finished"
 	default:
 		return "Unknown"
 	}

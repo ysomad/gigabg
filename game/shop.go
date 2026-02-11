@@ -34,7 +34,7 @@ func (s Shop) Size() int {
 
 // UpgradeCost returns the cost to upgrade to the next shop tier.
 func (s Shop) UpgradeCost() int {
-	if !s.tier.IsValid() {
+	if s.tier >= Tier6 {
 		return 0
 	}
 	cost := _upgradeCosts[s.tier] - s.discount

@@ -4,7 +4,7 @@
 
 Two binaries: a WebSocket game server with PostgreSQL for game results, and an Ebiten desktop client.
 
-- **Game server** (`cmd/gameserver/`) — WebSocket server, lobbies in memory, writes game results to PG
+- **Game server** (`cmd/server/`) — WebSocket server, lobbies in memory, writes game results to PG
 - **Client** (`cmd/client/`) — Ebiten desktop client
 
 ### Player Identity
@@ -24,7 +24,7 @@ gigabg/
 │
 ├── pkg/errors/               # Constant error type
 │
-├── gameserver/               # Game server (WebSocket)
+├── server/                   # Game server (WebSocket)
 │   └── server.go            # WS handler, game loop, message dispatch
 │
 ├── api/                      # API types
@@ -51,7 +51,7 @@ gigabg/
 │
 ├── cmd/
 │   ├── client/main.go       # ui.NewApp(), scene wiring, ebiten.RunGame()
-│   ├── gameserver/main.go   # Loads cards, starts WS server
+│   ├── server/main.go       # Loads cards, starts WS server
 │   └── web/main.go          # WASM web server
 │
 └── web/                      # WASM assets
@@ -65,13 +65,13 @@ game/           → pkg/errors/
 game/cards/     → game/
 lobby/          → game/, pkg/errors/
 api/            → game/
-gameserver/     → api/, game/, lobby/, pkg/errors/
+server/         → api/, game/, lobby/, pkg/errors/
 client/         → api/, game/
 ui/             → ebiten
 ui/widget/      → ui/, api/, game/cards/, ebiten
 ui/scene/       → ui/, ui/widget/, client/, api/, game/, game/cards/, ebiten
 cmd/client/     → ui/, ui/scene/, client/, game/cards/
-cmd/gameserver/ → gameserver/, game/cards/
+cmd/server/     → server/, game/cards/
 ```
 
 No circular dependencies.

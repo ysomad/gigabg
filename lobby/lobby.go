@@ -2,10 +2,10 @@ package lobby
 
 import (
 	"math/rand/v2"
+	"slices"
 	"strconv"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/ysomad/gigabg/game"
 	"github.com/ysomad/gigabg/pkg/errors"
 )
@@ -73,6 +73,9 @@ type Lobby struct {
 	combatAnimations  []game.CombatAnimation         // ephemeral, cleared after send
 	combatPairings    map[string]CombatPairing       // playerID -> pairing, combat phase only
 	majorityTribes    map[string]game.TribeSnapshot  // playerID -> snapshot from last combat
+	startedAt         time.Time
+	eliminated        int              // number of eliminated players
+	gameResult        *game.GameResult // set when game finishes
 }
 
 func New(cards game.CardStore, maxPlayers int) (*Lobby, error) {
@@ -80,7 +83,7 @@ func New(cards game.CardStore, maxPlayers int) (*Lobby, error) {
 		return nil, ErrInvalidPlayerCount
 	}
 	return &Lobby{
-		id:         strconv.FormatUint(uint64(uuid.New().ID()), 32),
+		id:         strconv.Itoa(rand.IntN(100_000_000)),
 		state:      StateWaiting,
 		maxPlayers: maxPlayers,
 		players:    make([]*game.Player, 0, maxPlayers),
@@ -121,6 +124,7 @@ func (l *Lobby) AddPlayer(id string) error {
 func (l *Lobby) start() {
 	l.state = StatePlaying
 	l.turn = 1
+	l.startedAt = time.Now()
 	l.startRecruit()
 }
 
@@ -179,14 +183,51 @@ func (l *Lobby) runCombat() {
 }
 
 func (l *Lobby) checkFinished() {
-	alive := 0
+	var alive int
+	var winner *game.Player
 	for _, p := range l.players {
 		if p.Alive() {
 			alive++
+			winner = p
 		}
 	}
-	if alive <= 1 {
-		l.state = StateFinished
+	if alive > 1 {
+		return
+	}
+
+	l.state = StateFinished
+	l.phase = game.PhaseFinished
+
+	if winner != nil {
+		winner.SetPlacement(1)
+	}
+
+	now := time.Now()
+	placements := make([]game.PlayerPlacement, len(l.players))
+	for i, p := range l.players {
+		snap := l.majorityTribes[p.ID()]
+		placements[i] = game.PlayerPlacement{
+			PlayerID:      p.ID(),
+			Placement:     p.Placement(),
+			MajorityTribe: snap.Tribe,
+			MajorityCount: snap.Count,
+		}
+	}
+	slices.SortFunc(placements, func(a, b game.PlayerPlacement) int {
+		return a.Placement - b.Placement
+	})
+
+	winnerID := ""
+	if winner != nil {
+		winnerID = winner.ID()
+	}
+
+	l.gameResult = &game.GameResult{
+		WinnerID:   winnerID,
+		Placements: placements,
+		Duration:   now.Sub(l.startedAt),
+		StartedAt:  l.startedAt,
+		FinishedAt: now,
 	}
 }
 
@@ -208,7 +249,10 @@ func (l *Lobby) resolvePairing(p1, p2 *game.Player) {
 			loser = p1
 		}
 		if loser.Alive() {
-			loser.TakeDamage(r1.Damage)
+			if loser.TakeDamage(r1.Damage) {
+				l.eliminated++
+				loser.SetPlacement(len(l.players) - l.eliminated + 1)
+			}
 		}
 	}
 
@@ -338,6 +382,11 @@ func (l *Lobby) CombatAnimations() []game.CombatAnimation {
 func (l *Lobby) CombatPairing(playerID string) (CombatPairing, bool) {
 	p, ok := l.combatPairings[playerID]
 	return p, ok
+}
+
+// GameResult returns the game result, or nil if the game hasn't finished.
+func (l *Lobby) GameResult() *game.GameResult {
+	return l.gameResult
 }
 
 // Pool returns the card pool.

@@ -33,6 +33,8 @@ func main() {
 
 	httpClient := client.New(*serverAddr)
 
+	var showMenu func()
+
 	connectAndPlay := func(p *widget.Popup, playerID, lobbyID string) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -65,7 +67,12 @@ func main() {
 
 		slog.Info("joined game", "player", playerID, "lobby", lobbyID)
 		app.HideOverlay()
-		app.SwitchScene(scene.NewGame(gc, cardStore, app.Font()))
+		app.SwitchScene(scene.NewGame(gc, cardStore, app.Font(), func() {
+			if err := gc.Close(); err != nil {
+				slog.Error("close game client", "error", err)
+			}
+			showMenu()
+		}))
 	}
 
 	onJoin := func(playerID, lobbyID string) {
@@ -101,7 +108,10 @@ func main() {
 		}()
 	}
 
-	app.SwitchScene(scene.NewMenu(app.Font(), onJoin, onCreate))
+	showMenu = func() {
+		app.SwitchScene(scene.NewMenu(app.Font(), onJoin, onCreate))
+	}
+	showMenu()
 
 	ebiten.SetWindowSize(ui.BaseWidth, ui.BaseHeight)
 	ebiten.SetWindowTitle("GIGA Battlegrounds")

@@ -12,5 +12,5 @@ const (
 )
 
 func (t Tier) IsValid() bool {
-	return t >= Tier1 || t <= Tier6
+	return t >= Tier1 && t <= Tier6
 }

@@ -23,6 +23,7 @@ type Player struct {
 	hp              int
 	gold            int
 	maxGold         int
+	placement       int
 	shop            Shop
 	board           Board  // minions on board
 	hand            []Card // can hold minions and spells
@@ -32,7 +33,7 @@ type Player struct {
 func NewPlayer(id string) *Player {
 	return &Player{
 		id:      id,
-		hp:      40,
+		hp:      InitialHP,
 		gold:    InitialGold,
 		maxGold: MaxGold,
 		shop:    Shop{tier: 1},
@@ -41,11 +42,13 @@ func NewPlayer(id string) *Player {
 	}
 }
 
-func (p *Player) ID() string   { return p.id }
-func (p *Player) HP() int      { return p.hp }
-func (p *Player) Gold() int    { return p.gold }
-func (p *Player) MaxGold() int { return p.maxGold }
-func (p *Player) Shop() Shop   { return p.shop }
+func (p *Player) ID() string        { return p.id }
+func (p *Player) HP() int           { return p.hp }
+func (p *Player) Gold() int         { return p.gold }
+func (p *Player) MaxGold() int      { return p.maxGold }
+func (p *Player) Placement() int    { return p.placement }
+func (p *Player) SetPlacement(n int) { p.placement = n }
+func (p *Player) Shop() Shop        { return p.shop }
 
 // Hand returns a copy of the player's hand.
 func (p *Player) Hand() []Card { return slices.Clone(p.hand) }

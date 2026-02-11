@@ -12,6 +12,7 @@ const (
 )
 
 const (
+	InitialHP       = 1
 	InitialGold     = 3  // each player has at game start
 	MaxGold         = 10 // each player may have during the game by upgrading MaxGold each turn without spells
 	MinionPrice     = 3

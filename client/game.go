@@ -236,6 +236,16 @@ func (c *GameClient) Player() *api.Player {
 	return &c.state.Player
 }
 
+// GameResult returns the game result, or nil if the game hasn't finished.
+func (c *GameClient) GameResult() *api.GameResult {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.state == nil {
+		return nil
+	}
+	return c.state.GameResult
+}
+
 // PlayerList returns all players (including self) sorted by HP descending.
 func (c *GameClient) PlayerList() []PlayerEntry {
 	c.mu.RLock()

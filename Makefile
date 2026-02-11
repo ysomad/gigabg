@@ -16,9 +16,9 @@ test:
 lint:
 	golangci-lint run ./...
 
-.PHONY: gameserver
-gameserver:
-	air --build.cmd "go build -o ./tmp/gameserver ./cmd/gameserver" --build.bin "./tmp/gameserver"
+.PHONY: server
+server:
+	air --build.cmd "go build -o ./tmp/server ./cmd/server" --build.bin "./tmp/server"
 
 .PHONY: client
 client:
