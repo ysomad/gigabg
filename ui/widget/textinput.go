@@ -92,6 +92,6 @@ func (t *TextInput) Draw(screen *ebiten.Image, font *text.GoTextFace) {
 	ui.DrawText(screen, font, display, t.Rect.X+padX, t.Rect.Y+padY, color.White)
 }
 
-func (t *TextInput) Value() string    { return t.text }
-func (t *TextInput) Focused() bool    { return t.focused }
+func (t *TextInput) Value() string     { return t.text }
+func (t *TextInput) Focused() bool     { return t.focused }
 func (t *TextInput) SetFocused(b bool) { t.focused = b }

@@ -53,10 +53,10 @@ func New() (*Cards, error) {
 		}
 	}
 
-	return _new(templates), nil
+	return newCards(templates), nil
 }
 
-func _new(templates map[string]*game.CardTemplate) *Cards {
+func newCards(templates map[string]*game.CardTemplate) *Cards {
 	c := &Cards{
 		templates:   templates,
 		byKind:      make(map[game.CardKind][]*game.CardTemplate),
@@ -67,11 +67,6 @@ func _new(templates map[string]*game.CardTemplate) *Cards {
 	}
 
 	for _, t := range templates {
-		// Default unset Kind to Minion so existing templates are indexed correctly
-		if t.Kind == 0 {
-			t.Kind = game.CardKindMinion
-		}
-
 		// Auto-populate golden defaults for minions
 		if t.Kind == game.CardKindMinion {
 			initGoldenDefaults(t)

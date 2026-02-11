@@ -53,7 +53,9 @@ func main() {
 		slog.Info("waiting for state", "player", playerID, "lobby", lobbyID)
 
 		if err := gc.WaitForState(ctx); err != nil {
-			gc.Close()
+			if cerr := gc.Close(); cerr != nil {
+				slog.Error("close game client", "error", cerr)
+			}
 			slog.Error("wait for state failed", "error", err)
 			p.SetTitle("Error")
 			p.SetMessage(err.Error())

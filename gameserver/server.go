@@ -83,7 +83,9 @@ func (s *Server) createLobby(w http.ResponseWriter, r *http.Request) {
 	slog.Info("lobby created", "lobby", l.ID(), "max_players", req.MaxPlayers)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(api.CreateLobbyResp{LobbyID: l.ID()})
+	if err := json.NewEncoder(w).Encode(api.CreateLobbyResp{LobbyID: l.ID()}); err != nil {
+		slog.Error("encode failed", "error", err)
+	}
 }
 
 // gameLoop runs periodically to advance phases in all lobbies.
@@ -161,7 +163,9 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 
 	if err := l.AddPlayer(playerID); err != nil {
 		s.mu.Unlock()
-		conn.Close(websocket.StatusPolicyViolation, err.Error())
+		if cerr := conn.Close(websocket.StatusPolicyViolation, err.Error()); cerr != nil {
+			slog.Error("close rejected player conn", "error", cerr, "player", playerID)
+		}
 		return
 	}
 
@@ -192,7 +196,11 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) writePump(ctx context.Context, client *ClientConn) {
-	defer client.conn.CloseNow()
+	defer func() {
+		if err := client.conn.CloseNow(); err != nil {
+			slog.Error("close conn", "error", err, "player", client.playerID)
+		}
+	}()
 
 	for {
 		select {
@@ -232,7 +240,7 @@ func (s *Server) readPump(ctx context.Context, client *ClientConn) {
 			continue
 		}
 
-		s.handleMessage(client, &msg)
+		s.handleMessage(ctx, client, &msg)
 	}
 }
 
@@ -244,10 +252,10 @@ func decodePayload[T any](msg *api.ClientMessage) (T, error) {
 	return v, nil
 }
 
-func (s *Server) handleMessage(client *ClientConn, msg *api.ClientMessage) {
+func (s *Server) handleMessage(ctx context.Context, client *ClientConn, msg *api.ClientMessage) {
 	switch msg.Action {
 	case api.ActionBuyCard:
-		s.handleAction(client, msg.Action, func(l *lobby.Lobby, p *game.Player) error {
+		s.handleAction(ctx, client, msg.Action, func(l *lobby.Lobby, p *game.Player) error {
 			payload, err := decodePayload[api.BuyCard](msg)
 			if err != nil {
 				return err
@@ -260,7 +268,7 @@ func (s *Server) handleMessage(client *ClientConn, msg *api.ClientMessage) {
 		})
 
 	case api.ActionSellMinion:
-		s.handleAction(client, msg.Action, func(l *lobby.Lobby, p *game.Player) error {
+		s.handleAction(ctx, client, msg.Action, func(l *lobby.Lobby, p *game.Player) error {
 			payload, err := decodePayload[api.SellMinion](msg)
 			if err != nil {
 				return err
@@ -269,7 +277,7 @@ func (s *Server) handleMessage(client *ClientConn, msg *api.ClientMessage) {
 		})
 
 	case api.ActionPlaceMinion:
-		s.handleAction(client, msg.Action, func(l *lobby.Lobby, p *game.Player) error {
+		s.handleAction(ctx, client, msg.Action, func(l *lobby.Lobby, p *game.Player) error {
 			payload, err := decodePayload[api.PlaceMinion](msg)
 			if err != nil {
 				return err
@@ -278,7 +286,7 @@ func (s *Server) handleMessage(client *ClientConn, msg *api.ClientMessage) {
 		})
 
 	case api.ActionRemoveMinion:
-		s.handleAction(client, msg.Action, func(l *lobby.Lobby, p *game.Player) error {
+		s.handleAction(ctx, client, msg.Action, func(l *lobby.Lobby, p *game.Player) error {
 			payload, err := decodePayload[api.RemoveMinion](msg)
 			if err != nil {
 				return err
@@ -287,17 +295,15 @@ func (s *Server) handleMessage(client *ClientConn, msg *api.ClientMessage) {
 		})
 
 	case api.ActionUpgradeShop:
-		s.handleAction(client, msg.Action, func(l *lobby.Lobby, p *game.Player) error {
-			return p.UpgradeShop()
-		})
+		s.handleUpgradeShop(ctx, client, msg.Action)
 
 	case api.ActionRefreshShop:
-		s.handleAction(client, msg.Action, func(l *lobby.Lobby, p *game.Player) error {
+		s.handleAction(ctx, client, msg.Action, func(l *lobby.Lobby, p *game.Player) error {
 			return p.RefreshShop(l.Pool())
 		})
 
 	case api.ActionPlaySpell:
-		s.handleAction(client, msg.Action, func(l *lobby.Lobby, p *game.Player) error {
+		s.handleAction(ctx, client, msg.Action, func(l *lobby.Lobby, p *game.Player) error {
 			payload, err := decodePayload[api.PlaySpell](msg)
 			if err != nil {
 				return err
@@ -306,7 +312,7 @@ func (s *Server) handleMessage(client *ClientConn, msg *api.ClientMessage) {
 		})
 
 	case api.ActionDiscoverPick:
-		s.handleAction(client, msg.Action, func(l *lobby.Lobby, p *game.Player) error {
+		s.handleAction(ctx, client, msg.Action, func(l *lobby.Lobby, p *game.Player) error {
 			payload, err := decodePayload[api.DiscoverPick](msg)
 			if err != nil {
 				return err
@@ -315,14 +321,14 @@ func (s *Server) handleMessage(client *ClientConn, msg *api.ClientMessage) {
 		})
 
 	case api.ActionFreezeShop:
-		s.handleAction(client, msg.Action, func(l *lobby.Lobby, p *game.Player) error {
+		s.handleAction(ctx, client, msg.Action, func(l *lobby.Lobby, p *game.Player) error {
 			p.FreezeShop()
 			return nil
 		})
 
 	case api.ActionSyncBoards:
 		slog.Info(msg.Action.String(), "player", client.playerID, "lobby", client.lobbyID)
-		s.handleAction(client, msg.Action, func(l *lobby.Lobby, p *game.Player) error {
+		s.handleAction(ctx, client, msg.Action, func(l *lobby.Lobby, p *game.Player) error {
 			payload, err := decodePayload[api.SyncBoards](msg)
 			if err != nil {
 				return err
@@ -336,6 +342,7 @@ func (s *Server) handleMessage(client *ClientConn, msg *api.ClientMessage) {
 }
 
 func (s *Server) handleAction(
+	ctx context.Context,
 	client *ClientConn,
 	action api.Action,
 	fn func(l *lobby.Lobby, p *game.Player) error,
@@ -395,7 +402,7 @@ func (s *Server) handleAction(
 	if d := len(p.Shop().Cards()) - beforeShop; d != 0 {
 		attrs = append(attrs, slog.Int("shop", d))
 	}
-	slog.LogAttrs(context.Background(), slog.LevelInfo, action.String(), attrs...)
+	slog.LogAttrs(ctx, slog.LevelInfo, action.String(), attrs...)
 
 	s.sendPlayerState(client, l, p)
 }
@@ -436,7 +443,7 @@ func (s *Server) broadcastState(lobbyID string, l *lobby.Lobby) {
 func (s *Server) sendPlayerState(client *ClientConn, l *lobby.Lobby, p *game.Player) {
 	state := &api.GameState{
 		Player:            api.NewPlayer(p),
-		Opponents:         api.NewOpponents(l.Players(), client.playerID),
+		Opponents:         api.NewOpponents(l.Players(), client.playerID, l.AllCombatResults(), l.MajorityTribes()),
 		Turn:              l.Turn(),
 		Phase:             l.Phase(),
 		PhaseEndTimestamp: l.PhaseEndTimestamp(),
@@ -460,6 +467,34 @@ func (s *Server) sendPlayerState(client *ClientConn, l *lobby.Lobby, p *game.Pla
 	}
 
 	s.sendMessage(client, &api.ServerMessage{State: state})
+}
+
+func (s *Server) handleUpgradeShop(ctx context.Context, client *ClientConn, action api.Action) {
+	s.handleAction(ctx, client, action, func(l *lobby.Lobby, p *game.Player) error {
+		if err := p.UpgradeShop(); err != nil {
+			return err
+		}
+		s.sendOpponentUpdate(client.lobbyID, client.playerID, p.Shop().Tier())
+		return nil
+	})
+}
+
+func (s *Server) sendOpponentUpdate(lobbyID, playerID string, tier game.Tier) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	msg := &api.ServerMessage{
+		OpponentUpdate: &api.OpponentUpdate{
+			PlayerID: playerID,
+			ShopTier: tier,
+		},
+	}
+	for _, c := range s.clients[lobbyID] {
+		if c.playerID == playerID {
+			continue
+		}
+		s.sendMessage(c, msg)
+	}
 }
 
 func (s *Server) sendError(client *ClientConn, msg string) {

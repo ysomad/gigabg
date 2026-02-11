@@ -5,12 +5,12 @@ type CombatEventType uint8
 
 const (
 	CombatEventAttack  CombatEventType = iota + 1 // minion initiates attack
-	CombatEventDamage                              // damage dealt to a minion
-	CombatEventDeath                               // minion dies and is removed
-	CombatEventBuff                                // future: stat buff applied
-	CombatEventKeyword                             // future: keyword granted/removed
-	CombatEventSummon                              // future: minion summoned
-	CombatEventTrigger                             // future: triggered ability fires
+	CombatEventDamage                             // damage dealt to a minion
+	CombatEventDeath                              // minion dies and is removed
+	CombatEventBuff                               // future: stat buff applied
+	CombatEventKeyword                            // future: keyword granted/removed
+	CombatEventSummon                             // future: minion summoned
+	CombatEventTrigger                            // future: triggered ability fires
 )
 
 // CombatEvent is a single step in the combat log.

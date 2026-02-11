@@ -1,8 +1,8 @@
 package widget
 
 import (
-	"fmt"
 	"image/color"
+	"strconv"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
@@ -31,7 +31,7 @@ func (r *CardRenderer) DrawMinionCard(screen *ebiten.Image, c api.Card, rect ui.
 
 	// Tier (top-right).
 	if t != nil && t.Tier.IsValid() {
-		ui.DrawText(screen, r.Font, fmt.Sprintf("T%d", t.Tier),
+		ui.DrawText(screen, r.Font, "T"+strconv.Itoa(int(t.Tier)),
 			rect.Right()-rect.W*0.22, rect.Y+rect.H*0.04,
 			color.RGBA{180, 180, 180, 255})
 	}
@@ -45,12 +45,12 @@ func (r *CardRenderer) DrawMinionCard(screen *ebiten.Image, c api.Card, rect ui.
 		color.RGBA{150, 150, 200, 255})
 
 	// Attack (bottom-left, yellow).
-	ui.DrawText(screen, r.Font, fmt.Sprintf("%d", c.Attack),
+	ui.DrawText(screen, r.Font, strconv.Itoa(c.Attack),
 		rect.X+rect.W*0.04, rect.Bottom()-rect.H*0.12,
 		color.RGBA{255, 215, 0, 255})
 
 	// Health (bottom-right, red).
-	ui.DrawText(screen, r.Font, fmt.Sprintf("%d", c.Health),
+	ui.DrawText(screen, r.Font, strconv.Itoa(c.Health),
 		rect.Right()-rect.W*0.15, rect.Bottom()-rect.H*0.12,
 		color.RGBA{255, 80, 80, 255})
 }
@@ -84,7 +84,7 @@ func (r *CardRenderer) DrawShopMinion(screen *ebiten.Image, c api.Card, rect ui.
 
 	// Tier (top, gold).
 	if t != nil && t.Tier.IsValid() {
-		ui.DrawText(screen, r.Font, fmt.Sprintf("T%d", t.Tier),
+		ui.DrawText(screen, r.Font, "T"+strconv.Itoa(int(t.Tier)),
 			rect.X+rect.W*0.42, rect.Y+rect.H*0.15,
 			color.RGBA{255, 215, 0, 255})
 	}
@@ -101,12 +101,12 @@ func (r *CardRenderer) DrawShopMinion(screen *ebiten.Image, c api.Card, rect ui.
 	}
 
 	// Attack (bottom-left, yellow).
-	ui.DrawText(screen, r.Font, fmt.Sprintf("%d", c.Attack),
+	ui.DrawText(screen, r.Font, strconv.Itoa(c.Attack),
 		rect.X+rect.W*0.20, rect.Bottom()-rect.H*0.22,
 		color.RGBA{255, 215, 0, 255})
 
 	// Health (bottom-right, red).
-	ui.DrawText(screen, r.Font, fmt.Sprintf("%d", c.Health),
+	ui.DrawText(screen, r.Font, strconv.Itoa(c.Health),
 		rect.Right()-rect.W*0.30, rect.Bottom()-rect.H*0.22,
 		color.RGBA{255, 80, 80, 255})
 }
@@ -153,17 +153,19 @@ func (r *CardRenderer) DrawMinion(screen *ebiten.Image, c api.Card, rect ui.Rect
 	}
 
 	// Attack (bottom-left, yellow).
-	ui.DrawText(screen, r.Font, fmt.Sprintf("%d", c.Attack),
+	ui.DrawText(screen, r.Font, strconv.Itoa(c.Attack),
 		rect.X+rect.W*0.20, rect.Bottom()-rect.H*0.22,
 		color.RGBA{255, 215, 0, alpha})
 
 	// Health (bottom-right, red).
-	ui.DrawText(screen, r.Font, fmt.Sprintf("%d", c.Health),
+	ui.DrawText(screen, r.Font, strconv.Itoa(c.Health),
 		rect.Right()-rect.W*0.30, rect.Bottom()-rect.H*0.22,
 		color.RGBA{255, 80, 80, alpha})
 }
 
-func (r *CardRenderer) drawRectBase(screen *ebiten.Image, rect ui.Rect, bg color.RGBA, golden, spell bool, alpha uint8) {
+func (r *CardRenderer) drawRectBase(
+	screen *ebiten.Image, rect ui.Rect, bg color.RGBA, golden, spell bool, alpha uint8,
+) {
 	sr := rect.Screen()
 	s := ui.ActiveRes.Scale()
 
@@ -181,7 +183,9 @@ func (r *CardRenderer) drawRectBase(screen *ebiten.Image, rect ui.Rect, bg color
 	vector.StrokeRect(screen, float32(sr.X), float32(sr.Y), float32(sr.W), float32(sr.H), borderW, border, false)
 }
 
-func (r *CardRenderer) drawEllipseBase(screen *ebiten.Image, rect ui.Rect, bg color.RGBA, golden, spell bool, alpha uint8) {
+func (r *CardRenderer) drawEllipseBase(
+	screen *ebiten.Image, rect ui.Rect, bg color.RGBA, golden, spell bool, alpha uint8,
+) {
 	sr := rect.Screen()
 	s := ui.ActiveRes.Scale()
 
@@ -204,12 +208,13 @@ func (r *CardRenderer) drawEllipseBase(screen *ebiten.Image, rect ui.Rect, bg co
 	ui.StrokeEllipse(screen, cx, cy, rx, ry, borderW, border)
 }
 
-func (r *CardRenderer) cardInfo(c api.Card) (name, desc, tribe string) {
-	name = c.TemplateID
+func (r *CardRenderer) cardInfo(c api.Card) (string, string, string) {
+	name := c.TemplateID
+	var desc, tribe string
 	if t := r.Cards.ByTemplateID(c.TemplateID); t != nil {
 		name = t.Name
 		desc = t.Description
 		tribe = t.Tribe.String()
 	}
-	return
+	return name, desc, tribe
 }

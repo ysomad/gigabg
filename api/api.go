@@ -96,9 +96,16 @@ type CreateLobbyResp struct {
 
 // ServerMessage represents message which server must send to a client.
 type ServerMessage struct {
-	State        *GameState         `json:"state"`
-	Error        *Error             `json:"error,omitempty"`
-	CombatEvents []game.CombatEvent `json:"combat_events,omitempty"`
+	State          *GameState         `json:"state"`
+	Error          *Error             `json:"error,omitempty"`
+	CombatEvents   []game.CombatEvent `json:"combat_events,omitempty"`
+	OpponentUpdate *OpponentUpdate    `json:"opponent_update,omitempty"`
+}
+
+// OpponentUpdate is a lightweight notification about an opponent's tier change.
+type OpponentUpdate struct {
+	PlayerID string    `json:"player_id"`
+	ShopTier game.Tier `json:"shop_tier"`
 }
 
 type GameState struct {
@@ -128,17 +135,21 @@ type Player struct {
 }
 
 type Opponent struct {
-	ID       string    `json:"id"`
-	HP       int       `json:"hp"`
-	ShopTier game.Tier `json:"shop_tier"`
+	ID            string              `json:"id"`
+	HP            int                 `json:"hp"`
+	ShopTier      game.Tier           `json:"shop_tier"`
+	CombatResults []game.CombatResult `json:"combat_results"`
+	MajorityTribe game.Tribe          `json:"majority_tribe"`
+	MajorityCount int                 `json:"majority_count"`
 }
 
 type Card struct {
-	TemplateID string `json:"template_id"`
-	Attack     int    `json:"attack"`
-	Health     int    `json:"health"`
-	IsGolden   bool   `json:"is_golden"`
-	CombatID   int    `json:"combat_id"` // set only in combat context
+	TemplateID string     `json:"template_id"`
+	Attack     int        `json:"attack"`
+	Health     int        `json:"health"`
+	IsGolden   bool       `json:"is_golden"`
+	Tribe      game.Tribe `json:"tribe"`
+	CombatID   int        `json:"combat_id"` // set only in combat context
 }
 
 type Error struct {
@@ -156,16 +167,25 @@ func NewPlayer(p *game.Player) Player {
 	}
 }
 
-func NewOpponents(players []*game.Player, excludeID string) []Opponent {
+func NewOpponents(
+	players []*game.Player,
+	excludeID string,
+	combatResults map[string][]game.CombatResult,
+	tribes map[string]game.TribeSnapshot,
+) []Opponent {
 	res := make([]Opponent, 0, len(players)-1)
 	for _, p := range players {
 		if p.ID() == excludeID {
 			continue
 		}
+		snap := tribes[p.ID()]
 		res = append(res, Opponent{
-			ID:       p.ID(),
-			HP:       p.HP(),
-			ShopTier: p.Shop().Tier(),
+			ID:            p.ID(),
+			HP:            p.HP(),
+			ShopTier:      p.Shop().Tier(),
+			CombatResults: combatResults[p.ID()],
+			MajorityTribe: snap.Tribe,
+			MajorityCount: snap.Count,
 		})
 	}
 	return res
@@ -178,6 +198,7 @@ func NewCard(c game.Card) Card {
 			Attack:     m.Attack(),
 			Health:     m.Health(),
 			IsGolden:   m.IsGolden(),
+			Tribe:      m.Tribe(),
 		}
 	}
 	return Card{TemplateID: c.TemplateID()}
@@ -189,6 +210,7 @@ func NewCardFromMinion(m *game.Minion) Card {
 		Attack:     m.Attack(),
 		Health:     m.Health(),
 		IsGolden:   m.IsGolden(),
+		Tribe:      m.Tribe(),
 	}
 }
 
@@ -198,6 +220,7 @@ func NewCombatCard(m *game.Minion) Card {
 		Attack:     m.Attack(),
 		Health:     m.Health(),
 		IsGolden:   m.IsGolden(),
+		Tribe:      m.Tribe(),
 		CombatID:   m.CombatID(),
 	}
 }

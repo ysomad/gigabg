@@ -72,6 +72,7 @@ type Lobby struct {
 	combatLogs        map[string][]game.CombatResult // playerID -> last N results
 	combatAnimations  []game.CombatAnimation         // ephemeral, cleared after send
 	combatPairings    map[string]CombatPairing       // playerID -> pairing, combat phase only
+	majorityTribes    map[string]game.TribeSnapshot  // playerID -> snapshot from last combat
 }
 
 func New(cards game.CardStore, maxPlayers int) (*Lobby, error) {
@@ -190,6 +191,9 @@ func (l *Lobby) checkFinished() {
 }
 
 func (l *Lobby) resolvePairing(p1, p2 *game.Player) {
+	l.snapshotTribe(p1)
+	l.snapshotTribe(p2)
+
 	combat := game.NewCombat(p1, p2)
 
 	p1Board, p2Board := combat.Boards()
@@ -213,8 +217,21 @@ func (l *Lobby) resolvePairing(p1, p2 *game.Player) {
 	l.combatAnimations = append(l.combatAnimations, combat.Animation())
 }
 
+func (l *Lobby) snapshotTribe(p *game.Player) {
+	if l.majorityTribes == nil {
+		l.majorityTribes = make(map[string]game.TribeSnapshot, len(l.players))
+	}
+	tribe, count := p.Board().MajorityTribe()
+	l.majorityTribes[p.ID()] = game.TribeSnapshot{Tribe: tribe, Count: count}
+}
+
+// MajorityTribes returns the snapshot of majority tribes from last combat.
+func (l *Lobby) MajorityTribes() map[string]game.TribeSnapshot {
+	return l.majorityTribes
+}
+
 func (l *Lobby) appendCombatResult(playerID string, result game.CombatResult) {
-	logs := append(l.combatLogs[playerID], result)
+	logs := append(l.combatLogs[playerID], result) //nolint:gocritic // intentional new slice
 	if len(logs) > maxCombatLogs {
 		logs = logs[len(logs)-maxCombatLogs:]
 	}
@@ -243,6 +260,8 @@ func (l *Lobby) AdvancePhase() bool {
 	}
 
 	switch l.phase {
+	case game.PhaseWaiting:
+		return false
 	case game.PhaseRecruit:
 		l.startCombat()
 	case game.PhaseCombat:
@@ -294,13 +313,18 @@ func (l *Lobby) PhaseEndTimestamp() int64 {
 }
 
 // Cards returns the card store.
-func (l *Lobby) Cards() game.CardStore {
+func (l *Lobby) Cards() game.CardStore { //nolint:ireturn // domain interface
 	return l.cards
 }
 
 // CombatResults returns combat results for the given player (last 3).
 func (l *Lobby) CombatResults(playerID string) []game.CombatResult {
 	return l.combatLogs[playerID]
+}
+
+// AllCombatResults returns combat results for all players.
+func (l *Lobby) AllCombatResults() map[string][]game.CombatResult {
+	return l.combatLogs
 }
 
 // CombatAnimations returns pending combat animations and clears them.

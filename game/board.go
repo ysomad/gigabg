@@ -64,7 +64,7 @@ func (b Board) PickDefender() *Minion {
 		}
 	}
 	if len(taunt) > 0 {
-		return taunt[rand.IntN(len(taunt))]
+		return taunt[rand.IntN(len(taunt))] //nolint:gosec // game logic, not crypto
 	}
 
 	var targets []*Minion
@@ -74,7 +74,7 @@ func (b Board) PickDefender() *Minion {
 		}
 	}
 	if len(targets) > 0 {
-		return targets[rand.IntN(len(targets))]
+		return targets[rand.IntN(len(targets))] //nolint:gosec // game logic, not crypto
 	}
 
 	return nil
@@ -109,6 +109,51 @@ func (b *Board) RemoveMinion(i int) *Minion {
 	m := b.minions[i]
 	b.minions = append(b.minions[:i], b.minions[i+1:]...)
 	return m
+}
+
+// TribeSnapshot holds a majority tribe and its count.
+type TribeSnapshot struct {
+	Tribe Tribe
+	Count int
+}
+
+// MajorityTribe returns the most common non-neutral tribe on the board and its count.
+// Returns (TribeNeutral, 0) if no non-neutral tribe has >= 2 minions.
+func (b Board) MajorityTribe() (Tribe, int) {
+	tribes := make([]Tribe, len(b.minions))
+	for i, m := range b.minions {
+		tribes[i] = m.Tribe()
+	}
+	return CalcMajorityTribe(tribes)
+}
+
+// CalcMajorityTribe returns the most common non-neutral tribe and its count.
+// Returns (TribeNeutral, 0) if no non-neutral tribe has >= 2 entries.
+func CalcMajorityTribe(tribes []Tribe) (Tribe, int) {
+	counts := make(map[Tribe]int)
+	for _, t := range tribes {
+		if t == TribeNeutral {
+			continue
+		}
+		counts[t]++
+	}
+
+	var bestTribe Tribe
+	var bestCount int
+	for t, c := range counts {
+		if c > bestCount {
+			bestTribe = t
+			bestCount = c
+		}
+	}
+
+	if bestCount < 2 {
+		if len(counts) > 1 {
+			return TribeMixed, 0
+		}
+		return TribeNeutral, 0
+	}
+	return bestTribe, bestCount
 }
 
 // Reorder reorders the board based on the given index mapping.

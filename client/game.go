@@ -16,20 +16,24 @@ import (
 	"github.com/ysomad/gigabg/game"
 )
 
-// PlayerEntry is a player summary for the player bar.
+// PlayerEntry is a player summary for the sidebar.
 type PlayerEntry struct {
-	ID       string
-	HP       int
-	ShopTier game.Tier
+	ID            string
+	HP            int
+	ShopTier      game.Tier
+	CombatResults []game.CombatResult
+	MajorityTribe game.Tribe
+	MajorityCount int
 }
 
 // GameClient connects to a game server via WebSocket.
 type GameClient struct {
 	conn *websocket.Conn
 
-	state        *api.GameState
-	combatEvents []game.CombatEvent
-	mu           sync.RWMutex
+	state           *api.GameState
+	combatEvents    []game.CombatEvent
+	opponentUpdates []api.OpponentUpdate
+	mu              sync.RWMutex
 
 	errCh chan error
 }
@@ -48,15 +52,15 @@ func NewGameClient(ctx context.Context, addr, playerID, lobbyID string) (*GameCl
 	}
 
 	c := &GameClient{conn: conn, errCh: make(chan error, 1)}
-	go c.readPump()
+	go c.readPump(context.WithoutCancel(ctx))
 	return c, nil
 }
 
-func (c *GameClient) readPump() {
+func (c *GameClient) readPump(ctx context.Context) {
 	defer c.conn.CloseNow() //nolint:errcheck // best-effort cleanup
 
 	for {
-		_, data, err := c.conn.Read(context.Background())
+		_, data, err := c.conn.Read(ctx)
 		if err != nil {
 			if websocket.CloseStatus(err) == websocket.StatusNormalClosure || errors.Is(err, io.EOF) {
 				return
@@ -84,6 +88,17 @@ func (c *GameClient) handleMessage(msg *api.ServerMessage) {
 	}
 	if msg.State != nil {
 		c.state = msg.State
+	}
+	if u := msg.OpponentUpdate; u != nil {
+		c.opponentUpdates = append(c.opponentUpdates, *u)
+		if c.state != nil {
+			for i := range c.state.Opponents {
+				if c.state.Opponents[i].ID == u.PlayerID {
+					c.state.Opponents[i].ShopTier = u.ShopTier
+					break
+				}
+			}
+		}
 	}
 	c.mu.Unlock()
 
@@ -229,10 +244,29 @@ func (c *GameClient) PlayerList() []PlayerEntry {
 		return nil
 	}
 	p := c.state.Player
+	tribes := make([]game.Tribe, len(c.state.Board))
+	for i, card := range c.state.Board {
+		tribes[i] = card.Tribe
+	}
+	selfTribe, selfCount := game.CalcMajorityTribe(tribes)
 	list := make([]PlayerEntry, 0, len(c.state.Opponents)+1)
-	list = append(list, PlayerEntry{ID: p.ID, HP: p.HP, ShopTier: p.ShopTier})
+	list = append(list, PlayerEntry{
+		ID:            p.ID,
+		HP:            p.HP,
+		ShopTier:      p.ShopTier,
+		CombatResults: c.state.CombatResults,
+		MajorityTribe: selfTribe,
+		MajorityCount: selfCount,
+	})
 	for _, o := range c.state.Opponents {
-		list = append(list, PlayerEntry{ID: o.ID, HP: o.HP, ShopTier: o.ShopTier})
+		list = append(list, PlayerEntry{
+			ID:            o.ID,
+			HP:            o.HP,
+			ShopTier:      o.ShopTier,
+			CombatResults: o.CombatResults,
+			MajorityTribe: o.MajorityTribe,
+			MajorityCount: o.MajorityCount,
+		})
 	}
 	slices.SortFunc(list, func(a, b PlayerEntry) int {
 		return b.HP - a.HP
@@ -304,6 +338,15 @@ func (c *GameClient) PlaySpell(handIndex int) error {
 // DiscoverPick sends a discover pick action.
 func (c *GameClient) DiscoverPick(index int) error {
 	return c.send(api.ActionDiscoverPick, api.DiscoverPick{Index: index})
+}
+
+// DrainOpponentUpdates returns and clears pending opponent updates.
+func (c *GameClient) DrainOpponentUpdates() []api.OpponentUpdate {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	updates := c.opponentUpdates
+	c.opponentUpdates = nil
+	return updates
 }
 
 // CombatEvents returns the pending combat events, or nil.

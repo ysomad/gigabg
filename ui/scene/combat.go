@@ -357,7 +357,7 @@ func (ca *CombatAnimator) Draw(screen *ebiten.Image) {
 
 	// Header.
 	header := fmt.Sprintf("Turn %d | COMBAT", ca.turn)
-	ui.DrawText(screen, ca.font, header, lay.Header.W*0.04, lay.Header.H*0.5, color.RGBA{255, 100, 100, 255})
+	ui.DrawText(screen, ca.font, header, lay.Header.X+lay.Header.W*0.04, lay.Header.H*0.5, color.RGBA{255, 100, 100, 255})
 
 	sh := lay.Header.Screen()
 	lineY := float32(sh.Bottom())
@@ -378,7 +378,7 @@ func (ca *CombatAnimator) Draw(screen *ebiten.Image) {
 		screen,
 		ca.font,
 		"OPPONENT",
-		lay.Opponent.W*0.04,
+		lay.Opponent.X+lay.Opponent.W*0.04,
 		lay.Opponent.Y+lay.Opponent.H*0.02,
 		color.RGBA{255, 120, 120, 255},
 	)
@@ -386,7 +386,7 @@ func (ca *CombatAnimator) Draw(screen *ebiten.Image) {
 		screen,
 		ca.font,
 		"YOUR BOARD",
-		lay.Player.W*0.04,
+		lay.Player.X+lay.Player.W*0.04,
 		lay.Player.Y+lay.Player.H*0.02,
 		color.RGBA{120, 255, 120, 255},
 	)

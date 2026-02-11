@@ -2,7 +2,6 @@ package ui
 
 import (
 	"image/color"
-	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
@@ -64,5 +63,5 @@ func StrokeEllipse(screen *ebiten.Image, cx, cy, rx, ry, strokeWidth float32, cl
 
 // EaseOut gives a smooth deceleration curve.
 func EaseOut(t float64) float64 {
-	return 1 - math.Pow(1-t, 2)
+	return 1 - (1-t)*(1-t)
 }

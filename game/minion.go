@@ -14,6 +14,7 @@ const (
 	TribePirate
 	TribeQuilboar
 	TribeUndead
+	TribeMixed
 )
 
 func (t Tribe) String() string {
@@ -38,6 +39,8 @@ func (t Tribe) String() string {
 		return "Quilboar"
 	case TribeUndead:
 		return "Undead"
+	case TribeMixed:
+		return "Mixed"
 	default:
 		return "Neutral"
 	}

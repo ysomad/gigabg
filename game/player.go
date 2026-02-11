@@ -328,7 +328,7 @@ func (p *Player) ResolveDiscover(pool *CardPool) {
 		return
 	}
 
-	idx := rand.IntN(len(p.discoverOptions))
+	idx := rand.IntN(len(p.discoverOptions)) //nolint:gosec // game logic, not crypto
 	p.hand = append(p.hand, p.discoverOptions[idx])
 
 	for i, c := range p.discoverOptions {

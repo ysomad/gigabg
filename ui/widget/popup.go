@@ -113,12 +113,12 @@ func (p *Popup) SetMessage(s string) {
 }
 
 // popupBox returns the base-space rect for the popup box.
-func popupBox() (boxX, boxY, boxW, boxH float64) {
-	boxW = float64(ui.BaseWidth) * 0.40
-	boxH = float64(ui.BaseHeight) * 0.25
-	boxX = float64(ui.BaseWidth)/2 - boxW/2
-	boxY = float64(ui.BaseHeight)/2 - boxH/2
-	return
+func popupBox() (float64, float64, float64, float64) {
+	boxW := float64(ui.BaseWidth) * 0.40
+	boxH := float64(ui.BaseHeight) * 0.25
+	boxX := float64(ui.BaseWidth)/2 - boxW/2
+	boxY := float64(ui.BaseHeight)/2 - boxH/2
+	return boxX, boxY, boxW, boxH
 }
 
 // ShowButton shows a button at the bottom of the popup.

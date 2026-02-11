@@ -59,7 +59,7 @@ func (s *Shop) StartTurn(pool *CardPool) {
 }
 
 // BuyCard removes a card from the shop at the given index and returns it.
-func (s *Shop) BuyCard(index int) (Card, error) {
+func (s *Shop) BuyCard(index int) (Card, error) { //nolint:ireturn // domain interface
 	if index < 0 || index >= len(s.cards) {
 		return nil, ErrInvalidIndex
 	}

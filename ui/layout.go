@@ -65,13 +65,13 @@ func (r Rect) Bottom() float64 { return r.Y + r.H }
 
 // GameLayout holds computed zone rects in base coordinate space.
 type GameLayout struct {
-	Screen    Rect
-	Header    Rect // turn info + timer
-	BtnRow    Rect // refresh / upgrade / freeze
-	Shop      Rect // shop card zone
-	Board     Rect // board card zone
-	Hand      Rect // hand card zone
-	PlayerBar Rect // bottom HP bar
+	Screen  Rect
+	Sidebar Rect // left player info sidebar
+	Header  Rect // turn info + timer
+	BtnRow  Rect // refresh / upgrade / freeze
+	Shop    Rect // shop card zone
+	Board   Rect // board card zone
+	Hand    Rect // hand card zone
 
 	CardW float64
 	CardH float64
@@ -83,25 +83,29 @@ func CalcGameLayout() GameLayout {
 	w := float64(BaseWidth)
 	h := float64(BaseHeight)
 
-	cardW := w * 0.10
+	sideW := w * 0.15
+	mainX := sideW
+	mainW := w - sideW
+
+	cardW := mainW * 0.10
 	cardH := cardW * 1.2
-	gap := w * 0.016
+	gap := mainW * 0.016
 
 	headerH := h * 0.08
 	btnRowH := h * 0.06
 	zoneH := cardH + h*0.05 // card + label padding
 
 	return GameLayout{
-		Screen:    Rect{0, 0, w, h},
-		Header:    Rect{0, 0, w, headerH},
-		BtnRow:    Rect{0, headerH, w, btnRowH},
-		Shop:      Rect{0, headerH + btnRowH, w, zoneH},
-		Board:     Rect{0, headerH + btnRowH + zoneH, w, zoneH},
-		Hand:      Rect{0, headerH + btnRowH + 2*zoneH, w, zoneH},
-		PlayerBar: Rect{0, h - h*0.05, w, h * 0.05},
-		CardW:     cardW,
-		CardH:     cardH,
-		Gap:       gap,
+		Screen:  Rect{0, 0, w, h},
+		Sidebar: Rect{0, 0, sideW, h},
+		Header:  Rect{mainX, 0, mainW, headerH},
+		BtnRow:  Rect{mainX, headerH, mainW, btnRowH},
+		Shop:    Rect{mainX, headerH + btnRowH, mainW, zoneH},
+		Board:   Rect{mainX, headerH + btnRowH + zoneH, mainW, zoneH},
+		Hand:    Rect{mainX, headerH + btnRowH + 2*zoneH, mainW, zoneH},
+		CardW:   cardW,
+		CardH:   cardH,
+		Gap:     gap,
 	}
 }
 
@@ -122,7 +126,7 @@ func CardRect(zone Rect, i, n int, cardW, cardH, gap float64) Rect {
 }
 
 // ButtonRects returns rects for refresh, upgrade, freeze buttons within a zone.
-func ButtonRects(zone Rect) (refresh, upgrade, freeze Rect) {
+func ButtonRects(zone Rect) (Rect, Rect, Rect) {
 	btnW := zone.W * 0.10
 	btnH := zone.H * 0.7
 	gap := zone.W * 0.01
@@ -130,15 +134,16 @@ func ButtonRects(zone Rect) (refresh, upgrade, freeze Rect) {
 	startX := zone.X + (zone.W-totalW)/2
 	y := zone.Y + (zone.H-btnH)/2
 
-	refresh = Rect{startX, y, btnW, btnH}
-	upgrade = Rect{startX + btnW + gap, y, btnW, btnH}
-	freeze = Rect{startX + 2*(btnW+gap), y, btnW, btnH}
-	return
+	refresh := Rect{startX, y, btnW, btnH}
+	upgrade := Rect{startX + btnW + gap, y, btnW, btnH}
+	freeze := Rect{startX + 2*(btnW+gap), y, btnW, btnH}
+	return refresh, upgrade, freeze
 }
 
 // CombatLayout holds computed zone rects in base coordinate space.
 type CombatLayout struct {
 	Screen   Rect
+	Sidebar  Rect
 	Header   Rect
 	Opponent Rect // opponent board zone
 	Player   Rect // player board zone
@@ -153,18 +158,23 @@ func CalcCombatLayout() CombatLayout {
 	w := float64(BaseWidth)
 	h := float64(BaseHeight)
 
-	cardW := w * 0.10
+	sideW := w * 0.15
+	mainX := sideW
+	mainW := w - sideW
+
+	cardW := mainW * 0.10
 	cardH := cardW * 1.2
-	gap := w * 0.016
+	gap := mainW * 0.016
 
 	headerH := h * 0.12
 	zoneH := cardH + h*0.06
 
 	return CombatLayout{
 		Screen:   Rect{0, 0, w, h},
-		Header:   Rect{0, 0, w, headerH},
-		Opponent: Rect{0, headerH, w, zoneH},
-		Player:   Rect{0, h - zoneH - h*0.08, w, zoneH},
+		Sidebar:  Rect{0, 0, sideW, h},
+		Header:   Rect{mainX, 0, mainW, headerH},
+		Opponent: Rect{mainX, headerH, mainW, zoneH},
+		Player:   Rect{mainX, h - zoneH - h*0.08, mainW, zoneH},
 		CardW:    cardW,
 		CardH:    cardH,
 		Gap:      gap,

@@ -60,7 +60,7 @@ func NewCombat(p1, p2 *Player) *Combat {
 	c.player1Board = side1.board.Clone()
 	c.player2Board = side2.board.Clone()
 
-	if rand.IntN(2) == 1 {
+	if rand.IntN(2) == 1 { //nolint:gosec // game logic, not crypto
 		side1, side2 = side2, side1
 	}
 
@@ -169,7 +169,7 @@ func (c *Combat) removeDeadWithEvents(side *combatSide) {
 		i--
 	}
 	if n := side.board.Len(); n > 0 {
-		side.nextAttacker = side.nextAttacker % n
+		side.nextAttacker %= n
 	} else {
 		side.nextAttacker = 0
 	}

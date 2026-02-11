@@ -251,7 +251,10 @@ func (m *Menu) drawCreateMode(screen *ebiten.Image, h float64) {
 	ui.DrawText(screen, m.font, "Lobby Size:", m.sizeBtns[0].Rect.X, m.sizeBtns[0].Rect.Y-h*0.03, clrLabel)
 
 	for _, btn := range m.sizeBtns {
-		size, _ := strconv.Atoi(btn.Text)
+		size, err := strconv.Atoi(btn.Text)
+		if err != nil {
+			continue
+		}
 		if size == m.selectedSize {
 			btn.Color = clrSizeActive
 			btn.BorderClr = clrSizeBorderAc

@@ -55,7 +55,7 @@ func (p *CardPool) Roll(maxTier Tier, tribes []Tribe, count int) []Card {
 		if len(available) == 0 {
 			break
 		}
-		idx := rand.IntN(len(available))
+		idx := rand.IntN(len(available)) //nolint:gosec // game logic, not crypto
 		tmpl := available[idx]
 		res = append(res, NewMinion(tmpl))
 		p.quantities[tmpl.ID]--
@@ -81,7 +81,7 @@ func (p *CardPool) RollExactTier(tier Tier, tribes []Tribe) []Card {
 		if len(available) == 0 {
 			break
 		}
-		idx := rand.IntN(len(available))
+		idx := rand.IntN(len(available)) //nolint:gosec // game logic, not crypto
 		tmpl := available[idx]
 		res = append(res, NewMinion(tmpl))
 		p.quantities[tmpl.ID]--

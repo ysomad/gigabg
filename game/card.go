@@ -1,6 +1,19 @@
 package game
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/ysomad/gigabg/pkg/errors"
+)
+
+const (
+	ErrEmptyName         errors.Error = "name is empty"
+	ErrNoSpellEffect     errors.Error = "spell has no effect"
+	ErrInvalidTier       errors.Error = "invalid tier"
+	ErrNegativeAttack    errors.Error = "negative attack"
+	ErrHealthNotPositive errors.Error = "health must be positive"
+	ErrAvengeThreshold   errors.Error = "avenge threshold must be positive"
+)
 
 type Card interface {
 	TemplateID() string
@@ -13,7 +26,7 @@ type Card interface {
 type CardKind uint8
 
 const (
-	CardKindMinion CardKind = iota + 1
+	CardKindMinion CardKind = iota
 	CardKindSpell
 )
 
@@ -71,25 +84,25 @@ func (t *CardTemplate) HasKeyword(k Keyword) bool { return t.Keywords.Has(k) }
 
 func (t *CardTemplate) Validate() error {
 	if t.Name == "" {
-		return fmt.Errorf("name is empty")
+		return ErrEmptyName
 	}
 
 	if t.Kind == CardKindSpell {
 		if t.SpellEffect == nil {
-			return fmt.Errorf("spell has no effect")
+			return ErrNoSpellEffect
 		}
 		return nil
 	}
 
 	// Minion validation
 	if !t.Tier.IsValid() {
-		return fmt.Errorf("invalid tier")
+		return ErrInvalidTier
 	}
 	if t.Attack < 0 {
-		return fmt.Errorf("negative attack")
+		return ErrNegativeAttack
 	}
 	if t.Health <= 0 {
-		return fmt.Errorf("health must be positive")
+		return ErrHealthNotPositive
 	}
 
 	// Validate keyword/effect consistency
@@ -117,7 +130,7 @@ func (t *CardTemplate) Validate() error {
 	}
 
 	if t.Avenge != nil && t.Avenge.Threshold <= 0 {
-		return fmt.Errorf("avenge threshold must be positive")
+		return ErrAvengeThreshold
 	}
 
 	return nil

@@ -25,6 +25,7 @@ Decision table:
 | Yes | dynamic | custom error type |
 
 Rules:
+- Always handle errors
 - Handle errors once: either wrap+return OR log+handle, never both
 - Wrap with context: `fmt.Errorf("get user %q: %w", id, err)`
 - Export error vars only if callers need to match them

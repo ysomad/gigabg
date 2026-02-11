@@ -3,6 +3,7 @@ package scene
 import (
 	"fmt"
 	"image/color"
+	"log/slog"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
@@ -30,7 +31,9 @@ type recruitPhase struct {
 
 // SyncOrders sends the local board/shop order to the server.
 func (r *recruitPhase) SyncOrders() {
-	r.client.SyncBoards(r.boardOrder, r.shopOrder)
+	if err := r.client.SyncBoards(r.boardOrder, r.shopOrder); err != nil {
+		slog.Error("sync boards", "error", err)
+	}
 }
 
 // syncSizes keeps local orders in sync with server array sizes.
@@ -56,7 +59,7 @@ func (r *recruitPhase) isSpell(c api.Card) bool {
 	return t != nil && t.IsSpell()
 }
 
-// Update processes recruit-phase input. Returns nil always.
+// Update processes recruit-phase input.
 func (r *recruitPhase) Update() error {
 	r.syncSizes()
 
@@ -73,133 +76,172 @@ func (r *recruitPhase) Update() error {
 		return nil
 	}
 
-	// Start drag.
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-		// From board.
-		for i := range r.boardOrder {
-			rect := ui.CardRect(lay.Board, i, len(r.boardOrder), lay.CardW, lay.CardH, lay.Gap)
-			if rect.Contains(mx, my) {
-				r.drag.Start(i, true, false, mx, my)
-				return nil
-			}
-		}
-		// From hand.
-		hand := r.client.Hand()
-		for i, c := range hand {
-			rect := ui.CardRect(lay.Hand, i, len(hand), lay.CardW, lay.CardH, lay.Gap)
-			if rect.Contains(mx, my) {
-				if r.isSpell(c) {
-					r.client.PlaySpell(i)
-					return nil
-				}
-				r.drag.Start(i, false, false, mx, my)
-				return nil
-			}
-		}
-		// From shop.
-		shop := r.client.Shop()
-		for i := range shop {
-			rect := ui.CardRect(lay.Shop, i, len(shop), lay.CardW, lay.CardH, lay.Gap)
-			if rect.Contains(mx, my) {
-				r.drag.Start(i, false, true, mx, my)
-				return nil
-			}
+		if r.handleStartDrag(lay, mx, my) {
+			return nil
 		}
 	}
 
-	// Update drag position.
 	if r.drag.active && ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
 		r.drag.cursorX = mx
 		r.drag.cursorY = my
 		return nil
 	}
 
-	// End drag.
 	if r.drag.active && inpututil.IsMouseButtonJustReleased(ebiten.MouseButtonLeft) {
 		r.endDrag(lay, mx, my)
 		return nil
 	}
 
-	// Click buttons.
 	if inpututil.IsMouseButtonJustReleased(ebiten.MouseButtonLeft) {
-		refresh, upgrade, freeze := ui.ButtonRects(lay.BtnRow)
-		switch {
-		case refresh.Contains(mx, my):
-			r.client.RefreshShop()
-			return nil
-		case upgrade.Contains(mx, my):
-			r.client.UpgradeShop()
-			return nil
-		case freeze.Contains(mx, my):
-			r.client.FreezeShop()
+		if r.handleButtonClick(lay, mx, my) {
 			return nil
 		}
 	}
 
-	// Hover detection (skip while dragging).
 	if !r.drag.active {
-		shop := r.client.Shop()
-		for i, serverIdx := range r.shopOrder {
-			rect := ui.CardRect(lay.Shop, i, len(r.shopOrder), lay.CardW, lay.CardH, lay.Gap)
-			if rect.Contains(mx, my) {
-				c := shop[serverIdx]
-				r.hoverCard = &c
-				r.hoverRect = rect
-				break
-			}
-		}
-		if r.hoverCard == nil {
-			board := r.client.Board()
-			for i, serverIdx := range r.boardOrder {
-				if serverIdx >= 0 && serverIdx < len(board) {
-					rect := ui.CardRect(lay.Board, i, len(r.boardOrder), lay.CardW, lay.CardH, lay.Gap)
-					if rect.Contains(mx, my) {
-						c := board[serverIdx]
-						r.hoverCard = &c
-						r.hoverRect = rect
-						break
-					}
-				}
-			}
-		}
+		r.updateHover(lay, mx, my)
 	}
 
 	return nil
 }
 
+// handleStartDrag checks if the click starts a drag from board, hand, or shop.
+func (r *recruitPhase) handleStartDrag(lay ui.GameLayout, mx, my int) bool {
+	for i := range r.boardOrder {
+		rect := ui.CardRect(lay.Board, i, len(r.boardOrder), lay.CardW, lay.CardH, lay.Gap)
+		if rect.Contains(mx, my) {
+			r.drag.Start(i, true, false, mx, my)
+			return true
+		}
+	}
+
+	hand := r.client.Hand()
+	for i, c := range hand {
+		rect := ui.CardRect(lay.Hand, i, len(hand), lay.CardW, lay.CardH, lay.Gap)
+		if !rect.Contains(mx, my) {
+			continue
+		}
+		if r.isSpell(c) {
+			if err := r.client.PlaySpell(i); err != nil {
+				slog.Error("play spell", "error", err)
+			}
+			return true
+		}
+		r.drag.Start(i, false, false, mx, my)
+		return true
+	}
+
+	shop := r.client.Shop()
+	for i := range shop {
+		rect := ui.CardRect(lay.Shop, i, len(shop), lay.CardW, lay.CardH, lay.Gap)
+		if rect.Contains(mx, my) {
+			r.drag.Start(i, false, true, mx, my)
+			return true
+		}
+	}
+
+	return false
+}
+
+// handleButtonClick checks if the click hit a button (refresh, upgrade, freeze).
+func (r *recruitPhase) handleButtonClick(lay ui.GameLayout, mx, my int) bool {
+	refresh, upgrade, freeze := ui.ButtonRects(lay.BtnRow)
+	switch {
+	case refresh.Contains(mx, my):
+		if err := r.client.RefreshShop(); err != nil {
+			slog.Error("refresh shop", "error", err)
+		}
+		return true
+	case upgrade.Contains(mx, my):
+		if err := r.client.UpgradeShop(); err != nil {
+			slog.Error("upgrade shop", "error", err)
+		}
+		return true
+	case freeze.Contains(mx, my):
+		if err := r.client.FreezeShop(); err != nil {
+			slog.Error("freeze shop", "error", err)
+		}
+		return true
+	}
+	return false
+}
+
+// updateHover detects card hover for tooltip display.
+func (r *recruitPhase) updateHover(lay ui.GameLayout, mx, my int) {
+	shop := r.client.Shop()
+	for i, serverIdx := range r.shopOrder {
+		rect := ui.CardRect(lay.Shop, i, len(r.shopOrder), lay.CardW, lay.CardH, lay.Gap)
+		if rect.Contains(mx, my) {
+			c := shop[serverIdx]
+			r.hoverCard = &c
+			r.hoverRect = rect
+			return
+		}
+	}
+
+	board := r.client.Board()
+	for i, serverIdx := range r.boardOrder {
+		if serverIdx < 0 || serverIdx >= len(board) {
+			continue
+		}
+		rect := ui.CardRect(lay.Board, i, len(r.boardOrder), lay.CardW, lay.CardH, lay.Gap)
+		if rect.Contains(mx, my) {
+			c := board[serverIdx]
+			r.hoverCard = &c
+			r.hoverRect = rect
+			return
+		}
+	}
+}
+
 func (r *recruitPhase) endDrag(lay ui.GameLayout, mx, my int) {
 	defer r.drag.Reset()
 
-	dropPad := lay.CardH * 0.4
+	switch {
+	case r.drag.fromShop:
+		r.endShopDrag(lay, mx, my)
+	case r.drag.fromBoard:
+		r.endBoardDrag(lay, mx, my)
+	default:
+		r.endHandDrag(lay, mx, my)
+	}
+}
 
-	// Shop card drag: reorder if dropped on shop, buy if dropped below.
-	if r.drag.fromShop {
-		shopZone := ui.Rect{X: lay.Shop.X, Y: lay.Shop.Y - dropPad, W: lay.Shop.W, H: lay.Shop.H + 2*dropPad}
-		if shopZone.Contains(mx, my) {
-			pos := r.getShopDropPosition(lay, mx)
-			if pos != r.drag.index && pos >= 0 && pos <= len(r.shopOrder) {
-				val := r.shopOrder[r.drag.index]
-				r.shopOrder = append(r.shopOrder[:r.drag.index], r.shopOrder[r.drag.index+1:]...)
-				if pos > r.drag.index {
-					pos--
-				}
-				r.shopOrder = append(r.shopOrder[:pos], append([]int{val}, r.shopOrder[pos:]...)...)
+func (r *recruitPhase) endShopDrag(lay ui.GameLayout, mx, my int) {
+	dropPad := lay.CardH * 0.4
+	shopZone := ui.Rect{X: lay.Shop.X, Y: lay.Shop.Y - dropPad, W: lay.Shop.W, H: lay.Shop.H + 2*dropPad}
+
+	if shopZone.Contains(mx, my) {
+		pos := r.getShopDropPosition(lay, mx)
+		if pos != r.drag.index && pos >= 0 && pos <= len(r.shopOrder) {
+			val := r.shopOrder[r.drag.index]
+			r.shopOrder = append(r.shopOrder[:r.drag.index], r.shopOrder[r.drag.index+1:]...)
+			if pos > r.drag.index {
+				pos--
 			}
-		} else {
-			_, baseY := screenToBase(mx, my)
-			if baseY > lay.Shop.Y+lay.Shop.H+dropPad {
-				r.client.BuyCard(r.shopOrder[r.drag.index])
-			}
+			r.shopOrder = append(r.shopOrder[:pos], append([]int{val}, r.shopOrder[pos:]...)...)
 		}
 		return
 	}
 
-	if r.drag.fromBoard {
-		shopZone := ui.Rect{X: lay.Shop.X, Y: lay.Shop.Y - dropPad, W: lay.Shop.W, H: lay.Shop.H + 2*dropPad}
-		if shopZone.Contains(mx, my) {
-			r.client.SellMinion(r.boardOrder[r.drag.index])
-			return
+	_, baseY := screenToBase(mx, my)
+	if baseY > lay.Shop.Y+lay.Shop.H+dropPad {
+		if err := r.client.BuyCard(r.shopOrder[r.drag.index]); err != nil {
+			slog.Error("buy card", "error", err)
 		}
+	}
+}
+
+func (r *recruitPhase) endBoardDrag(lay ui.GameLayout, mx, my int) {
+	dropPad := lay.CardH * 0.4
+	shopZone := ui.Rect{X: lay.Shop.X, Y: lay.Shop.Y - dropPad, W: lay.Shop.W, H: lay.Shop.H + 2*dropPad}
+
+	if shopZone.Contains(mx, my) {
+		if err := r.client.SellMinion(r.boardOrder[r.drag.index]); err != nil {
+			slog.Error("sell minion", "error", err)
+		}
+		return
 	}
 
 	boardZone := ui.Rect{X: lay.Board.X, Y: lay.Board.Y - dropPad, W: lay.Board.W, H: lay.Board.H + 2*dropPad}
@@ -208,17 +250,29 @@ func (r *recruitPhase) endDrag(lay ui.GameLayout, mx, my int) {
 	}
 
 	pos := r.getBoardDropPosition(lay, mx)
-	if r.drag.fromBoard {
-		if pos != r.drag.index && pos >= 0 && pos <= len(r.boardOrder) {
-			val := r.boardOrder[r.drag.index]
-			r.boardOrder = append(r.boardOrder[:r.drag.index], r.boardOrder[r.drag.index+1:]...)
-			if pos > r.drag.index {
-				pos--
-			}
-			r.boardOrder = append(r.boardOrder[:pos], append([]int{val}, r.boardOrder[pos:]...)...)
-		}
-	} else {
-		r.client.PlaceMinion(r.drag.index, pos)
+	if pos == r.drag.index || pos < 0 || pos > len(r.boardOrder) {
+		return
+	}
+
+	val := r.boardOrder[r.drag.index]
+	r.boardOrder = append(r.boardOrder[:r.drag.index], r.boardOrder[r.drag.index+1:]...)
+	if pos > r.drag.index {
+		pos--
+	}
+	r.boardOrder = append(r.boardOrder[:pos], append([]int{val}, r.boardOrder[pos:]...)...)
+}
+
+func (r *recruitPhase) endHandDrag(lay ui.GameLayout, mx, my int) {
+	dropPad := lay.CardH * 0.4
+	boardZone := ui.Rect{X: lay.Board.X, Y: lay.Board.Y - dropPad, W: lay.Board.W, H: lay.Board.H + 2*dropPad}
+
+	if !boardZone.Contains(mx, my) {
+		return
+	}
+
+	pos := r.getBoardDropPosition(lay, mx)
+	if err := r.client.PlaceMinion(r.drag.index, pos); err != nil {
+		slog.Error("place minion", "error", err)
 	}
 }
 
@@ -262,7 +316,9 @@ func (r *recruitPhase) handleDiscoverClick(lay ui.GameLayout, discover []api.Car
 	for i := range discover {
 		rect := ui.CardRect(discoverZone, i, len(discover), lay.CardW, lay.CardH, lay.Gap)
 		if rect.Contains(mx, my) {
-			r.client.DiscoverPick(i)
+			if err := r.client.DiscoverPick(i); err != nil {
+				slog.Error("discover pick", "error", err)
+			}
 			return
 		}
 	}
@@ -272,40 +328,73 @@ func (r *recruitPhase) handleDiscoverClick(lay ui.GameLayout, discover []api.Car
 func (r *recruitPhase) Draw(screen *ebiten.Image, font *text.GoTextFace, turn int, timeRemaining int64) {
 	lay := ui.CalcGameLayout()
 
-	// Header.
+	r.drawHeader(screen, font, lay, turn, timeRemaining)
+	r.drawPlayerStats(screen, font, lay)
+	r.drawButtons(screen, font, lay)
+
+	ui.DrawText(screen, font, "SHOP",
+		lay.Shop.X+lay.Shop.W*0.04, lay.Shop.Y+lay.Shop.H*0.02,
+		color.RGBA{150, 150, 150, 255})
+	r.drawShopCards(screen, lay)
+
+	ui.DrawText(screen, font, "BOARD",
+		lay.Board.X+lay.Board.W*0.04, lay.Board.Y+lay.Board.H*0.02,
+		color.RGBA{150, 150, 150, 255})
+	r.drawBoardCards(screen, lay)
+
+	ui.DrawText(screen, font, "HAND",
+		lay.Hand.X+lay.Hand.W*0.04, lay.Hand.Y+lay.Hand.H*0.02,
+		color.RGBA{150, 150, 150, 255})
+	r.drawHandCards(screen, lay)
+
+	r.drawDraggedCard(screen, lay)
+	r.drawHoverTooltip(screen, lay)
+
+	if discover := r.client.Discover(); discover != nil {
+		r.drawDiscoverOverlay(screen, font, lay, discover)
+	}
+}
+
+func (r *recruitPhase) drawHeader(
+	screen *ebiten.Image, font *text.GoTextFace, lay ui.GameLayout, turn int, timeRemaining int64,
+) {
 	header := fmt.Sprintf("Turn %d | RECRUIT", turn)
-	ui.DrawText(screen, font, header, lay.Header.W*0.04, lay.Header.H*0.5, color.RGBA{100, 200, 100, 255})
+	ui.DrawText(screen, font, header,
+		lay.Header.X+lay.Header.W*0.04, lay.Header.H*0.5,
+		color.RGBA{100, 200, 100, 255})
 
 	timer := fmt.Sprintf("%d:%02d", timeRemaining/60, timeRemaining%60)
-	ui.DrawText(screen, font, timer, lay.Header.W*0.9, lay.Header.H*0.5, color.RGBA{255, 255, 255, 255})
+	ui.DrawText(screen, font, timer,
+		lay.Header.X+lay.Header.W*0.9, lay.Header.H*0.5,
+		color.RGBA{255, 255, 255, 255})
 
 	lineRect := lay.Header.Screen()
 	lineY := float32(lineRect.Bottom())
 	vector.StrokeLine(
 		screen,
-		float32(lineRect.W*0.03),
-		lineY,
-		float32(lineRect.W*0.97),
-		lineY,
+		float32(lineRect.X+lineRect.W*0.03), lineY,
+		float32(lineRect.X+lineRect.W*0.97), lineY,
 		float32(ui.ActiveRes.Scale()),
 		color.RGBA{60, 60, 80, 255},
 		false,
 	)
+}
 
-	// Player stats.
-	if p := r.client.Player(); p != nil {
-		stats := fmt.Sprintf("HP: %d | Gold: %d/%d | Tier: %d", p.HP, p.Gold, p.MaxGold, p.ShopTier)
-		ui.DrawText(screen, font, stats, lay.BtnRow.W*0.04, lay.BtnRow.Y+lay.BtnRow.H*0.15, color.RGBA{255, 215, 0, 255})
+func (r *recruitPhase) drawPlayerStats(screen *ebiten.Image, font *text.GoTextFace, lay ui.GameLayout) {
+	p := r.client.Player()
+	if p == nil {
+		return
 	}
+	stats := fmt.Sprintf("Gold: %d/%d | Tier: %d", p.Gold, p.MaxGold, p.ShopTier)
+	ui.DrawText(screen, font, stats,
+		lay.BtnRow.X+lay.BtnRow.W*0.04, lay.BtnRow.Y+lay.BtnRow.H*0.15,
+		color.RGBA{255, 215, 0, 255})
+}
 
-	// Buttons.
-	r.drawButtons(screen, font, lay)
-
-	// Shop.
-	ui.DrawText(screen, font, "SHOP", lay.Shop.W*0.04, lay.Shop.Y+lay.Shop.H*0.02, color.RGBA{150, 150, 150, 255})
-
+func (r *recruitPhase) drawShopCards(screen *ebiten.Image, lay ui.GameLayout) {
 	shop := r.client.Shop()
 	frozen := r.client.IsShopFrozen()
+
 	for i, serverIdx := range r.shopOrder {
 		if r.drag.active && r.drag.fromShop && i == r.drag.index {
 			continue
@@ -329,10 +418,9 @@ func (r *recruitPhase) Draw(screen *ebiten.Image, font *text.GoTextFace, turn in
 				float32(3*s), color.RGBA{80, 160, 255, 255})
 		}
 	}
+}
 
-	// Board.
-	ui.DrawText(screen, font, "BOARD", lay.Board.W*0.04, lay.Board.Y+lay.Board.H*0.02, color.RGBA{150, 150, 150, 255})
-
+func (r *recruitPhase) drawBoardCards(screen *ebiten.Image, lay ui.GameLayout) {
 	board := r.client.Board()
 	for i, serverIdx := range r.boardOrder {
 		if r.drag.active && r.drag.fromBoard && i == r.drag.index {
@@ -343,10 +431,9 @@ func (r *recruitPhase) Draw(screen *ebiten.Image, font *text.GoTextFace, turn in
 			r.cr.DrawMinion(screen, board[serverIdx], rect, 255, 0)
 		}
 	}
+}
 
-	// Hand.
-	ui.DrawText(screen, font, "HAND", lay.Hand.W*0.04, lay.Hand.Y+lay.Hand.H*0.02, color.RGBA{150, 150, 150, 255})
-
+func (r *recruitPhase) drawHandCards(screen *ebiten.Image, lay ui.GameLayout) {
 	hand := r.client.Hand()
 	for i, c := range hand {
 		if r.drag.active && !r.drag.fromBoard && !r.drag.fromShop && i == r.drag.index {
@@ -359,67 +446,75 @@ func (r *recruitPhase) Draw(screen *ebiten.Image, font *text.GoTextFace, turn in
 			r.cr.DrawMinionCard(screen, c, rect)
 		}
 	}
+}
 
-	// Dragged card at cursor.
-	if r.drag.active {
-		var c api.Card
-		if r.drag.fromShop {
-			if idx := r.shopOrder[r.drag.index]; idx < len(shop) {
-				c = shop[idx]
-			}
-		} else if r.drag.fromBoard {
-			serverIdx := r.boardOrder[r.drag.index]
-			if serverIdx >= 0 && serverIdx < len(board) {
-				c = board[serverIdx]
-			}
-		} else {
-			c = hand[r.drag.index]
-		}
-		bx, by := screenToBase(r.drag.cursorX, r.drag.cursorY)
-		dragRect := ui.Rect{
-			X: bx - lay.CardW/2,
-			Y: by - lay.CardH/2,
-			W: lay.CardW,
-			H: lay.CardH,
-		}
-		switch {
-		case r.drag.fromShop:
-			if r.isSpell(c) {
-				r.cr.DrawShopSpell(screen, c, dragRect)
-			} else {
-				r.cr.DrawShopMinion(screen, c, dragRect)
-			}
-		case r.drag.fromBoard:
-			r.cr.DrawMinion(screen, c, dragRect, 255, 0)
-		case r.isSpell(c):
-			r.cr.DrawSpellCard(screen, c, dragRect)
-		default:
-			r.cr.DrawMinionCard(screen, c, dragRect)
-		}
+func (r *recruitPhase) drawDraggedCard(screen *ebiten.Image, lay ui.GameLayout) {
+	if !r.drag.active {
+		return
 	}
 
-	// Hover tooltip.
-	if r.hoverCard != nil {
-		tooltipY := r.hoverRect.Y - lay.CardH - 8
-		if tooltipY < 0 {
-			tooltipY = 0
+	shop := r.client.Shop()
+	board := r.client.Board()
+	hand := r.client.Hand()
+
+	var c api.Card
+	switch {
+	case r.drag.fromShop:
+		if idx := r.shopOrder[r.drag.index]; idx < len(shop) {
+			c = shop[idx]
 		}
-		tooltipRect := ui.Rect{
-			X: r.hoverRect.X + r.hoverRect.W/2 - lay.CardW/2,
-			Y: tooltipY,
-			W: lay.CardW,
-			H: lay.CardH,
+	case r.drag.fromBoard:
+		serverIdx := r.boardOrder[r.drag.index]
+		if serverIdx >= 0 && serverIdx < len(board) {
+			c = board[serverIdx]
 		}
-		if r.isSpell(*r.hoverCard) {
-			r.cr.DrawSpellCard(screen, *r.hoverCard, tooltipRect)
-		} else {
-			r.cr.DrawMinionCard(screen, *r.hoverCard, tooltipRect)
-		}
+	default:
+		c = hand[r.drag.index]
 	}
 
-	// Discover overlay.
-	if discover := r.client.Discover(); discover != nil {
-		r.drawDiscoverOverlay(screen, font, lay, discover)
+	bx, by := screenToBase(r.drag.cursorX, r.drag.cursorY)
+	dragRect := ui.Rect{
+		X: bx - lay.CardW/2,
+		Y: by - lay.CardH/2,
+		W: lay.CardW,
+		H: lay.CardH,
+	}
+
+	switch {
+	case r.drag.fromShop:
+		if r.isSpell(c) {
+			r.cr.DrawShopSpell(screen, c, dragRect)
+		} else {
+			r.cr.DrawShopMinion(screen, c, dragRect)
+		}
+	case r.drag.fromBoard:
+		r.cr.DrawMinion(screen, c, dragRect, 255, 0)
+	case r.isSpell(c):
+		r.cr.DrawSpellCard(screen, c, dragRect)
+	default:
+		r.cr.DrawMinionCard(screen, c, dragRect)
+	}
+}
+
+func (r *recruitPhase) drawHoverTooltip(screen *ebiten.Image, lay ui.GameLayout) {
+	if r.hoverCard == nil {
+		return
+	}
+
+	tooltipY := r.hoverRect.Y - lay.CardH - 8
+	if tooltipY < 0 {
+		tooltipY = 0
+	}
+	tooltipRect := ui.Rect{
+		X: r.hoverRect.X + r.hoverRect.W/2 - lay.CardW/2,
+		Y: tooltipY,
+		W: lay.CardW,
+		H: lay.CardH,
+	}
+	if r.isSpell(*r.hoverCard) {
+		r.cr.DrawSpellCard(screen, *r.hoverCard, tooltipRect)
+	} else {
+		r.cr.DrawMinionCard(screen, *r.hoverCard, tooltipRect)
 	}
 }
 
@@ -430,32 +525,70 @@ func (r *recruitPhase) drawButtons(screen *ebiten.Image, font *text.GoTextFace, 
 
 	// Refresh.
 	sr := refresh.Screen()
-	vector.FillRect(screen, float32(sr.X), float32(sr.Y), float32(sr.W), float32(sr.H), color.RGBA{60, 60, 90, 255}, false)
-	vector.StrokeRect(screen, float32(sr.X), float32(sr.Y), float32(sr.W), float32(sr.H), sw, color.RGBA{100, 100, 140, 255}, false)
-	ui.DrawText(screen, font, "Refresh (1g)", refresh.X+refresh.W*0.08, refresh.Y+refresh.H*0.25, color.RGBA{200, 200, 255, 255})
+	vector.FillRect(
+		screen, float32(sr.X), float32(sr.Y), float32(sr.W), float32(sr.H),
+		color.RGBA{60, 60, 90, 255}, false,
+	)
+	vector.StrokeRect(
+		screen, float32(sr.X), float32(sr.Y), float32(sr.W), float32(sr.H),
+		sw, color.RGBA{100, 100, 140, 255}, false,
+	)
+	ui.DrawText(screen, font, "Refresh (1g)",
+		refresh.X+refresh.W*0.08, refresh.Y+refresh.H*0.25,
+		color.RGBA{200, 200, 255, 255})
 
 	// Upgrade.
 	sr = upgrade.Screen()
-	vector.FillRect(screen, float32(sr.X), float32(sr.Y), float32(sr.W), float32(sr.H), color.RGBA{60, 90, 60, 255}, false)
-	vector.StrokeRect(screen, float32(sr.X), float32(sr.Y), float32(sr.W), float32(sr.H), sw, color.RGBA{100, 140, 100, 255}, false)
+	vector.FillRect(
+		screen, float32(sr.X), float32(sr.Y), float32(sr.W), float32(sr.H),
+		color.RGBA{60, 90, 60, 255}, false,
+	)
+	vector.StrokeRect(
+		screen, float32(sr.X), float32(sr.Y), float32(sr.W), float32(sr.H),
+		sw, color.RGBA{100, 140, 100, 255}, false,
+	)
 	if p := r.client.Player(); p != nil {
-		ui.DrawText(screen, font, fmt.Sprintf("Upgrade (%dg)", p.UpgradeCost), upgrade.X+upgrade.W*0.08, upgrade.Y+upgrade.H*0.25, color.RGBA{200, 255, 200, 255})
+		ui.DrawText(screen, font,
+			fmt.Sprintf("Upgrade (%dg)", p.UpgradeCost),
+			upgrade.X+upgrade.W*0.08, upgrade.Y+upgrade.H*0.25,
+			color.RGBA{200, 255, 200, 255})
 	}
 
 	// Freeze.
 	sr = freeze.Screen()
 	if r.client.IsShopFrozen() {
-		vector.FillRect(screen, float32(sr.X), float32(sr.Y), float32(sr.W), float32(sr.H), color.RGBA{40, 120, 200, 255}, false)
-		vector.StrokeRect(screen, float32(sr.X), float32(sr.Y), float32(sr.W), float32(sr.H), sw, color.RGBA{80, 160, 255, 255}, false)
-		ui.DrawText(screen, font, "Unfreeze", freeze.X+freeze.W*0.08, freeze.Y+freeze.H*0.25, color.RGBA{200, 230, 255, 255})
+		vector.FillRect(
+			screen, float32(sr.X), float32(sr.Y), float32(sr.W), float32(sr.H),
+			color.RGBA{40, 120, 200, 255}, false,
+		)
+		vector.StrokeRect(
+			screen, float32(sr.X), float32(sr.Y), float32(sr.W), float32(sr.H),
+			sw, color.RGBA{80, 160, 255, 255}, false,
+		)
+		ui.DrawText(screen, font, "Unfreeze",
+			freeze.X+freeze.W*0.08, freeze.Y+freeze.H*0.25,
+			color.RGBA{200, 230, 255, 255})
 	} else {
-		vector.FillRect(screen, float32(sr.X), float32(sr.Y), float32(sr.W), float32(sr.H), color.RGBA{40, 60, 90, 255}, false)
-		vector.StrokeRect(screen, float32(sr.X), float32(sr.Y), float32(sr.W), float32(sr.H), sw, color.RGBA{80, 100, 140, 255}, false)
-		ui.DrawText(screen, font, "Freeze", freeze.X+freeze.W*0.08, freeze.Y+freeze.H*0.25, color.RGBA{150, 200, 255, 255})
+		vector.FillRect(
+			screen, float32(sr.X), float32(sr.Y), float32(sr.W), float32(sr.H),
+			color.RGBA{40, 60, 90, 255}, false,
+		)
+		vector.StrokeRect(
+			screen, float32(sr.X), float32(sr.Y), float32(sr.W), float32(sr.H),
+			sw, color.RGBA{80, 100, 140, 255}, false,
+		)
+		ui.DrawText(screen, font, "Freeze",
+			freeze.X+freeze.W*0.08, freeze.Y+freeze.H*0.25,
+			color.RGBA{150, 200, 255, 255})
 	}
 }
 
-func (r *recruitPhase) drawDiscoverOverlay(screen *ebiten.Image, font *text.GoTextFace, lay ui.GameLayout, discover []api.Card) {
+func (r *recruitPhase) drawDiscoverOverlay(
+	screen *ebiten.Image,
+	font *text.GoTextFace,
+	lay ui.GameLayout,
+	discover []api.Card,
+) {
 	ui.FillScreen(screen, color.RGBA{0, 0, 0, 160})
 
 	ui.DrawText(screen, font, "DISCOVER — Pick a card",
