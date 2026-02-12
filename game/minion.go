@@ -60,6 +60,7 @@ type Minion struct {
 	template CardTemplate
 	attack   int
 	health   int
+	cost     int
 	golden   bool
 	keywords Keywords
 	effects  []TriggeredEffect
@@ -72,6 +73,7 @@ func NewMinion(t CardTemplate) *Minion {
 		template: t,
 		attack:   t.Attack(),
 		health:   t.Health(),
+		cost:     t.Cost(),
 		keywords: t.Keywords(),
 		effects:  t.Effects(),
 	}
@@ -87,6 +89,7 @@ func (m *Minion) Tier() Tier             { return m.template.Tier() }
 func (m *Minion) CombatID() int { return m.combatID }
 func (m *Minion) Attack() int   { return m.attack }
 func (m *Minion) Health() int   { return m.health }
+func (m *Minion) Cost() int     { return m.cost }
 
 func (m *Minion) IsAlive() bool   { return m.health > 0 }
 func (m *Minion) CanAttack() bool { return m.health > 0 && m.attack > 0 }
@@ -96,6 +99,9 @@ func (m *Minion) IsMinion() bool { return true }
 func (m *Minion) IsGolden() bool { return m.golden }
 
 func (m *Minion) TakeDamage(amount int) { m.health -= amount }
+
+// Keywords returns the minion's current keywords bitmask.
+func (m *Minion) Keywords() Keywords { return m.keywords }
 
 // HasKeyword returns true if the minion has the given static keyword.
 func (m *Minion) HasKeyword(kw Keyword) bool { return m.keywords.Has(kw) }
@@ -136,6 +142,7 @@ func (m *Minion) MergeGolden(other *Minion) *Minion {
 		template: m.template,
 		attack:   m.attack + other.attack,
 		health:   m.health + other.health,
+		cost:     m.template.Cost(),
 		golden:   true,
 		keywords: m.template.Keywords(),
 		effects:  effects,
@@ -150,6 +157,7 @@ func (m *Minion) Clone() *Minion {
 		template: m.template,
 		attack:   m.attack,
 		health:   m.health,
+		cost:     m.cost,
 		golden:   m.golden,
 		keywords: m.keywords,
 		effects:  slices.Clone(m.effects),

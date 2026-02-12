@@ -25,7 +25,7 @@ func (s *combatSide) nextLivingAttacker() *Minion {
 	for range n {
 		idx := s.nextAttacker % n
 		s.nextAttacker = (s.nextAttacker + 1) % n
-		if m := s.board.GetMinion(idx); m != nil && m.CanAttack() {
+		if m := s.board.MinionAt(idx); m != nil && m.CanAttack() {
 			return m
 		}
 	}
@@ -74,7 +74,7 @@ func NewCombat(p1, p2 *Player) *Combat {
 
 func (c *Combat) assignCombatIDs(b *Board) {
 	for i := range b.Len() {
-		b.GetMinion(i).combatID = c.nextCombatID
+		b.MinionAt(i).combatID = c.nextCombatID
 		c.nextCombatID++
 	}
 }
@@ -127,36 +127,43 @@ func (c *Combat) attack(src, dst *Minion) {
 		OwnerID:  c.attacker.player.ID(),
 	})
 
-	srcAtk := src.Attack()
-	dstAtk := dst.Attack()
+	c.dealDamage(src, dst, src.Attack(), c.defender.player.ID())
+	c.dealDamage(dst, src, dst.Attack(), c.attacker.player.ID())
+}
 
-	dst.TakeDamage(srcAtk)
-	src.TakeDamage(dstAtk)
+// dealDamage applies damage from src to dst. Handles Divine Shield: if the target
+// has it, removes the keyword and emits a keyword event instead of dealing damage.
+func (c *Combat) dealDamage(src, dst *Minion, amount int, ownerID string) {
+	if amount <= 0 {
+		return
+	}
 
-	if srcAtk > 0 {
+	if dst.HasKeyword(KeywordDivineShield) {
+		dst.RemoveKeyword(KeywordDivineShield)
 		c.emit(CombatEvent{
-			Type:     CombatEventDamage,
+			Type:     CombatEventRemoveKeyword,
 			SourceID: src.combatID,
 			TargetID: dst.combatID,
-			Amount:   srcAtk,
-			OwnerID:  c.defender.player.ID(),
+			Keyword:  KeywordDivineShield,
+			OwnerID:  ownerID,
 		})
+		return
 	}
-	if dstAtk > 0 {
-		c.emit(CombatEvent{
-			Type:     CombatEventDamage,
-			SourceID: dst.combatID,
-			TargetID: src.combatID,
-			Amount:   dstAtk,
-			OwnerID:  c.attacker.player.ID(),
-		})
-	}
+
+	dst.TakeDamage(amount)
+	c.emit(CombatEvent{
+		Type:     CombatEventDamage,
+		SourceID: src.combatID,
+		TargetID: dst.combatID,
+		Amount:   amount,
+		OwnerID:  ownerID,
+	})
 }
 
 // removeDeadWithEvents removes dead minions and emits death events.
 func (c *Combat) removeDeadWithEvents(side *combatSide) {
 	for i := 0; i < side.board.Len(); i++ {
-		m := side.board.GetMinion(i)
+		m := side.board.MinionAt(i)
 		if m.IsAlive() {
 			continue
 		}

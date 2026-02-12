@@ -88,8 +88,8 @@ func CalcGameLayout() GameLayout {
 	mainW := w - sideW
 
 	cardW := mainW * 0.10
-	cardH := cardW * 1.2
-	gap := mainW * 0.016
+	cardH := cardW * 1.4
+	gap := mainW * 0.03
 
 	headerH := h * 0.08
 	btnRowH := h * 0.06

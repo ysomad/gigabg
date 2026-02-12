@@ -276,11 +276,7 @@ func (g *Game) drawCombat(screen *ebiten.Image) {
 	hand := g.client.Hand()
 	for i, c := range hand {
 		rect := ui.CardRect(lay.Hand, i, len(hand), lay.CardW, lay.CardH, lay.Gap)
-		if g.recruit.isSpell(c) {
-			g.cr.DrawSpellCard(screen, c, rect)
-		} else {
-			g.cr.DrawMinionCard(screen, c, rect)
-		}
+		g.cr.DrawHandCard(screen, c, rect)
 	}
 }
 

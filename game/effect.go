@@ -1,5 +1,23 @@
 package game
 
+// Effect is a triggered ability's behavior.
+// Concrete types: BuffStats, GiveKeyword, SummonMinion, DiscoverCard, MakeGolden.
+type Effect interface {
+	Apply(ctx EffectContext)
+	golden() Effect
+}
+
+var (
+	_ Effect = (*BuffStats)(nil)
+	_ Effect = (*GiveKeyword)(nil)
+	_ Effect = (*SummonMinion)(nil)
+	_ Effect = (*DiscoverCard)(nil)
+	_ Effect = (*MakeGolden)(nil)
+	_ Effect = (*DealDamage)(nil)
+	_ Effect = (*DestroyMinion)(nil)
+	_ Effect = (*AddCard)(nil)
+)
+
 // TargetType defines who the effect targets.
 type TargetType uint8
 
@@ -30,24 +48,6 @@ type Target struct {
 	Filter TargetFilter
 	Count  int // 0 = all matching
 }
-
-// Effect is a triggered ability's behavior.
-// Concrete types: BuffStats, GiveKeyword, SummonMinion, DiscoverCard, MakeGolden.
-type Effect interface {
-	Apply(ctx EffectContext)
-	golden() Effect
-}
-
-var (
-	_ Effect = (*BuffStats)(nil)
-	_ Effect = (*GiveKeyword)(nil)
-	_ Effect = (*SummonMinion)(nil)
-	_ Effect = (*DiscoverCard)(nil)
-	_ Effect = (*MakeGolden)(nil)
-	_ Effect = (*DealDamage)(nil)
-	_ Effect = (*DestroyMinion)(nil)
-	_ Effect = (*AddCard)(nil)
-)
 
 // EffectContext provides game state for effect execution.
 type EffectContext struct {
@@ -203,34 +203,22 @@ func (e *DestroyMinion) golden() Effect {
 }
 
 // AddCard adds cards to the player's hand.
-// When TemplateID is set, adds that specific card template (ignores filters).
 type AddCard struct {
 	TemplateID string
-	Tribe      Tribe
-	Tier       Tier
-	Kind       CardKind
-	Count      int
 }
 
 func (e *AddCard) Apply(ctx EffectContext) {
-	if e.TemplateID != "" {
-		tmpl := ctx.Pool.ByTemplateID(e.TemplateID)
-		if tmpl != nil && !ctx.Hand.IsFull() {
-			ctx.Hand.Add(NewCard(tmpl))
-		}
+	if e.TemplateID == "" {
 		return
 	}
-	panic("AddCard.Apply: filter mode not implemented")
-}
 
-func (e *AddCard) golden() Effect {
-	return &AddCard{
-		Tribe: e.Tribe,
-		Tier:  e.Tier,
-		Kind:  e.Kind,
-		Count: e.Count * 2,
+	tmpl := ctx.Pool.ByTemplateID(e.TemplateID)
+	if tmpl != nil && !ctx.Hand.IsFull() {
+		ctx.Hand.Add(NewCard(tmpl))
 	}
 }
+
+func (e *AddCard) golden() Effect { return e }
 
 // AuraScope defines the range of an aura effect.
 type AuraScope uint8

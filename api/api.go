@@ -127,12 +127,12 @@ type GameState struct {
 }
 
 type Player struct {
-	ID             string    `json:"id"`
-	HP             int       `json:"hp"`
-	Gold           int       `json:"gold"`
-	MaxGold        int       `json:"max_gold"`
-	ShopTier       game.Tier `json:"shop_tier"`
-	UpgradeCost    int       `json:"upgrade_cost"`
+	ID          string    `json:"id"`
+	HP          int       `json:"hp"`
+	Gold        int       `json:"gold"`
+	MaxGold     int       `json:"max_gold"`
+	ShopTier    game.Tier `json:"shop_tier"`
+	UpgradeCost int       `json:"upgrade_cost"`
 }
 
 type Opponent struct {
@@ -145,12 +145,14 @@ type Opponent struct {
 }
 
 type Card struct {
-	TemplateID string     `json:"template_id"`
-	Attack     int        `json:"attack"`
-	Health     int        `json:"health"`
-	IsGolden   bool       `json:"is_golden"`
-	Tribe      game.Tribe `json:"tribe"`
-	CombatID   int        `json:"combat_id"` // set only in combat context
+	TemplateID string        `json:"template_id"`
+	Attack     int           `json:"attack"`
+	Health     int           `json:"health"`
+	Cost       int           `json:"cost"`
+	IsGolden   bool          `json:"is_golden"`
+	Tribe      game.Tribe    `json:"tribe"`
+	Keywords   game.Keywords `json:"keywords"`
+	CombatID   int           `json:"combat_id"` // set only in combat context
 }
 
 type Error struct {
@@ -159,12 +161,12 @@ type Error struct {
 
 func NewPlayer(p *game.Player) Player {
 	return Player{
-		ID:             p.ID(),
-		HP:             p.HP(),
-		Gold:           p.Gold(),
-		MaxGold:        p.MaxGold(),
-		ShopTier:       p.Shop().Tier(),
-		UpgradeCost:    p.Shop().UpgradeCost(),
+		ID:          p.ID(),
+		HP:          p.HP(),
+		Gold:        p.Gold(),
+		MaxGold:     p.MaxGold(),
+		ShopTier:    p.Shop().Tier(),
+		UpgradeCost: p.Shop().UpgradeCost(),
 	}
 }
 
@@ -198,11 +200,16 @@ func NewCard(c game.Card) Card {
 			TemplateID: m.TemplateID(),
 			Attack:     m.Attack(),
 			Health:     m.Health(),
+			Cost:       m.Cost(),
 			IsGolden:   m.IsGolden(),
 			Tribe:      m.Tribe(),
+			Keywords:   m.Keywords(),
 		}
 	}
-	return Card{TemplateID: c.Template().ID()}
+	return Card{
+		TemplateID: c.Template().ID(),
+		Cost:       c.Template().Cost(),
+	}
 }
 
 func NewCardFromMinion(m *game.Minion) Card {
@@ -210,8 +217,10 @@ func NewCardFromMinion(m *game.Minion) Card {
 		TemplateID: m.TemplateID(),
 		Attack:     m.Attack(),
 		Health:     m.Health(),
+		Cost:       m.Cost(),
 		IsGolden:   m.IsGolden(),
 		Tribe:      m.Tribe(),
+		Keywords:   m.Keywords(),
 	}
 }
 
@@ -222,6 +231,7 @@ func NewCombatCard(m *game.Minion) Card {
 		Health:     m.Health(),
 		IsGolden:   m.IsGolden(),
 		Tribe:      m.Tribe(),
+		Keywords:   m.Keywords(),
 		CombatID:   m.CombatID(),
 	}
 }
@@ -230,7 +240,7 @@ func NewCombatCard(m *game.Minion) Card {
 func CombatCards(b game.Board) []Card {
 	cards := make([]Card, b.Len())
 	for i := range b.Len() {
-		cards[i] = NewCombatCard(b.GetMinion(i))
+		cards[i] = NewCombatCard(b.MinionAt(i))
 	}
 	return cards
 }

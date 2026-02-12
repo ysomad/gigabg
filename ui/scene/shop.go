@@ -33,11 +33,6 @@ func (s *shopPanel) syncSize() {
 	}
 }
 
-func (s *shopPanel) isSpell(c api.Card) bool {
-	t := s.cr.Cards.ByTemplateID(c.TemplateID)
-	return t != nil && t.Kind() == game.CardKindSpell
-}
-
 func (s *shopPanel) handleStartDrag(lay ui.GameLayout, mx, my int, drag *dragState) bool {
 	shop := s.client.Shop()
 	for i := range shop {
@@ -140,11 +135,7 @@ func (s *shopPanel) drawCards(screen *ebiten.Image, lay ui.GameLayout, drag *dra
 		}
 		c := shop[serverIdx]
 		rect := ui.CardRect(lay.Shop, i, len(s.order), lay.CardW, lay.CardH, lay.Gap)
-		if s.isSpell(c) {
-			s.cr.DrawShopSpell(screen, c, rect)
-		} else {
-			s.cr.DrawShopMinion(screen, c, rect)
-		}
+		s.cr.DrawShopCard(screen, c, rect)
 		if frozen {
 			sr := rect.Screen()
 			sc := ui.ActiveRes.Scale()

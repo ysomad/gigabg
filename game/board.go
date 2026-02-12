@@ -21,8 +21,8 @@ func (b Board) Len() int { return len(b.minions) }
 // IsFull returns true if the board has reached MaxBoardSize.
 func (b Board) IsFull() bool { return len(b.minions) >= maxBoardSize }
 
-// GetMinion returns the minion at the given index, or nil if out of range.
-func (b Board) GetMinion(i int) *Minion {
+// MinionAt returns the minion at the given index, or nil if out of range.
+func (b Board) MinionAt(i int) *Minion {
 	if i < 0 || i >= len(b.minions) {
 		return nil
 	}

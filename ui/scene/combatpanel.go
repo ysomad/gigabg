@@ -240,6 +240,15 @@ func (cp *combatPanel) applyDamage(ev game.CombatEvent) {
 	board[idx].dmgText = fmt.Sprintf("-%d", ev.Amount)
 }
 
+func (cp *combatPanel) removeKeyword(ev game.CombatEvent) {
+	idx, isPlayer := cp.findMinion(ev.TargetID)
+	if idx < 0 {
+		return
+	}
+	board := cp.boardFor(isPlayer)
+	board[idx].card.Keywords.Remove(ev.Keyword)
+}
+
 func (cp *combatPanel) markDying(combatID int) {
 	for i, m := range cp.playerBoard {
 		if m.card.CombatID == combatID {
@@ -261,6 +270,9 @@ func (cp *combatPanel) consumeHitEvents() {
 		switch ev.Type {
 		case game.CombatEventDamage:
 			cp.applyDamage(ev)
+			cp.eventIndex++
+		case game.CombatEventRemoveKeyword:
+			cp.removeKeyword(ev)
 			cp.eventIndex++
 		case game.CombatEventDeath:
 			cp.markDying(ev.TargetID)

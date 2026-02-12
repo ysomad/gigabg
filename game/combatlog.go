@@ -8,7 +8,7 @@ const (
 	CombatEventDamage                             // damage dealt to a minion
 	CombatEventDeath                              // minion dies and is removed
 	CombatEventBuff                               // future: stat buff applied
-	CombatEventKeyword                            // future: keyword granted/removed
+	CombatEventRemoveKeyword                      // keyword removed from minion
 	CombatEventSummon                             // future: minion summoned
 	CombatEventTrigger                            // future: triggered ability fires
 )
@@ -17,10 +17,11 @@ const (
 // Not all fields are used by every event type.
 type CombatEvent struct {
 	Type     CombatEventType
-	SourceID int    // combat ID of acting minion
-	TargetID int    // combat ID of target minion
-	Amount   int    // damage/buff amount
-	OwnerID  string // player who owns the affected minion
+	SourceID int     // combat ID of acting minion
+	TargetID int     // combat ID of target minion
+	Amount   int     // damage/buff amount
+	Keyword  Keyword // keyword for CombatEventRemoveKeyword
+	OwnerID  string  // player who owns the affected minion
 }
 
 // CombatResult is the outcome of a single combat from one player's perspective.

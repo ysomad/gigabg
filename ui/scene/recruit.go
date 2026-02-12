@@ -49,11 +49,6 @@ func (r *recruitPhase) syncSizes() {
 	r.shop.syncSize()
 }
 
-func (r *recruitPhase) isSpell(c api.Card) bool {
-	t := r.cr.Cards.ByTemplateID(c.TemplateID)
-	return t != nil && t.Kind() == game.CardKindSpell
-}
-
 // Update processes recruit-phase input.
 func (r *recruitPhase) Update() error {
 	r.syncSizes()
@@ -117,7 +112,7 @@ func (r *recruitPhase) handleStartDrag(lay ui.GameLayout, mx, my int) bool {
 		if !rect.Contains(mx, my) {
 			continue
 		}
-		if r.isSpell(c) {
+		if t := r.cr.Cards.ByTemplateID(c.TemplateID); t != nil && t.Kind() == game.CardKindSpell {
 			if err := r.client.PlaySpell(i); err != nil {
 				slog.Error("play spell", "error", err)
 			}
@@ -329,11 +324,7 @@ func (r *recruitPhase) drawHandCards(screen *ebiten.Image, lay ui.GameLayout) {
 			continue
 		}
 		rect := ui.CardRect(lay.Hand, i, len(hand), lay.CardW, lay.CardH, lay.Gap)
-		if r.isSpell(c) {
-			r.cr.DrawSpellCard(screen, c, rect)
-		} else {
-			r.cr.DrawMinionCard(screen, c, rect)
-		}
+		r.cr.DrawHandCard(screen, c, rect)
 	}
 }
 
@@ -371,17 +362,11 @@ func (r *recruitPhase) drawDraggedCard(screen *ebiten.Image, lay ui.GameLayout) 
 
 	switch {
 	case r.drag.fromShop:
-		if r.isSpell(c) {
-			r.cr.DrawShopSpell(screen, c, dragRect)
-		} else {
-			r.cr.DrawShopMinion(screen, c, dragRect)
-		}
+		r.cr.DrawShopCard(screen, c, dragRect)
 	case r.drag.fromBoard:
 		r.cr.DrawMinion(screen, c, dragRect, 255, 0)
-	case r.isSpell(c):
-		r.cr.DrawSpellCard(screen, c, dragRect)
 	default:
-		r.cr.DrawMinionCard(screen, c, dragRect)
+		r.cr.DrawHandCard(screen, c, dragRect)
 	}
 }
 
@@ -400,11 +385,7 @@ func (r *recruitPhase) drawHoverTooltip(screen *ebiten.Image, lay ui.GameLayout)
 		W: lay.CardW,
 		H: lay.CardH,
 	}
-	if r.isSpell(*r.hoverCard) {
-		r.cr.DrawSpellCard(screen, *r.hoverCard, tooltipRect)
-	} else {
-		r.cr.DrawMinionCard(screen, *r.hoverCard, tooltipRect)
-	}
+	r.cr.DrawHandCard(screen, *r.hoverCard, tooltipRect)
 }
 
 func (r *recruitPhase) drawDiscoverOverlay(
@@ -427,10 +408,6 @@ func (r *recruitPhase) drawDiscoverOverlay(
 	}
 	for i, c := range discover {
 		rect := ui.CardRect(discoverZone, i, len(discover), lay.CardW, lay.CardH, lay.Gap)
-		if r.isSpell(c) {
-			r.cr.DrawSpellCard(screen, c, rect)
-		} else {
-			r.cr.DrawMinionCard(screen, c, rect)
-		}
+		r.cr.DrawHandCard(screen, c, rect)
 	}
 }
