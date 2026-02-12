@@ -13,15 +13,24 @@ const (
 	CombatEventTrigger                            // future: triggered ability fires
 )
 
+// DeathReason indicates why a minion died.
+type DeathReason uint8
+
+const (
+	DeathReasonDamage DeathReason = iota // killed by normal damage
+	DeathReasonPoison                    // killed by Poisonous or Venomous
+)
+
 // CombatEvent is a single step in the combat log.
 // Not all fields are used by every event type.
 type CombatEvent struct {
-	Type     CombatEventType
-	SourceID int     // combat ID of acting minion
-	TargetID int     // combat ID of target minion
-	Amount   int     // damage/buff amount
-	Keyword  Keyword // keyword for CombatEventRemoveKeyword
-	OwnerID  string  // player who owns the affected minion
+	Type        CombatEventType
+	SourceID    int         // combat ID of acting minion
+	TargetID    int         // combat ID of target minion
+	Amount      int         // damage/buff amount
+	Keyword     Keyword     // keyword for CombatEventRemoveKeyword
+	DeathReason DeathReason // reason for CombatEventDeath
+	OwnerID     string      // player who owns the affected minion
 }
 
 // CombatResult is the outcome of a single combat from one player's perspective.

@@ -40,8 +40,9 @@ type Combat struct {
 	events       []CombatEvent
 	player1ID    string
 	player2ID    string
-	player1Board Board // snapshot with combat IDs
-	player2Board Board // snapshot with combat IDs
+	player1Board Board              // snapshot with combat IDs
+	player2Board Board              // snapshot with combat IDs
+	poisonKilled map[int]struct{}   // combat IDs killed by poison/venom this attack
 }
 
 // NewCombat creates a combat with cloned boards.
@@ -137,15 +138,50 @@ func (c *Combat) attack(src, dst *Minion) {
 		OwnerID:  c.attacker.player.ID(),
 	})
 
-	c.dealDamage(src, dst, src.Attack(), c.defender.player.ID())
-	c.dealDamage(dst, src, dst.Attack(), c.attacker.player.ID())
+	c.poisonKilled = make(map[int]struct{})
+
+	hitDst := c.dealDamage(src, dst, src.Attack(), c.defender.player.ID())
+	hitSrc := c.dealDamage(dst, src, dst.Attack(), c.attacker.player.ID())
+
+	// Poisonous: kills target on damage (permanent).
+	// Venomous: kills target on damage (one-time, keyword consumed).
+	c.applyPoison(src, dst, hitDst, c.defender.player.ID())
+	c.applyPoison(dst, src, hitSrc, c.attacker.player.ID())
 }
 
-// dealDamage applies damage from src to dst. Handles Divine Shield: if the target
-// has it, removes the keyword and emits a keyword event instead of dealing damage.
-func (c *Combat) dealDamage(src, dst *Minion, amount int, ownerID string) {
-	if amount <= 0 {
+// applyPoison checks if src has Poisonous or Venomous and kills dst if damage was dealt.
+func (c *Combat) applyPoison(src, dst *Minion, hit bool, ownerID string) {
+	if !hit || !dst.IsAlive() {
 		return
+	}
+
+	isPoisonous := src.HasKeyword(KeywordPoisonous)
+	isVenomous := src.HasKeyword(KeywordVenomous)
+
+	if !isPoisonous && !isVenomous {
+		return
+	}
+
+	// Kill the target and record poison kill.
+	dst.TakeDamage(dst.Health())
+	c.poisonKilled[dst.combatID] = struct{}{}
+
+	if isVenomous {
+		src.RemoveKeyword(KeywordVenomous)
+		c.emit(CombatEvent{
+			Type:     CombatEventRemoveKeyword,
+			TargetID: src.combatID,
+			Keyword:  KeywordVenomous,
+			OwnerID:  ownerID,
+		})
+	}
+}
+
+// dealDamage applies damage from src to dst. Returns true if damage was dealt.
+// Handles Divine Shield: if the target has it, removes the keyword instead.
+func (c *Combat) dealDamage(src, dst *Minion, amount int, ownerID string) bool {
+	if amount <= 0 {
+		return false
 	}
 
 	if dst.HasKeyword(KeywordDivineShield) {
@@ -157,7 +193,7 @@ func (c *Combat) dealDamage(src, dst *Minion, amount int, ownerID string) {
 			Keyword:  KeywordDivineShield,
 			OwnerID:  ownerID,
 		})
-		return
+		return false
 	}
 
 	dst.TakeDamage(amount)
@@ -168,6 +204,7 @@ func (c *Combat) dealDamage(src, dst *Minion, amount int, ownerID string) {
 		Amount:   amount,
 		OwnerID:  ownerID,
 	})
+	return true
 }
 
 // removeDeadWithEvents removes dead minions and emits death events.
@@ -177,10 +214,15 @@ func (c *Combat) removeDeadWithEvents(side *combatSide) {
 		if m.IsAlive() {
 			continue
 		}
+		reason := DeathReasonDamage
+		if _, ok := c.poisonKilled[m.combatID]; ok {
+			reason = DeathReasonPoison
+		}
 		c.emit(CombatEvent{
-			Type:     CombatEventDeath,
-			TargetID: m.combatID,
-			OwnerID:  side.player.ID(),
+			Type:        CombatEventDeath,
+			TargetID:    m.combatID,
+			DeathReason: reason,
+			OwnerID:     side.player.ID(),
 		})
 		side.board.RemoveMinion(i)
 		if side.nextAttacker > i {

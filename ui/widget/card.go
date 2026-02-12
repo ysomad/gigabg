@@ -253,6 +253,14 @@ func (r *CardRenderer) drawEllipseBase(
 	if keywords.Has(game.KeywordDivineShield) {
 		r.drawDivineShield(screen, cx, cy, rx, ry, s, alpha)
 	}
+
+	if keywords.Has(game.KeywordPoisonous) {
+		r.drawPoisonous(screen, cx, cy+ry, s, alpha)
+	}
+
+	if keywords.Has(game.KeywordVenomous) {
+		r.drawVenomous(screen, cx, cy+ry, s, alpha)
+	}
 }
 
 // drawWindfury draws animated wind streaks orbiting the minion.
@@ -290,6 +298,95 @@ func (r *CardRenderer) drawWindfury(screen *ebiten.Image, cx, cy, rx, ry float32
 		op.ColorScale.ScaleWithColor(clr)
 		vector.StrokePath(screen, &path, &vector.StrokeOptions{Width: strokeW}, op)
 	}
+}
+
+var (
+	bottleFill   = color.RGBA{30, 160, 50, 255}
+	bottleStroke = color.RGBA{15, 60, 20, 255}
+	bottleCap    = color.RGBA{100, 80, 50, 255}
+)
+
+// drawPoisonous draws a rounded potion vial at (cx, cy).
+func (r *CardRenderer) drawPoisonous(screen *ebiten.Image, cx, cy float32, s float64, alpha uint8) {
+	sf := float32(s)
+
+	h := 21 * sf     // bottle height
+	w := 8.4 * sf    // body half-width
+	nw := 3.15 * sf  // neck half-width
+	sw := 4.6 * sf   // stopper half-width
+
+	var stopper vector.Path
+	stopper.MoveTo(cx-sw, cy-h*0.5)
+	stopper.LineTo(cx+sw, cy-h*0.5)
+	stopper.LineTo(cx+sw, cy-h*0.4)
+	stopper.LineTo(cx-sw, cy-h*0.4)
+	stopper.Close()
+
+	stopOp := &vector.DrawPathOptions{}
+	stopOp.ColorScale.ScaleWithColor(withAlpha(bottleCap, alpha))
+	vector.FillPath(screen, &stopper, nil, stopOp)
+
+	var body vector.Path
+	body.MoveTo(cx-nw, cy-h*0.4)
+	body.LineTo(cx+nw, cy-h*0.4)
+	body.LineTo(cx+nw, cy-h*0.15)
+	body.CubicTo(cx+w*1.2, cy-h*0.05, cx+w*1.2, cy+h*0.1, cx+w, cy+h*0.15)
+	body.CubicTo(cx+w, cy+h*0.4, cx+w*0.5, cy+h*0.5, cx, cy+h*0.5)
+	body.CubicTo(cx-w*0.5, cy+h*0.5, cx-w, cy+h*0.4, cx-w, cy+h*0.15)
+	body.CubicTo(cx-w*1.2, cy+h*0.1, cx-w*1.2, cy-h*0.05, cx-nw, cy-h*0.15)
+	body.Close()
+
+	fillOp := &vector.DrawPathOptions{}
+	fillOp.ColorScale.ScaleWithColor(withAlpha(bottleFill, alpha))
+	vector.FillPath(screen, &body, nil, fillOp)
+
+	strokeOp := &vector.DrawPathOptions{}
+	strokeOp.ColorScale.ScaleWithColor(withAlpha(bottleStroke, alpha))
+	vector.StrokePath(screen, &body, &vector.StrokeOptions{Width: float32(0.8 * s)}, strokeOp)
+}
+
+// drawVenomous draws a narrow elongated vial at (cx, cy).
+func (r *CardRenderer) drawVenomous(screen *ebiten.Image, cx, cy float32, s float64, alpha uint8) {
+	sf := float32(s)
+
+	h := 23 * sf     // bottle height
+	w := 5.9 * sf    // body half-width
+	nw := 2.5 * sf   // neck half-width
+	cw := 3.8 * sf   // cap half-width
+
+	var cp vector.Path
+	cp.MoveTo(cx-cw, cy-h*0.5)
+	cp.LineTo(cx+cw, cy-h*0.5)
+	cp.LineTo(cx+cw, cy-h*0.42)
+	cp.LineTo(cx-cw, cy-h*0.42)
+	cp.Close()
+
+	capOp := &vector.DrawPathOptions{}
+	capOp.ColorScale.ScaleWithColor(withAlpha(bottleCap, alpha))
+	vector.FillPath(screen, &cp, nil, capOp)
+
+	var body vector.Path
+	body.MoveTo(cx-nw, cy-h*0.42)
+	body.LineTo(cx+nw, cy-h*0.42)
+	body.LineTo(cx+nw, cy-h*0.2)
+	body.CubicTo(cx+w, cy-h*0.15, cx+w, cy-h*0.1, cx+w, cy+h*0.2)
+	body.CubicTo(cx+w, cy+h*0.45, cx+w*0.4, cy+h*0.5, cx, cy+h*0.5)
+	body.CubicTo(cx-w*0.4, cy+h*0.5, cx-w, cy+h*0.45, cx-w, cy+h*0.2)
+	body.CubicTo(cx-w, cy-h*0.1, cx-w, cy-h*0.15, cx-nw, cy-h*0.2)
+	body.Close()
+
+	fillOp := &vector.DrawPathOptions{}
+	fillOp.ColorScale.ScaleWithColor(withAlpha(bottleFill, alpha))
+	vector.FillPath(screen, &body, nil, fillOp)
+
+	strokeOp := &vector.DrawPathOptions{}
+	strokeOp.ColorScale.ScaleWithColor(withAlpha(bottleStroke, alpha))
+	vector.StrokePath(screen, &body, &vector.StrokeOptions{Width: float32(0.8 * s)}, strokeOp)
+}
+
+func withAlpha(c color.RGBA, alpha uint8) color.RGBA {
+	c.A = alpha
+	return c
 }
 
 // drawDivineShield draws a golden glow over the minion using additive blending.

@@ -1,7 +1,6 @@
 package scene
 
 import (
-	"fmt"
 	"image/color"
 	"log/slog"
 	"math"
@@ -236,8 +235,6 @@ func (cp *combatPanel) applyDamage(ev game.CombatEvent) {
 	}
 	board := cp.boardFor(isPlayer)
 	board[idx].card.Health -= ev.Amount
-	board[idx].flash = damageIndicatorTime
-	board[idx].dmgText = fmt.Sprintf("-%d", ev.Amount)
 }
 
 func (cp *combatPanel) removeKeyword(ev game.CombatEvent) {
@@ -249,18 +246,18 @@ func (cp *combatPanel) removeKeyword(ev game.CombatEvent) {
 	board[idx].card.Keywords.Remove(ev.Keyword)
 }
 
-func (cp *combatPanel) markDying(combatID int) {
-	for i, m := range cp.playerBoard {
-		if m.card.CombatID == combatID {
-			cp.playerBoard[i].dying = true
-			return
-		}
+func (cp *combatPanel) markDying(ev game.CombatEvent) {
+	idx, isPlayer := cp.findMinion(ev.TargetID)
+	if idx < 0 {
+		return
 	}
-	for i, m := range cp.opponentBoard {
-		if m.card.CombatID == combatID {
-			cp.opponentBoard[i].dying = true
-			return
-		}
+
+	board := cp.boardFor(isPlayer)
+	board[idx].dying = true
+
+	if ev.DeathReason == game.DeathReasonPoison {
+		board[idx].flash = damageIndicatorTime
+		board[idx].dmgText = "💀"
 	}
 }
 
@@ -275,7 +272,7 @@ func (cp *combatPanel) consumeHitEvents() {
 			cp.removeKeyword(ev)
 			cp.eventIndex++
 		case game.CombatEventDeath:
-			cp.markDying(ev.TargetID)
+			cp.markDying(ev)
 			cp.eventIndex++
 		default:
 			return
