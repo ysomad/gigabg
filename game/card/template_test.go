@@ -1,0 +1,99 @@
+package card
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/ysomad/gigabg/game"
+)
+
+func Test_template_validate(t *testing.T) {
+	t.Parallel()
+	type fields struct {
+		name   string
+		kind   game.CardKind
+		tier   game.Tier
+		cost   int
+		attack int
+		health int
+	}
+	tests := []struct {
+		name      string
+		fields    fields
+		assertion assert.ErrorAssertionFunc
+	}{
+		{
+			name: "valid_minion",
+			fields: fields{
+				name:   "Imp",
+				kind:   game.CardKindMinion,
+				tier:   game.Tier1,
+				cost:   game.MinionCost,
+				attack: 1,
+				health: 1,
+			},
+			assertion: assert.NoError,
+		},
+		{
+			name:      "minion_no_cost",
+			fields:    fields{name: "Imp", kind: game.CardKindMinion, tier: game.Tier1, health: 1},
+			assertion: assert.Error,
+		},
+		{
+			name:      "valid_spell",
+			fields:    fields{name: "Bolt", kind: game.CardKindSpell, tier: game.Tier1, cost: 1},
+			assertion: assert.NoError,
+		},
+		{
+			name:      "spell_no_tier", // spell without tier for example is triple reward
+			fields:    fields{name: "Bolt", kind: game.CardKindSpell},
+			assertion: assert.NoError,
+		},
+		{
+			name:      "empty_name",
+			fields:    fields{kind: game.CardKindMinion, tier: game.Tier1, health: 1},
+			assertion: assert.Error,
+		},
+		{
+			name:      "minion_invalid_tier",
+			fields:    fields{name: "Imp", kind: game.CardKindMinion, health: 1},
+			assertion: assert.Error,
+		},
+		{
+			name: "minion_negative_attack",
+			fields: fields{
+				name:   "Imp",
+				kind:   game.CardKindMinion,
+				tier:   game.Tier1,
+				cost:   game.MinionCost,
+				attack: -1,
+				health: 1,
+			},
+			assertion: assert.Error,
+		},
+		{
+			name:      "minion_zero_health",
+			fields:    fields{name: "Imp", kind: game.CardKindMinion, tier: game.Tier1, cost: game.MinionCost},
+			assertion: assert.Error,
+		},
+		{
+			name:      "spell_no_cost",
+			fields:    fields{name: "Bolt", kind: game.CardKindSpell, tier: game.Tier2},
+			assertion: assert.Error,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			tr := &template{
+				name:   tt.fields.name,
+				kind:   tt.fields.kind,
+				tier:   tt.fields.tier,
+				cost:   tt.fields.cost,
+				attack: tt.fields.attack,
+				health: tt.fields.health,
+			}
+			tt.assertion(t, tr.validate())
+		})
+	}
+}

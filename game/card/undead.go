@@ -14,13 +14,11 @@ func undeads() map[string]*template {
 		},
 		// Tier 2
 		"risen_guard": {
-			name:   "Risen Guard",
-			tier:   game.Tier2,
-			attack: 2,
-			health: 4,
-			abilities: game.NewAbilities(
-				game.Ability{Keyword: game.KeywordTaunt},
-			),
+			name:     "Risen Guard",
+			tier:     game.Tier2,
+			attack:   2,
+			health:   4,
+			keywords: game.NewKeywords(game.KeywordTaunt),
 		},
 		// Tier 3
 		"lich": {
@@ -36,23 +34,17 @@ func undeads() map[string]*template {
 			tier:        game.Tier4,
 			attack:      5,
 			health:      5,
-			abilities: game.NewAbilities(
-				game.Ability{
-					Keyword: game.KeywordDeathrattle,
-					Effect:  &game.SummonTemplateMinion{TemplateID: "skeleton"},
-				},
-			),
+			effects: []game.TriggeredEffect{
+				{Trigger: game.TriggerDeathrattle, Effect: &game.SummonMinion{TemplateID: "skeleton"}},
+			},
 		},
 		// Tier 5
 		"lich_king": {
-			name:   "Lich King",
-			tier:   game.Tier5,
-			attack: 8,
-			health: 8,
-			abilities: game.NewAbilities(
-				game.Ability{Keyword: game.KeywordTaunt},
-				game.Ability{Keyword: game.KeywordReborn},
-			),
+			name:     "Lich King",
+			tier:     game.Tier5,
+			attack:   8,
+			health:   8,
+			keywords: game.NewKeywords(game.KeywordTaunt, game.KeywordReborn),
 		},
 		// Tier 6
 		"kelthuzad": {
@@ -61,9 +53,9 @@ func undeads() map[string]*template {
 			tier:        game.Tier6,
 			attack:      6,
 			health:      8,
-			abilities: game.NewAbilities(
-				game.Ability{Keyword: game.KeywordReborn},
-				game.Ability{Keyword: game.KeywordDeathrattle, Effect: &game.BuffStats{
+			keywords:    game.NewKeywords(game.KeywordReborn),
+			effects: []game.TriggeredEffect{
+				{Trigger: game.TriggerDeathrattle, Effect: &game.BuffStats{
 					Target: game.Target{
 						Type:   game.TargetAllFriendly,
 						Filter: game.TargetFilter{ExcludeSource: true},
@@ -72,7 +64,7 @@ func undeads() map[string]*template {
 					Health:     2,
 					Persistent: true,
 				}},
-			),
+			},
 		},
 	}
 }

@@ -88,20 +88,21 @@ func (p *Player) TakeDamage(damage int) bool {
 
 // BuyCard buys a card from the shop and adds it to hand.
 func (p *Player) BuyCard(shopIndex int) error {
-	if p.gold < minionPrice {
-		return ErrNotEnoughGold
+	if shopIndex < 0 || shopIndex >= len(p.shop.cards) {
+		return ErrInvalidIndex
 	}
 	if len(p.hand) >= maxHandSize {
 		return ErrHandFull
 	}
 
-	card, err := p.shop.BuyCard(shopIndex)
-	if err != nil {
-		return err
+	cost := p.shop.cards[shopIndex].Template().Cost()
+	if p.gold < cost {
+		return ErrNotEnoughGold
 	}
 
+	card, _ := p.shop.BuyCard(shopIndex)
 	p.hand = append(p.hand, card)
-	p.gold -= minionPrice
+	p.gold -= cost
 	return nil
 }
 
@@ -123,7 +124,7 @@ func (p *Player) SellMinion(boardIndex int, pool *CardPool) error {
 
 // PlaceMinion moves a minion from hand to board.
 // When a golden minion is placed, a Triple Reward spell is added to hand.
-func (p *Player) PlaceMinion(handIndex, boardPosition int, cards CardStore) error {
+func (p *Player) PlaceMinion(handIndex, boardPosition int, cards CardCatalog) error {
 	if handIndex < 0 || handIndex >= len(p.hand) {
 		return ErrInvalidIndex
 	}
@@ -278,12 +279,16 @@ func (p *Player) PlaySpell(handIndex int, pool *CardPool) error {
 	p.hand = append(p.hand[:handIndex], p.hand[handIndex+1:]...)
 
 	// Execute spell effects
-	for _, e := range spell.Template().Abilities().ByKeyword(KeywordSpell) {
-		switch e.(type) {
-		case *Discover:
-			discoverTier := min(p.shop.Tier()+1, Tier6)
-			p.discover = pool.RollExactTier(discoverTier, nil)
-		}
+	ctx := EffectContext{
+		Board:    &p.board,
+		Hand:     &p.hand,
+		Shop:     &p.shop,
+		Pool:     pool,
+		Discover: &p.discover,
+	}
+
+	for _, e := range EffectsByTrigger(spell.Template().Effects(), TriggerSpell) {
+		e.Apply(ctx)
 	}
 
 	return nil

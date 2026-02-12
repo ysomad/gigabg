@@ -12,8 +12,8 @@ func neutrals() map[string]*template {
 			tier:        game.Tier2,
 			attack:      2,
 			health:      2,
-			abilities: game.NewAbilities(
-				game.Ability{Keyword: game.KeywordDeathrattle, Effect: &game.BuffStats{
+			effects: []game.TriggeredEffect{
+				{Trigger: game.TriggerDeathrattle, Effect: &game.BuffStats{
 					Target: game.Target{
 						Type:   game.TargetAllFriendly,
 						Filter: game.TargetFilter{ExcludeSource: true},
@@ -22,7 +22,7 @@ func neutrals() map[string]*template {
 					Health:     1,
 					Persistent: true,
 				}},
-			),
+			},
 		},
 		"selfless_hero": {
 			name:        "Selfless Hero",
@@ -30,15 +30,15 @@ func neutrals() map[string]*template {
 			tier:        game.Tier2,
 			attack:      2,
 			health:      1,
-			abilities: game.NewAbilities(
-				game.Ability{Keyword: game.KeywordDeathrattle, Effect: &game.GiveKeyword{
+			effects: []game.TriggeredEffect{
+				{Trigger: game.TriggerDeathrattle, Effect: &game.GiveKeyword{
 					Target: game.Target{
 						Type:   game.TargetRandomFriendly,
 						Filter: game.TargetFilter{ExcludeSource: true},
 					},
 					Keyword: game.KeywordDivineShield,
 				}},
-			),
+			},
 		},
 	}
 }

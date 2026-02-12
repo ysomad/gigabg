@@ -64,7 +64,7 @@ type Lobby struct {
 	state             State
 	maxPlayers        int
 	players           []*game.Player
-	cards             game.CardStore
+	catalog           game.CardCatalog
 	pool              *game.CardPool
 	turn              int
 	phase             game.Phase
@@ -79,7 +79,7 @@ type Lobby struct {
 	gameResult        *game.GameResult // set when game finishes
 }
 
-func New(cards game.CardStore, maxPlayers int) (*Lobby, error) {
+func New(cards game.CardCatalog, maxPlayers int) (*Lobby, error) {
 	if maxPlayers < game.MinPlayers || maxPlayers > game.MaxPlayers || maxPlayers%2 != 0 {
 		return nil, ErrInvalidPlayerCount
 	}
@@ -88,7 +88,7 @@ func New(cards game.CardStore, maxPlayers int) (*Lobby, error) {
 		state:      StateWaiting,
 		maxPlayers: maxPlayers,
 		players:    make([]*game.Player, 0, maxPlayers),
-		cards:      cards,
+		catalog:    cards,
 		pool:       game.NewCardPool(cards),
 	}, nil
 }
@@ -431,10 +431,8 @@ func (l *Lobby) PhaseEndTimestamp() int64 {
 	return l.phaseEndTimestamp
 }
 
-// Cards returns the card store.
-func (l *Lobby) Cards() game.CardStore { //nolint:ireturn // domain interface
-	return l.cards
-}
+// Catalog returns the card catalog.
+func (l *Lobby) Catalog() game.CardCatalog { return l.catalog }
 
 // CombatResults returns combat results for the given player (last 3).
 func (l *Lobby) CombatResults(playerID string) []game.CombatResult {

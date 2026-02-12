@@ -19,10 +19,10 @@ func demons() map[string]*template {
 			tier:        game.Tier2,
 			attack:      3,
 			health:      3,
-			abilities: game.NewAbilities(
-				game.Ability{Keyword: game.KeywordTaunt},
-				game.Ability{Keyword: game.KeywordDeathrattle, Effect: &game.SummonTemplateMinion{TemplateID: "imp"}},
-			),
+			keywords:    game.NewKeywords(game.KeywordTaunt),
+			effects: []game.TriggeredEffect{
+				{Trigger: game.TriggerDeathrattle, Effect: &game.SummonMinion{TemplateID: "imp"}},
+			},
 		},
 		// Tier 3
 		"doom_lord": {
@@ -47,24 +47,19 @@ func demons() map[string]*template {
 			tier:        game.Tier5,
 			attack:      3,
 			health:      9,
-			abilities: game.NewAbilities(
-				game.Ability{Keyword: game.KeywordTaunt},
-				game.Ability{
-					Keyword: game.KeywordDeathrattle,
-					Effect:  &game.SummonTemplateMinion{TemplateID: "voidwalker"},
-				},
-			),
+			keywords:    game.NewKeywords(game.KeywordTaunt),
+			effects: []game.TriggeredEffect{
+				{Trigger: game.TriggerDeathrattle, Effect: &game.SummonMinion{TemplateID: "voidwalker"}},
+			},
 		},
 
 		// Tier 6
 		"supreme_abyssal": {
-			name:   "Supreme Abyssal",
-			tier:   game.Tier6,
-			attack: 10,
-			health: 10,
-			abilities: game.NewAbilities(
-				game.Ability{Keyword: game.KeywordWindfury},
-			),
+			name:     "Supreme Abyssal",
+			tier:     game.Tier6,
+			attack:   10,
+			health:   10,
+			keywords: game.NewKeywords(game.KeywordWindfury),
 		},
 	}
 }

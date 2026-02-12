@@ -79,7 +79,7 @@ func newCombatPanel(
 	turn int,
 	playerBoard, opponentBoard []api.Card,
 	events []game.CombatEvent,
-	c *card.Cards,
+	c *card.Catalog,
 	font *text.GoTextFace,
 ) *combatPanel {
 	slog.Info("combat panel created",

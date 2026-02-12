@@ -31,7 +31,7 @@ type Game struct {
 	onBackToMenu func()
 }
 
-func NewGame(c *client.GameClient, cs *card.Cards, font *text.GoTextFace, onBackToMenu func()) *Game {
+func NewGame(c *client.GameClient, cs *card.Catalog, font *text.GoTextFace, onBackToMenu func()) *Game {
 	cr := &widget.CardRenderer{Cards: cs, Font: font}
 	w := float64(ui.BaseWidth)
 	h := float64(ui.BaseHeight)

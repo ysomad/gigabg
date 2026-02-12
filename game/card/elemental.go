@@ -25,13 +25,11 @@ func elementals() map[string]*template {
 			health: 3,
 		},
 		"molten_rock": {
-			name:   "Molten Rock",
-			tier:   game.Tier1,
-			attack: 2,
-			health: 3,
-			abilities: game.NewAbilities(
-				game.Ability{Keyword: game.KeywordTaunt},
-			),
+			name:     "Molten Rock",
+			tier:     game.Tier1,
+			attack:   2,
+			health:   3,
+			keywords: game.NewKeywords(game.KeywordTaunt),
 		},
 		"party_elemental": {
 			name:   "Party Elemental",
@@ -54,14 +52,11 @@ func elementals() map[string]*template {
 			health: 3,
 		},
 		"crackling_cyclone": {
-			name:   "Crackling Cyclone",
-			tier:   game.Tier2,
-			attack: 4,
-			health: 1,
-			abilities: game.NewAbilities(
-				game.Ability{Keyword: game.KeywordWindfury},
-				game.Ability{Keyword: game.KeywordDivineShield},
-			),
+			name:     "Crackling Cyclone",
+			tier:     game.Tier2,
+			attack:   4,
+			health:   1,
+			keywords: game.NewKeywords(game.KeywordWindfury, game.KeywordDivineShield),
 		},
 		"stasis_elemental": {
 			name:   "Stasis Elemental",
@@ -76,13 +71,11 @@ func elementals() map[string]*template {
 			health: 4,
 		},
 		"magmaloc": {
-			name:   "Magmaloc",
-			tier:   game.Tier2,
-			attack: 3,
-			health: 5,
-			abilities: game.NewAbilities(
-				game.Ability{Keyword: game.KeywordTaunt},
-			),
+			name:     "Magmaloc",
+			tier:     game.Tier2,
+			attack:   3,
+			health:   5,
+			keywords: game.NewKeywords(game.KeywordTaunt),
 		},
 
 		// Tier 3
@@ -93,22 +86,18 @@ func elementals() map[string]*template {
 			health: 3,
 		},
 		"stormwatcher": {
-			name:   "Stormwatcher",
-			tier:   game.Tier3,
-			attack: 4,
-			health: 8,
-			abilities: game.NewAbilities(
-				game.Ability{Keyword: game.KeywordWindfury},
-			),
+			name:     "Stormwatcher",
+			tier:     game.Tier3,
+			attack:   4,
+			health:   8,
+			keywords: game.NewKeywords(game.KeywordWindfury),
 		},
 		"lieutenant_garr": {
-			name:   "Lieutenant Garr",
-			tier:   game.Tier3,
-			attack: 5,
-			health: 5,
-			abilities: game.NewAbilities(
-				game.Ability{Keyword: game.KeywordTaunt},
-			),
+			name:     "Lieutenant Garr",
+			tier:     game.Tier3,
+			attack:   5,
+			health:   5,
+			keywords: game.NewKeywords(game.KeywordTaunt),
 		},
 		"dancing_barnstormer": {
 			name:   "Dancing Barnstormer",
@@ -125,22 +114,18 @@ func elementals() map[string]*template {
 			health: 3,
 		},
 		"gentle_djinni": {
-			name:   "Gentle Djinni",
-			tier:   game.Tier4,
-			attack: 4,
-			health: 5,
-			abilities: game.NewAbilities(
-				game.Ability{Keyword: game.KeywordTaunt},
-			),
+			name:     "Gentle Djinni",
+			tier:     game.Tier4,
+			attack:   4,
+			health:   5,
+			keywords: game.NewKeywords(game.KeywordTaunt),
 		},
 		"rock_elemental": {
-			name:   "Rock Elemental",
-			tier:   game.Tier4,
-			attack: 6,
-			health: 6,
-			abilities: game.NewAbilities(
-				game.Ability{Keyword: game.KeywordTaunt},
-			),
+			name:     "Rock Elemental",
+			tier:     game.Tier4,
+			attack:   6,
+			health:   6,
+			keywords: game.NewKeywords(game.KeywordTaunt),
 		},
 
 		// Tier 5
@@ -159,14 +144,11 @@ func elementals() map[string]*template {
 
 		// Tier 6
 		"garr": {
-			name:   "Garr",
-			tier:   game.Tier6,
-			attack: 8,
-			health: 8,
-			abilities: game.NewAbilities(
-				game.Ability{Keyword: game.KeywordTaunt},
-				game.Ability{Keyword: game.KeywordDivineShield},
-			),
+			name:     "Garr",
+			tier:     game.Tier6,
+			attack:   8,
+			health:   8,
+			keywords: game.NewKeywords(game.KeywordTaunt, game.KeywordDivineShield),
 		},
 	}
 }

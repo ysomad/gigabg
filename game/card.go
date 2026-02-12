@@ -8,6 +8,14 @@ type Card interface {
 	IsGolden() bool
 }
 
+// NewCard creates a runtime card from a template.
+func NewCard(t CardTemplate) Card {
+	if t.Kind() == CardKindSpell {
+		return NewSpell(t)
+	}
+	return NewMinion(t)
+}
+
 // CardKind distinguishes minions from spells.
 type CardKind uint8
 
@@ -24,8 +32,12 @@ type CardTemplate interface {
 	Kind() CardKind
 	Tribe() Tribe
 	Tier() Tier
+	Cost() int
 	Attack() int
 	Health() int
-	Abilities() Abilities
-	GoldenAbilities() Abilities
+	Keywords() Keywords
+	Effects() []TriggeredEffect
+	GoldenEffects() []TriggeredEffect
+	Auras() []Aura
+	GoldenAuras() []Aura
 }

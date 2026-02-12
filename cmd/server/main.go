@@ -10,9 +10,9 @@ import (
 	"syscall"
 
 	"github.com/ysomad/gigabg/game/card"
-	"github.com/ysomad/gigabg/server"
 	"github.com/ysomad/gigabg/lobby"
 	"github.com/ysomad/gigabg/pkg/httpserver"
+	"github.com/ysomad/gigabg/server"
 )
 
 func main() {
@@ -29,14 +29,14 @@ func run(ctx context.Context) error {
 	ctx, notifyCancel := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM, syscall.SIGKILL, syscall.SIGQUIT)
 	defer notifyCancel()
 
-	cardStore, err := card.New()
+	catalog, err := card.NewCatalog()
 	if err != nil {
-		return fmt.Errorf("cards: %w", err)
+		return fmt.Errorf("catalog: %w", err)
 	}
 
 	memstore := lobby.NewMemoryStore()
 
-	testLobby, err := lobby.New(cardStore, 2)
+	testLobby, err := lobby.New(catalog, 2)
 	if err != nil {
 		return err
 	}
@@ -46,7 +46,7 @@ func run(ctx context.Context) error {
 		return err
 	}
 
-	gameServer := server.New(memstore, cardStore)
+	gameServer := server.New(memstore, catalog)
 
 	srv := httpserver.New(ctx, gameServer, httpserver.WithPort(*port))
 

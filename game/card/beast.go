@@ -36,13 +36,11 @@ func beasts() map[string]*template {
 			health: 8,
 		},
 		"ghastcoiler": {
-			name:   "Ghastcoiler",
-			tier:   game.Tier6,
-			attack: 7,
-			health: 7,
-			abilities: game.NewAbilities(
-				game.Ability{Keyword: game.KeywordReborn},
-			),
+			name:     "Ghastcoiler",
+			tier:     game.Tier6,
+			attack:   7,
+			health:   7,
+			keywords: game.NewKeywords(game.KeywordReborn),
 		},
 	}
 }

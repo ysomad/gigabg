@@ -15,13 +15,11 @@ func all() map[string]*template {
 
 		// Tier 3
 		"stasis_dragon": {
-			name:   "Stasis Dragon",
-			tier:   game.Tier3,
-			attack: 4,
-			health: 4,
-			abilities: game.NewAbilities(
-				game.Ability{Keyword: game.KeywordReborn},
-			),
+			name:     "Stasis Dragon",
+			tier:     game.Tier3,
+			attack:   4,
+			health:   4,
+			keywords: game.NewKeywords(game.KeywordReborn),
 		},
 
 		// Tier 5
@@ -34,15 +32,11 @@ func all() map[string]*template {
 
 		// Tier 6
 		"amalgadon": {
-			name:   "Amalgadon",
-			tier:   game.Tier6,
-			attack: 6,
-			health: 6,
-			abilities: game.NewAbilities(
-				game.Ability{Keyword: game.KeywordTaunt},
-				game.Ability{Keyword: game.KeywordDivineShield},
-				game.Ability{Keyword: game.KeywordPoisonous},
-			),
+			name:     "Amalgadon",
+			tier:     game.Tier6,
+			attack:   6,
+			health:   6,
+			keywords: game.NewKeywords(game.KeywordTaunt, game.KeywordDivineShield, game.KeywordPoisonous),
 		},
 	}
 }

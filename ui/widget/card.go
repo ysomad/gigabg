@@ -15,7 +15,7 @@ import (
 
 // CardRenderer draws cards in different contexts.
 type CardRenderer struct {
-	Cards *card.Cards
+	Cards *card.Catalog
 	Font  *text.GoTextFace
 }
 
@@ -89,13 +89,19 @@ func (r *CardRenderer) DrawShopMinion(screen *ebiten.Image, c api.Card, rect ui.
 			color.RGBA{255, 215, 0, 255})
 	}
 
-	// Keywords (below placeholder).
+	// Keywords and triggers (below placeholder).
 	if t != nil {
 		kwY := rect.Y + rect.H*0.58
-		for _, kw := range t.Abilities().Keywords() {
+		for _, kw := range t.Keywords().All() {
 			ui.DrawText(screen, r.Font, kw.String(),
 				rect.X+rect.W*0.20, kwY,
 				color.RGBA{180, 220, 140, 255})
+			kwY += rect.H * 0.08
+		}
+		for _, te := range t.Effects() {
+			ui.DrawText(screen, r.Font, te.Trigger.String(),
+				rect.X+rect.W*0.20, kwY,
+				color.RGBA{220, 180, 140, 255})
 			kwY += rect.H * 0.08
 		}
 	}
@@ -141,13 +147,19 @@ func (r *CardRenderer) DrawMinion(screen *ebiten.Image, c api.Card, rect ui.Rect
 	// Image placeholder (center).
 	ui.DrawText(screen, r.Font, c.TemplateID, rect.X+rect.W*0.15, rect.Y+rect.H*0.42, color.RGBA{100, 100, 120, alpha})
 
-	// Keywords (below placeholder).
+	// Keywords and triggers (below placeholder).
 	if t := r.Cards.ByTemplateID(c.TemplateID); t != nil {
 		kwY := rect.Y + rect.H*0.58
-		for _, kw := range t.Abilities().Keywords() {
+		for _, kw := range t.Keywords().All() {
 			ui.DrawText(screen, r.Font, kw.String(),
 				rect.X+rect.W*0.20, kwY,
 				color.RGBA{180, 220, 140, alpha})
+			kwY += rect.H * 0.08
+		}
+		for _, te := range t.Effects() {
+			ui.DrawText(screen, r.Font, te.Trigger.String(),
+				rect.X+rect.W*0.20, kwY,
+				color.RGBA{220, 180, 140, alpha})
 			kwY += rect.H * 0.08
 		}
 	}

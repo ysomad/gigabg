@@ -15,36 +15,29 @@ func murlocs() map[string]*template {
 
 		// Tier 2
 		"toxfin": {
-			name:   "Toxfin",
-			tier:   game.Tier2,
-			attack: 1,
-			health: 2,
-			abilities: game.NewAbilities(
-				game.Ability{Keyword: game.KeywordPoisonous},
-			),
+			name:     "Toxfin",
+			tier:     game.Tier2,
+			attack:   1,
+			health:   2,
+			keywords: game.NewKeywords(game.KeywordPoisonous),
 		},
 
 		// Tier 3
 		"primalfin_champion": {
-			name:   "Primalfin Champion",
-			tier:   game.Tier3,
-			attack: 4,
-			health: 4,
-			abilities: game.NewAbilities(
-				game.Ability{Keyword: game.KeywordDivineShield},
-			),
+			name:     "Primalfin Champion",
+			tier:     game.Tier3,
+			attack:   4,
+			health:   4,
+			keywords: game.NewKeywords(game.KeywordDivineShield),
 		},
 
 		// Tier 4
 		"primalfin_prime": {
-			name:   "Primalfin Prime",
-			tier:   game.Tier4,
-			attack: 4,
-			health: 4,
-			abilities: game.NewAbilities(
-				game.Ability{Keyword: game.KeywordPoisonous},
-				game.Ability{Keyword: game.KeywordDivineShield},
-			),
+			name:     "Primalfin Prime",
+			tier:     game.Tier4,
+			attack:   4,
+			health:   4,
+			keywords: game.NewKeywords(game.KeywordPoisonous, game.KeywordDivineShield),
 		},
 
 		// Tier 5
@@ -54,8 +47,8 @@ func murlocs() map[string]*template {
 			tier:        game.Tier5,
 			attack:      6,
 			health:      3,
-			abilities: game.NewAbilities(
-				game.Ability{Keyword: game.KeywordDeathrattle, Effect: &game.BuffStats{
+			effects: []game.TriggeredEffect{
+				{Trigger: game.TriggerDeathrattle, Effect: &game.BuffStats{
 					Target: game.Target{
 						Type:   game.TargetAllFriendly,
 						Filter: game.TargetFilter{Tribe: game.TribeMurloc, ExcludeSource: true},
@@ -64,7 +57,7 @@ func murlocs() map[string]*template {
 					Health:     2,
 					Persistent: true,
 				}},
-			),
+			},
 		},
 		"brann_bronzebeard": {
 			name:   "Brann Bronzebeard",
@@ -75,14 +68,11 @@ func murlocs() map[string]*template {
 
 		// Tier 6
 		"megasaur": {
-			name:   "Megasaur",
-			tier:   game.Tier6,
-			attack: 8,
-			health: 8,
-			abilities: game.NewAbilities(
-				game.Ability{Keyword: game.KeywordPoisonous},
-				game.Ability{Keyword: game.KeywordWindfury},
-			),
+			name:     "Megasaur",
+			tier:     game.Tier6,
+			attack:   8,
+			health:   8,
+			keywords: game.NewKeywords(game.KeywordPoisonous, game.KeywordWindfury),
 		},
 	}
 }

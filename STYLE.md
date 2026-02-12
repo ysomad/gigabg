@@ -16,6 +16,10 @@
 - Call `os.Exit`/`log.Fatal` only in `main()`
 - Use `var _ Interface = (*Implementation)(nil)` to check interface implementations
 
+## Tests
+- Use table driven tests if possible
+- Run in parallel `t.Parallel()`
+
 ## Errors
 
 Decision table:

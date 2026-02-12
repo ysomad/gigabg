@@ -15,33 +15,27 @@ func dragons() map[string]*template {
 
 		// Tier 2
 		"twilight_emissary": {
-			name:   "Twilight Emissary",
-			tier:   game.Tier2,
-			attack: 4,
-			health: 4,
-			abilities: game.NewAbilities(
-				game.Ability{Keyword: game.KeywordTaunt},
-			),
+			name:     "Twilight Emissary",
+			tier:     game.Tier2,
+			attack:   4,
+			health:   4,
+			keywords: game.NewKeywords(game.KeywordTaunt),
 		},
 		"prized_promo_drake": {
-			name:   "Prized Promo-Drake",
-			tier:   game.Tier3,
-			attack: 5,
-			health: 4,
-			abilities: game.NewAbilities(
-				game.Ability{Keyword: game.KeywordDivineShield},
-			),
+			name:     "Prized Promo-Drake",
+			tier:     game.Tier3,
+			attack:   5,
+			health:   4,
+			keywords: game.NewKeywords(game.KeywordDivineShield),
 		},
 
 		// Tier 4
 		"prestor_prince": {
-			name:   "Prestor's Prince",
-			tier:   game.Tier4,
-			attack: 6,
-			health: 6,
-			abilities: game.NewAbilities(
-				game.Ability{Keyword: game.KeywordReborn},
-			),
+			name:     "Prestor's Prince",
+			tier:     game.Tier4,
+			attack:   6,
+			health:   6,
+			keywords: game.NewKeywords(game.KeywordReborn),
 		},
 
 		// Tier 5
@@ -51,15 +45,15 @@ func dragons() map[string]*template {
 			tier:        game.Tier5,
 			attack:      7,
 			health:      4,
-			abilities: game.NewAbilities(
-				game.Ability{Keyword: game.KeywordDeathrattle, Effect: &game.GiveKeyword{
+			effects: []game.TriggeredEffect{
+				{Trigger: game.TriggerDeathrattle, Effect: &game.GiveKeyword{
 					Target: game.Target{
 						Type:   game.TargetAllFriendly,
 						Filter: game.TargetFilter{Tribe: game.TribeDragon, ExcludeSource: true},
 					},
 					Keyword: game.KeywordDivineShield,
 				}},
-			),
+			},
 		},
 	}
 }

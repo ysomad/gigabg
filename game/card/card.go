@@ -1,4 +1,4 @@
-// Package cards contains all card templates for the game.
+// Package card contains all card templates for the game.
 package card
 
 import (
@@ -7,19 +7,20 @@ import (
 	"github.com/ysomad/gigabg/game"
 )
 
-// Cards provides indexed access to card templates.
-type Cards struct {
-	templates   map[string]game.CardTemplate
-	byKind      map[game.CardKind][]game.CardTemplate
-	byKindTier  map[game.CardKind]map[game.Tier][]game.CardTemplate
-	byTribe     map[game.Tribe][]game.CardTemplate
-	byTier      map[game.Tier][]game.CardTemplate
-	byTribeTier map[game.Tribe]map[game.Tier][]game.CardTemplate
+var _ game.CardCatalog = (*Catalog)(nil)
+
+// Catalog provides indexed access to card templates.
+type Catalog struct {
+	templates       map[string]game.CardTemplate
+	byKind          map[game.CardKind][]game.CardTemplate
+	byTribe         map[game.Tribe][]game.CardTemplate
+	byTier          map[game.Tier][]game.CardTemplate
+	byKindTierTribe map[game.CardKind]map[game.Tier]map[game.Tribe][]game.CardTemplate
 }
 
-// New loads and indexes all card templates.
+// NewCatalog loads and indexes all card templates.
 // Returns an error if duplicate IDs are found or validation fails.
-func New() (*Cards, error) {
+func NewCatalog() (*Catalog, error) {
 	templates := make(map[string]game.CardTemplate)
 
 	cardSets := []struct {
@@ -34,7 +35,6 @@ func New() (*Cards, error) {
 		{game.TribeMurloc, murlocs()},
 		{game.TribeNaga, nagas()},
 		{game.TribeNeutral, neutrals()},
-		{game.TribePirate, pirates()},
 		{game.TribeQuilboar, quilboars()},
 		{game.TribeUndead, undeads()},
 		{game.TribeAll, all()},
@@ -49,6 +49,12 @@ func New() (*Cards, error) {
 
 			t.setID(id)
 			t.setTribe(set.tribe)
+
+			// set default minion cost to minions
+			if t.kind == game.CardKindMinion {
+				t.cost = game.MinionCost
+			}
+
 			t.initGoldenDefaults()
 
 			if err := t.validate(); err != nil {
@@ -59,105 +65,63 @@ func New() (*Cards, error) {
 		}
 	}
 
-	return newCards(templates), nil
+	return newCatalog(templates), nil
 }
 
-func newCards(templates map[string]game.CardTemplate) *Cards {
-	c := &Cards{
-		templates:   templates,
-		byKind:      make(map[game.CardKind][]game.CardTemplate),
-		byKindTier:  make(map[game.CardKind]map[game.Tier][]game.CardTemplate),
-		byTribe:     make(map[game.Tribe][]game.CardTemplate),
-		byTier:      make(map[game.Tier][]game.CardTemplate),
-		byTribeTier: make(map[game.Tribe]map[game.Tier][]game.CardTemplate),
+func newCatalog(templates map[string]game.CardTemplate) *Catalog {
+	c := &Catalog{
+		templates:       templates,
+		byKind:          make(map[game.CardKind][]game.CardTemplate),
+		byTribe:         make(map[game.Tribe][]game.CardTemplate),
+		byTier:          make(map[game.Tier][]game.CardTemplate),
+		byKindTierTribe: make(map[game.CardKind]map[game.Tier]map[game.Tribe][]game.CardTemplate),
 	}
 
 	for _, t := range templates {
 		c.byKind[t.Kind()] = append(c.byKind[t.Kind()], t)
-
-		if c.byKindTier[t.Kind()] == nil {
-			c.byKindTier[t.Kind()] = make(map[game.Tier][]game.CardTemplate)
-		}
-		c.byKindTier[t.Kind()][t.Tier()] = append(c.byKindTier[t.Kind()][t.Tier()], t)
-
 		c.byTribe[t.Tribe()] = append(c.byTribe[t.Tribe()], t)
 		c.byTier[t.Tier()] = append(c.byTier[t.Tier()], t)
 
-		if c.byTribeTier[t.Tribe()] == nil {
-			c.byTribeTier[t.Tribe()] = make(map[game.Tier][]game.CardTemplate)
+		if c.byKindTierTribe[t.Kind()] == nil {
+			c.byKindTierTribe[t.Kind()] = make(map[game.Tier]map[game.Tribe][]game.CardTemplate)
 		}
-		c.byTribeTier[t.Tribe()][t.Tier()] = append(c.byTribeTier[t.Tribe()][t.Tier()], t)
+
+		if c.byKindTierTribe[t.Kind()][t.Tier()] == nil {
+			c.byKindTierTribe[t.Kind()][t.Tier()] = make(map[game.Tribe][]game.CardTemplate)
+		}
+
+		c.byKindTierTribe[t.Kind()][t.Tier()][t.Tribe()] = append(c.byKindTierTribe[t.Kind()][t.Tier()][t.Tribe()], t)
 	}
 
 	return c
 }
 
 // ByTemplateID returns a card template by ID.
-func (c *Cards) ByTemplateID(id string) game.CardTemplate {
+func (c *Catalog) ByTemplateID(id string) game.CardTemplate {
 	return c.templates[id]
 }
 
 // ByKind returns all cards of the given kind.
-func (c *Cards) ByKind(kind game.CardKind) []game.CardTemplate {
+func (c *Catalog) ByKind(kind game.CardKind) []game.CardTemplate {
 	return c.byKind[kind]
 }
 
-// ByKindTier returns all cards matching both kind and tier.
-func (c *Cards) ByKindTier(kind game.CardKind, tier game.Tier) []game.CardTemplate {
-	if m := c.byKindTier[kind]; m != nil {
-		return m[tier]
-	}
-	return nil
-}
-
 // ByTribe returns all cards of the given tribe.
-func (c *Cards) ByTribe(tribe game.Tribe) []game.CardTemplate {
+func (c *Catalog) ByTribe(tribe game.Tribe) []game.CardTemplate {
 	return c.byTribe[tribe]
 }
 
 // ByTier returns all cards of the given tier.
-func (c *Cards) ByTier(tier game.Tier) []game.CardTemplate {
+func (c *Catalog) ByTier(tier game.Tier) []game.CardTemplate {
 	return c.byTier[tier]
 }
 
-// ByTribeTier returns all cards matching both tribe and tier.
-func (c *Cards) ByTribeTier(tribe game.Tribe, tier game.Tier) []game.CardTemplate {
-	if m := c.byTribeTier[tribe]; m != nil {
-		return m[tier]
+// ByKindTierTribe returns cards matching kind, tier, and tribe.
+func (c *Catalog) ByKindTierTribe(kind game.CardKind, tier game.Tier, tribe game.Tribe) []game.CardTemplate {
+	if m := c.byKindTierTribe[kind]; m != nil {
+		if m2 := m[tier]; m2 != nil {
+			return m2[tribe]
+		}
 	}
 	return nil
-}
-
-// ByTierTribes returns minion cards of the exact tier.
-// If tribes is empty, all tribes are included.
-func (c *Cards) ByTierTribes(tier game.Tier, tribes []game.Tribe) []game.CardTemplate {
-	if len(tribes) == 0 {
-		return c.ByKindTier(game.CardKindMinion, tier)
-	}
-
-	var res []game.CardTemplate
-	for _, tribe := range tribes {
-		res = append(res, c.ByTribeTier(tribe, tier)...)
-	}
-	return res
-}
-
-// ByMaxTierTribes returns cards matching maxTier and tribes filters.
-// If tribes is empty, all tribes are included.
-func (c *Cards) ByMaxTierTribes(maxTier game.Tier, tribes []game.Tribe) []game.CardTemplate {
-	if len(tribes) == 0 {
-		var res []game.CardTemplate
-		for tier := game.Tier1; tier <= maxTier; tier++ {
-			res = append(res, c.byTier[tier]...)
-		}
-		return res
-	}
-
-	var res []game.CardTemplate
-	for _, tribe := range tribes {
-		for tier := game.Tier1; tier <= maxTier; tier++ {
-			res = append(res, c.ByTribeTier(tribe, tier)...)
-		}
-	}
-	return res
 }

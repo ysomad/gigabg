@@ -22,7 +22,7 @@ var _ http.Handler = (*Server)(nil)
 type Server struct {
 	mux     *http.ServeMux
 	store   *lobby.MemoryStore
-	cards   game.CardStore
+	cards   game.CardCatalog
 	clients map[string][]*ClientConn // lobbyID -> clients
 	mu      sync.RWMutex
 }
@@ -34,7 +34,7 @@ type ClientConn struct {
 	send     chan []byte
 }
 
-func New(store *lobby.MemoryStore, cards game.CardStore) *Server {
+func New(store *lobby.MemoryStore, cards game.CardCatalog) *Server {
 	s := &Server{
 		store:   store,
 		cards:   cards,
@@ -290,7 +290,7 @@ func (s *Server) handleMessage(ctx context.Context, client *ClientConn, msg *api
 			if err != nil {
 				return err
 			}
-			return p.PlaceMinion(payload.HandIndex, payload.BoardPosition, l.Cards())
+			return p.PlaceMinion(payload.HandIndex, payload.BoardPosition, l.Catalog())
 		})
 
 	case api.ActionRemoveMinion:

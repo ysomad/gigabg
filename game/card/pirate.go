@@ -15,24 +15,20 @@ func pirates() map[string]*template {
 
 		// Tier 2
 		"yo_ho_ogre": {
-			name:   "Yo-Ho-Ogre",
-			tier:   game.Tier2,
-			attack: 2,
-			health: 6,
-			abilities: game.NewAbilities(
-				game.Ability{Keyword: game.KeywordTaunt},
-			),
+			name:     "Yo-Ho-Ogre",
+			tier:     game.Tier2,
+			attack:   2,
+			health:   6,
+			keywords: game.NewKeywords(game.KeywordTaunt),
 		},
 
 		// Tier 3
 		"salty_veteran": {
-			name:   "Salty Veteran",
-			tier:   game.Tier3,
-			attack: 3,
-			health: 5,
-			abilities: game.NewAbilities(
-				game.Ability{Keyword: game.KeywordTaunt},
-			),
+			name:     "Salty Veteran",
+			tier:     game.Tier3,
+			attack:   3,
+			health:   5,
+			keywords: game.NewKeywords(game.KeywordTaunt),
 		},
 
 		// Tier 4
@@ -53,14 +49,11 @@ func pirates() map[string]*template {
 
 		// Tier 6
 		"tony_two_tusk": {
-			name:   "Tony Two-Tusk",
-			tier:   game.Tier6,
-			attack: 8,
-			health: 8,
-			abilities: game.NewAbilities(
-				game.Ability{Keyword: game.KeywordWindfury},
-				game.Ability{Keyword: game.KeywordCleave},
-			),
+			name:     "Tony Two-Tusk",
+			tier:     game.Tier6,
+			attack:   8,
+			health:   8,
+			keywords: game.NewKeywords(game.KeywordWindfury, game.KeywordCleave),
 		},
 	}
 }

@@ -19,9 +19,10 @@ import (
 func main() {
 	serverAddr := flag.String("addr", "localhost:8080", "game server address")
 	flag.Parse()
-	cardStore, err := card.New()
+
+	catalog, err := card.NewCatalog()
 	if err != nil {
-		slog.Error("load cards failed", "error", err)
+		slog.Error("catalog", "error", err)
 		return
 	}
 
@@ -73,7 +74,7 @@ func main() {
 
 		slog.Info("joined game", "player", playerID, "lobby", lobbyID)
 		app.HideOverlay()
-		app.SwitchScene(scene.NewGame(gc, cardStore, app.Font(), func() {
+		app.SwitchScene(scene.NewGame(gc, catalog, app.Font(), func() {
 			if err := gc.Close(); err != nil {
 				slog.Error("close game client", "error", err)
 			}

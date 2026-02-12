@@ -157,7 +157,7 @@ func (c *Combat) attack(src, dst *Minion) {
 func (c *Combat) removeDeadWithEvents(side *combatSide) {
 	for i := 0; i < side.board.Len(); i++ {
 		m := side.board.GetMinion(i)
-		if m.Alive() {
+		if m.IsAlive() {
 			continue
 		}
 		c.emit(CombatEvent{
@@ -222,7 +222,7 @@ func (c *Combat) results() (CombatResult, CombatResult) {
 
 	damage := int(winner.player.Shop().Tier())
 	for _, m := range winner.board.Minions() {
-		if m.Alive() {
+		if m.IsAlive() {
 			damage += int(m.Tier())
 		}
 	}

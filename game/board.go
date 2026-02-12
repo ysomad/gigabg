@@ -36,7 +36,7 @@ func (b Board) Minions() []*Minion { return slices.Clone(b.minions) }
 func (b Board) LivingCount() int {
 	n := 0
 	for _, m := range b.minions {
-		if m.Alive() {
+		if m.IsAlive() {
 			n++
 		}
 	}
@@ -59,7 +59,7 @@ func (b Board) HasLivingAttacker() bool {
 func (b Board) PickDefender() *Minion {
 	var taunt []*Minion
 	for _, m := range b.minions {
-		if m.Alive() && m.HasAbility(KeywordTaunt) {
+		if m.IsAlive() && m.HasKeyword(KeywordTaunt) {
 			taunt = append(taunt, m)
 		}
 	}
@@ -69,7 +69,7 @@ func (b Board) PickDefender() *Minion {
 
 	var targets []*Minion
 	for _, m := range b.minions {
-		if m.Alive() && !m.HasAbility(KeywordStealth) {
+		if m.IsAlive() && !m.HasKeyword(KeywordStealth) {
 			targets = append(targets, m)
 		}
 	}

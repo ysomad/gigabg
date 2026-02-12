@@ -57,7 +57,7 @@ func (s *Shop) StartTurn(pool *CardPool) {
 	}
 
 	pool.ReturnCards(s.cards)
-	s.cards = pool.Roll(s.tier, nil, s.Size())
+	s.cards = pool.Roll(s.tier, s.Size())
 }
 
 // BuyCard removes a card from the shop at the given index and returns it.
@@ -75,7 +75,7 @@ func (s *Shop) BuyCard(index int) (Card, error) { //nolint:ireturn // domain int
 func (s *Shop) Refresh(pool *CardPool) {
 	s.frozen = false
 	pool.ReturnCards(s.cards)
-	s.cards = pool.Roll(s.tier, nil, s.Size())
+	s.cards = pool.Roll(s.tier, s.Size())
 }
 
 // Upgrade upgrades the shop to the next tier.

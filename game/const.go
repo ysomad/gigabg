@@ -21,7 +21,7 @@ const (
 	initialHP       = 10
 	initialGold     = 3  // each player has at game start
 	maxGold         = 10 // each player may have during the game by upgrading MaxGold each turn without spells
-	minionPrice     = 3
+	MinionCost      = 3
 	minionSellValue = 1
 	shopRefreshCost = 1
 )
