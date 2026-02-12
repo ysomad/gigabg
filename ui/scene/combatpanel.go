@@ -12,7 +12,7 @@ import (
 
 	"github.com/ysomad/gigabg/api"
 	"github.com/ysomad/gigabg/game"
-	"github.com/ysomad/gigabg/game/card"
+	"github.com/ysomad/gigabg/game/catalog"
 	"github.com/ysomad/gigabg/ui"
 	"github.com/ysomad/gigabg/ui/widget"
 )
@@ -79,7 +79,7 @@ func newCombatPanel(
 	turn int,
 	playerBoard, opponentBoard []api.Card,
 	events []game.CombatEvent,
-	c *card.Catalog,
+	c *catalog.Catalog,
 	font *text.GoTextFace,
 ) *combatPanel {
 	slog.Info("combat panel created",

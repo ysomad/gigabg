@@ -10,7 +10,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 
 	"github.com/ysomad/gigabg/client"
-	"github.com/ysomad/gigabg/game/card"
+	"github.com/ysomad/gigabg/game/catalog"
 	"github.com/ysomad/gigabg/ui"
 	"github.com/ysomad/gigabg/ui/scene"
 	"github.com/ysomad/gigabg/ui/widget"
@@ -20,9 +20,9 @@ func main() {
 	serverAddr := flag.String("addr", "localhost:8080", "game server address")
 	flag.Parse()
 
-	catalog, err := card.NewCatalog()
+	cards, err := catalog.New()
 	if err != nil {
-		slog.Error("catalog", "error", err)
+		slog.Error("card catalog", "error", err)
 		return
 	}
 
@@ -74,7 +74,7 @@ func main() {
 
 		slog.Info("joined game", "player", playerID, "lobby", lobbyID)
 		app.HideOverlay()
-		app.SwitchScene(scene.NewGame(gc, catalog, app.Font(), func() {
+		app.SwitchScene(scene.NewGame(gc, cards, app.Font(), func() {
 			if err := gc.Close(); err != nil {
 				slog.Error("close game client", "error", err)
 			}

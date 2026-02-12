@@ -9,13 +9,13 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/vector"
 
 	"github.com/ysomad/gigabg/api"
-	"github.com/ysomad/gigabg/game/card"
+	"github.com/ysomad/gigabg/game/catalog"
 	"github.com/ysomad/gigabg/ui"
 )
 
 // CardRenderer draws cards in different contexts.
 type CardRenderer struct {
-	Cards *card.Catalog
+	Cards *catalog.Catalog
 	Font  *text.GoTextFace
 }
 

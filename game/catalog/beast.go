@@ -1,4 +1,4 @@
-package card
+package catalog
 
 import "github.com/ysomad/gigabg/game"
 

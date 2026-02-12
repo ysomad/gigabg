@@ -1,5 +1,5 @@
-// Package card contains all card templates for the game.
-package card
+// Package catalog contains all card templates for the game.
+package catalog
 
 import (
 	"fmt"
@@ -18,9 +18,9 @@ type Catalog struct {
 	byKindTierTribe map[game.CardKind]map[game.Tier]map[game.Tribe][]game.CardTemplate
 }
 
-// NewCatalog loads and indexes all card templates.
+// New loads and indexes all card templates.
 // Returns an error if duplicate IDs are found or validation fails.
-func NewCatalog() (*Catalog, error) {
+func New() (*Catalog, error) {
 	templates := make(map[string]game.CardTemplate)
 
 	cardSets := []struct {
@@ -117,11 +117,22 @@ func (c *Catalog) ByTier(tier game.Tier) []game.CardTemplate {
 }
 
 // ByKindTierTribe returns cards matching kind, tier, and tribe.
+// Zero tribe means all tribes.
 func (c *Catalog) ByKindTierTribe(kind game.CardKind, tier game.Tier, tribe game.Tribe) []game.CardTemplate {
-	if m := c.byKindTierTribe[kind]; m != nil {
-		if m2 := m[tier]; m2 != nil {
-			return m2[tribe]
-		}
+	m := c.byKindTierTribe[kind]
+	if m == nil {
+		return nil
 	}
-	return nil
+	m2 := m[tier]
+	if m2 == nil {
+		return nil
+	}
+	if tribe != 0 {
+		return m2[tribe]
+	}
+	var all []game.CardTemplate
+	for _, templates := range m2 {
+		all = append(all, templates...)
+	}
+	return all
 }

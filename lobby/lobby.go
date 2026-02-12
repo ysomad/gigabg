@@ -89,7 +89,7 @@ func New(cards game.CardCatalog, maxPlayers int) (*Lobby, error) {
 		maxPlayers: maxPlayers,
 		players:    make([]*game.Player, 0, maxPlayers),
 		catalog:    cards,
-		pool:       game.NewCardPool(cards),
+		pool:       game.NewCardPool(cards, maxPlayers),
 	}, nil
 }
 

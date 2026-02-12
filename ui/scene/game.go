@@ -11,7 +11,7 @@ import (
 
 	"github.com/ysomad/gigabg/client"
 	"github.com/ysomad/gigabg/game"
-	"github.com/ysomad/gigabg/game/card"
+	"github.com/ysomad/gigabg/game/catalog"
 	"github.com/ysomad/gigabg/ui"
 	"github.com/ysomad/gigabg/ui/widget"
 )
@@ -31,7 +31,7 @@ type Game struct {
 	onBackToMenu func()
 }
 
-func NewGame(c *client.GameClient, cs *card.Catalog, font *text.GoTextFace, onBackToMenu func()) *Game {
+func NewGame(c *client.GameClient, cs *catalog.Catalog, font *text.GoTextFace, onBackToMenu func()) *Game {
 	cr := &widget.CardRenderer{Cards: cs, Font: font}
 	w := float64(ui.BaseWidth)
 	h := float64(ui.BaseHeight)
