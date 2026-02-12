@@ -112,6 +112,16 @@ func (c *Combat) Run() (r1, r2 CombatResult) {
 		c.attack(minion, target)
 		c.removeDeadWithEvents(c.attacker)
 		c.removeDeadWithEvents(c.defender)
+
+		// Windfury: attack a second time if still alive and has a target.
+		if minion.IsAlive() && minion.HasKeyword(KeywordWindfury) {
+			if t2 := c.defender.board.PickDefender(); t2 != nil {
+				c.attack(minion, t2)
+				c.removeDeadWithEvents(c.attacker)
+				c.removeDeadWithEvents(c.defender)
+			}
+		}
+
 		c.swapTurns()
 	}
 

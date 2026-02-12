@@ -5,6 +5,14 @@ import "github.com/ysomad/gigabg/game"
 // neutrals returns all neutrals tribe card templates.
 func neutrals() map[string]*template {
 	return map[string]*template{
+		// Tier 1 (test)
+		"whirling_zapper": {
+			name:     "Whirling Zapper",
+			tier:     game.Tier1,
+			attack:   1,
+			health:   2,
+			keywords: game.NewKeywords(game.KeywordWindfury),
+		},
 		// Tier 2
 		"spawn_of_nzoth": {
 			name:        "Spawn of N'Zoth",

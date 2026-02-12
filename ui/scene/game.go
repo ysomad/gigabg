@@ -72,6 +72,7 @@ func (g *Game) OnEnter() {}
 func (g *Game) OnExit()  {}
 
 func (g *Game) Update() error {
+	g.cr.Tick++
 	phase := g.client.Phase()
 
 	// Keep sidebar snapshot fresh during recruit, but freeze it during combat animation and toasts.

@@ -2,6 +2,7 @@ package widget
 
 import (
 	"image/color"
+	"math"
 	"strconv"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -18,6 +19,7 @@ import (
 type CardRenderer struct {
 	Cards *catalog.Catalog
 	Font  *text.GoTextFace
+	Tick  int // incremented each frame, used for animations
 }
 
 func (r *CardRenderer) isSpell(c api.Card) bool {
@@ -244,8 +246,49 @@ func (r *CardRenderer) drawEllipseBase(
 	}
 	ui.StrokeEllipse(screen, cx, cy, rx, ry, borderW, border)
 
+	if keywords.Has(game.KeywordWindfury) {
+		r.drawWindfury(screen, cx, cy, rx, ry, s, alpha)
+	}
+
 	if keywords.Has(game.KeywordDivineShield) {
 		r.drawDivineShield(screen, cx, cy, rx, ry, s, alpha)
+	}
+}
+
+// drawWindfury draws animated wind streaks orbiting the minion.
+func (r *CardRenderer) drawWindfury(screen *ebiten.Image, cx, cy, rx, ry float32, s float64, alpha uint8) {
+	pad := float32(2 * s)
+	orbRX := rx + pad
+	orbRY := ry + pad
+
+	// Rotation angle based on tick (60 TPS assumed).
+	angle := float64(r.Tick) * 0.03
+	clr := color.RGBA{80, 180, 255, alpha}
+	strokeW := float32(1.5 * s)
+
+	// 3 wind streaks, evenly spaced.
+	const streaks = 3
+	const arcLen = 0.6 // radians per streak
+	const steps = 10
+
+	for i := range streaks {
+		base := angle + float64(i)*2*math.Pi/streaks
+
+		var path vector.Path
+		for j := range steps + 1 {
+			t := base + arcLen*float64(j)/float64(steps)
+			x := cx + orbRX*float32(math.Cos(t))
+			y := cy + orbRY*float32(math.Sin(t))
+			if j == 0 {
+				path.MoveTo(x, y)
+			} else {
+				path.LineTo(x, y)
+			}
+		}
+
+		op := &vector.DrawPathOptions{}
+		op.ColorScale.ScaleWithColor(clr)
+		vector.StrokePath(screen, &path, &vector.StrokeOptions{Width: strokeW}, op)
 	}
 }
 
