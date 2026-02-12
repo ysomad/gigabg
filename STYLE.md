@@ -3,6 +3,8 @@
 ## Core Rules
 
 - Never use pointers to interfaces
+- Don't pass/store pointers when not necessary
+- Use value receivers for builtin types, pointer receivers for structs and when type has at least 1 mutation method
 - Copy slices/maps at boundaries to prevent mutation of internal state
 - Use `defer` for cleanup (files, locks, connections)
 - Channels: size 0 (unbuffered) or 1 only

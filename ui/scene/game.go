@@ -11,15 +11,10 @@ import (
 
 	"github.com/ysomad/gigabg/client"
 	"github.com/ysomad/gigabg/game"
-	"github.com/ysomad/gigabg/game/cards"
+	"github.com/ysomad/gigabg/game/card"
 	"github.com/ysomad/gigabg/ui"
 	"github.com/ysomad/gigabg/ui/widget"
 )
-
-type tierFade struct {
-	tier  game.Tier
-	timer float64 // seconds remaining
-}
 
 // Game orchestrates phase transitions and delegates to phase-specific handlers.
 type Game struct {
@@ -29,16 +24,14 @@ type Game struct {
 
 	recruit      *recruitPhase
 	combat       *combatPanel
-	toast        *widget.Toast
+	sidebar      *widget.Sidebar
+	phaseToast   *widget.Toast
 	lastPhase    game.Phase
-	sidebarHover int
-	tierFades    map[string]tierFade
-	sidebarSnap  []client.PlayerEntry // frozen sidebar during combat animation
 	backBtn      *widget.Button
 	onBackToMenu func()
 }
 
-func NewGame(c *client.GameClient, cs *cards.Cards, font *text.GoTextFace, onBackToMenu func()) *Game {
+func NewGame(c *client.GameClient, cs *card.Cards, font *text.GoTextFace, onBackToMenu func()) *Game {
 	cr := &widget.CardRenderer{Cards: cs, Font: font}
 	w := float64(ui.BaseWidth)
 	h := float64(ui.BaseHeight)
@@ -54,9 +47,8 @@ func NewGame(c *client.GameClient, cs *cards.Cards, font *text.GoTextFace, onBac
 			cr:     cr,
 			shop:   &shopPanel{client: c, cr: cr},
 		},
-		toast:        widget.NewToast(font),
-		sidebarHover: -1,
-		tierFades:    make(map[string]tierFade),
+		sidebar:      widget.NewSidebar(font),
+		phaseToast:   widget.NewToast(font),
 		onBackToMenu: onBackToMenu,
 	}
 
@@ -79,65 +71,31 @@ func NewGame(c *client.GameClient, cs *cards.Cards, font *text.GoTextFace, onBac
 func (g *Game) OnEnter() {}
 func (g *Game) OnExit()  {}
 
-func (g *Game) updateSidebarHover() {
-	g.sidebarHover = -1
-	sb := ui.CalcGameLayout().Sidebar
-	mx, my := ebiten.CursorPosition()
-	if !sb.Contains(mx, my) {
-		return
-	}
-	rowH := sb.H / float64(game.MaxPlayers)
-	players := g.sidebarPlayers()
-	for i := range players {
-		row := ui.Rect{X: sb.X, Y: sb.Y + float64(i)*rowH, W: sb.W, H: rowH}
-		if row.Contains(mx, my) {
-			g.sidebarHover = i
-			return
-		}
-	}
-}
-
-const tierFadeDuration = 2.0
-
 func (g *Game) Update() error {
-	g.updateSidebarHover()
-
-	// Drain opponent tier updates.
-	for _, u := range g.client.DrainOpponentUpdates() {
-		g.tierFades[u.PlayerID] = tierFade{tier: u.ShopTier, timer: tierFadeDuration}
-	}
-
-	// Tick fade timers.
-	for id, f := range g.tierFades {
-		f.timer -= 1.0 / 60.0
-		if f.timer <= 0 {
-			delete(g.tierFades, id)
-		} else {
-			g.tierFades[id] = f
-		}
-	}
-
 	phase := g.client.Phase()
 
 	// Keep sidebar snapshot fresh during recruit, but freeze it during combat animation and toasts.
-	if phase == game.PhaseRecruit && !g.toast.Active() && g.combat == nil {
-		g.sidebarSnap = g.client.PlayerList()
+	sidebarRect := ui.CalcGameLayout().Sidebar
+	if phase == game.PhaseRecruit && !g.phaseToast.Active() && g.combat == nil {
+		g.sidebar.Update(sidebarRect, g.client.PlayerList(), g.client.DrainOpponentUpdates())
+	} else {
+		g.sidebar.Update(sidebarRect, nil, g.client.DrainOpponentUpdates())
 	}
 
 	// Phase transition toasts.
 	if g.lastPhase == game.PhaseRecruit && phase == game.PhaseCombat {
-		g.toast.Show("COMBAT")
+		g.phaseToast.Show("COMBAT")
 		g.recruit.SyncOrders()
 	}
 	if g.lastPhase == game.PhaseCombat && phase == game.PhaseRecruit && g.combat == nil {
-		g.toast.Show("RECRUIT")
+		g.phaseToast.Show("RECRUIT")
 	}
 	if phase == game.PhaseFinished && g.lastPhase != game.PhaseFinished {
-		g.toast.Show("GAME OVER")
+		g.phaseToast.Show("GAME OVER")
 	}
 	g.lastPhase = phase
 
-	g.toast.Update()
+	g.phaseToast.Update()
 
 	if phase == game.PhaseFinished {
 		g.backBtn.Update()
@@ -145,7 +103,7 @@ func (g *Game) Update() error {
 	}
 
 	// Start combat animation if events arrived and toast is done.
-	if combatEvents := g.client.CombatEvents(); combatEvents != nil && g.combat == nil && !g.toast.Active() {
+	if combatEvents := g.client.CombatEvents(); combatEvents != nil && g.combat == nil && !g.phaseToast.Active() {
 		state := g.client.State()
 		g.combat = newCombatPanel(
 			g.client.Turn(),
@@ -163,7 +121,7 @@ func (g *Game) Update() error {
 		const dt = 1.0 / 60.0
 		if g.combat.Update(dt) {
 			g.combat = nil
-			g.toast.Show("RECRUIT")
+			g.phaseToast.Show("RECRUIT")
 		}
 		return nil
 	}
@@ -196,13 +154,19 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		g.drawCombat(screen)
 	case game.PhaseFinished:
 		g.drawGameResult(screen)
-		g.toast.Draw(screen)
+		g.phaseToast.Draw(screen, g.toastRect())
 		return
 	}
 
-	g.drawSidebar(screen)
-	g.drawSidebarTooltip(screen)
-	g.toast.Draw(screen)
+	lay := ui.CalcGameLayout()
+	playerID := g.client.PlayerID()
+	state := g.client.State()
+	var opponentID string
+	if state != nil {
+		opponentID = state.OpponentID
+	}
+	g.sidebar.Draw(screen, lay.Sidebar, playerID, opponentID)
+	g.phaseToast.Draw(screen, g.toastRect())
 }
 
 func (g *Game) drawConnecting(screen *ebiten.Image) {
@@ -221,7 +185,14 @@ func (g *Game) drawWaiting(screen *ebiten.Image) {
 		playerCount,
 		game.MaxPlayers,
 	)
-	ui.DrawText(screen, g.font, header, lay.Header.X+lay.Header.W*0.04, lay.Header.H*0.5, color.RGBA{200, 200, 200, 255})
+	ui.DrawText(
+		screen,
+		g.font,
+		header,
+		lay.Header.X+lay.Header.W*0.04,
+		lay.Header.H*0.5,
+		color.RGBA{200, 200, 200, 255},
+	)
 
 	lineRect := lay.Header.Screen()
 	lineY := float32(lineRect.Bottom())
@@ -334,7 +305,7 @@ func (g *Game) drawGameResult(screen *ebiten.Image) {
 			w*0.42, h*0.08, color.RGBA{200, 200, 200, 255})
 	}
 
-	winnerText := fmt.Sprintf("Winner: %s", result.WinnerID)
+	winnerText := "Winner: " + result.WinnerID
 	ui.DrawText(screen, g.font, winnerText,
 		w*0.38, h*0.18, color.RGBA{100, 255, 100, 255})
 
@@ -370,173 +341,12 @@ func (g *Game) drawGameResult(screen *ebiten.Image) {
 	g.backBtn.Draw(screen, g.font)
 }
 
-func (g *Game) sidebarPlayers() []client.PlayerEntry {
-	if g.sidebarSnap != nil {
-		return g.sidebarSnap
-	}
-	return g.client.PlayerList()
-}
-
-func (g *Game) drawSidebar(screen *ebiten.Image) {
-	lay := ui.CalcGameLayout()
-	sb := lay.Sidebar
-	sbScreen := sb.Screen()
-
-	// Background.
-	vector.FillRect(screen,
-		float32(sbScreen.X), float32(sbScreen.Y),
-		float32(sbScreen.W), float32(sbScreen.H),
-		color.RGBA{15, 15, 25, 255}, false,
-	)
-
-	playerID := g.client.PlayerID()
-	state := g.client.State()
-	var opponentID string
-	if state != nil {
-		opponentID = state.OpponentID
-	}
-
-	players := g.sidebarPlayers()
-	rowH := sb.H / float64(game.MaxPlayers)
-	scale := float32(ui.ActiveRes.Scale())
-
-	for i, e := range players {
-		rowY := sb.Y + float64(i)*rowH
-		row := ui.Rect{X: sb.X, Y: rowY, W: sb.W, H: rowH}
-		rowScreen := row.Screen()
-		padX := row.W * 0.06
-
-		// Highlight self.
-		if e.ID == playerID {
-			vector.FillRect(screen,
-				float32(rowScreen.X), float32(rowScreen.Y),
-				float32(rowScreen.W), float32(rowScreen.H),
-				color.RGBA{30, 50, 30, 255}, false,
-			)
-		}
-
-		// Red border for current combat opponent.
-		if e.ID == opponentID {
-			vector.StrokeRect(screen,
-				float32(rowScreen.X), float32(rowScreen.Y),
-				float32(rowScreen.W), float32(rowScreen.H),
-				scale*2, color.RGBA{255, 80, 80, 255}, false,
-			)
-		}
-
-		// Line 1: Name + HP.
-		nameClr := color.RGBA{200, 200, 200, 255}
-		if e.ID == playerID {
-			nameClr = color.RGBA{100, 255, 100, 255}
-		}
-		ui.DrawText(screen, g.font, fmt.Sprintf("%s  %d HP", e.ID, e.HP), row.X+padX, row.Y+rowH*0.2, nameClr)
-
-		// Line 2: Tier + tribe.
-		line2 := fmt.Sprintf("Tier %d", e.ShopTier)
-		switch e.MajorityTribe {
-		case game.TribeNeutral:
-		case game.TribeMixed:
-			line2 += " | Mixed"
-		default:
-			line2 += fmt.Sprintf(" | %s x%d", e.MajorityTribe, e.MajorityCount)
-		}
-		ui.DrawText(screen, g.font, line2, row.X+padX, row.Y+rowH*0.55, color.RGBA{160, 160, 180, 255})
-
-		// Fading tier upgrade indicator.
-		if f, ok := g.tierFades[e.ID]; ok {
-			alpha := uint8(255 * (f.timer / tierFadeDuration))
-			tierStr := fmt.Sprintf("T%d!", f.tier)
-			ui.DrawText(screen, g.font, tierStr, row.X+row.W*0.70, row.Y+rowH*0.35, color.RGBA{255, 215, 0, alpha})
-		}
-
-		// Row separator.
-		sepY := float32(rowScreen.Bottom())
-		vector.StrokeLine(screen,
-			float32(rowScreen.X+rowScreen.W*0.05), sepY,
-			float32(rowScreen.X+rowScreen.W*0.95), sepY,
-			scale, color.RGBA{40, 40, 60, 255}, false,
-		)
-	}
-}
-
-func (g *Game) drawSidebarTooltip(screen *ebiten.Image) {
-	if g.sidebarHover < 0 {
-		return
-	}
-	players := g.sidebarPlayers()
-	if g.sidebarHover >= len(players) {
-		return
-	}
-
-	e := players[g.sidebarHover]
-	sb := ui.CalcGameLayout().Sidebar
-	rowH := sb.H / float64(game.MaxPlayers)
-	scale := float32(ui.ActiveRes.Scale())
-
-	// Tooltip positioned to the right of sidebar, aligned with hovered row.
-	tipW := sb.W * 1.4
-	tipH := rowH * 2.5
-	tipX := sb.Right()
-	tipY := sb.Y + float64(g.sidebarHover)*rowH
-
-	// Clamp to screen bottom.
-	if tipY+tipH > float64(ui.BaseHeight) {
-		tipY = float64(ui.BaseHeight) - tipH
-	}
-
-	tip := ui.Rect{X: tipX, Y: tipY, W: tipW, H: tipH}
-	tipScreen := tip.Screen()
-	padX := tip.W * 0.06
-
-	// Background.
-	vector.FillRect(screen,
-		float32(tipScreen.X), float32(tipScreen.Y),
-		float32(tipScreen.W), float32(tipScreen.H),
-		color.RGBA{25, 25, 40, 255}, false,
-	)
-	vector.StrokeRect(screen,
-		float32(tipScreen.X), float32(tipScreen.Y),
-		float32(tipScreen.W), float32(tipScreen.H),
-		scale, color.RGBA{60, 60, 90, 255}, false,
-	)
-
-	// Header: player name.
-	ui.DrawText(screen, g.font, e.ID, tip.X+padX, tip.Y+tip.H*0.08, color.RGBA{220, 220, 220, 255})
-
-	// Tribe info.
-	switch e.MajorityTribe {
-	case game.TribeNeutral:
-	case game.TribeMixed:
-		ui.DrawText(screen, g.font, "Mixed", tip.X+padX, tip.Y+tip.H*0.22, color.RGBA{180, 180, 200, 255})
-	default:
-		tribeStr := fmt.Sprintf("%s x%d", e.MajorityTribe, e.MajorityCount)
-		ui.DrawText(screen, g.font, tribeStr, tip.X+padX, tip.Y+tip.H*0.22, color.RGBA{180, 180, 200, 255})
-	}
-
-	// Last 3 combat results.
-	y := tip.Y + tip.H*0.40
-	lineH := tip.H * 0.18
-	for _, cr := range e.CombatResults {
-		var label string
-		var clr color.Color
-		switch cr.WinnerID {
-		case "":
-			label = "Tie vs " + cr.OpponentID
-			clr = color.RGBA{140, 140, 140, 255}
-		case e.ID:
-			label = fmt.Sprintf("Won vs %s (%d dmg)", cr.OpponentID, cr.Damage)
-			clr = color.RGBA{80, 220, 80, 255}
-		default:
-			label = fmt.Sprintf("Lost vs %s (%d dmg)", cr.OpponentID, cr.Damage)
-			clr = color.RGBA{220, 80, 80, 255}
-		}
-		ui.DrawText(screen, g.font, label, tip.X+padX, y, clr)
-		y += lineH
-	}
-
-	if len(e.CombatResults) == 0 {
-		ui.DrawText(screen, g.font, "No fights yet", tip.X+padX, tip.Y+tip.H*0.40, color.RGBA{100, 100, 100, 255})
-	}
+func (g *Game) toastRect() ui.Rect {
+	w := float64(ui.BaseWidth)
+	h := float64(ui.BaseHeight)
+	boxW := w * 0.3
+	boxH := h * 0.1
+	return ui.Rect{X: w/2 - boxW/2, Y: h/2 - boxH/2, W: boxW, H: boxH}
 }
 
 func (g *Game) timeRemaining() int64 {

@@ -463,10 +463,13 @@ func (s *Server) sendPlayerState(client *ClientConn, l *lobby.Lobby, p *game.Pla
 	}
 
 	if p.HasDiscover() {
-		state.Discovers = api.NewCards(p.DiscoverOptions())
+		state.Discovers = api.NewCards(p.Discover())
 	}
 
-	if l.Phase() == game.PhaseCombat {
+	switch l.Phase() {
+	case game.PhaseRecruit:
+		state.OpponentID = l.NextOpponentID(client.playerID)
+	case game.PhaseCombat:
 		if pair, ok := l.CombatPairing(client.playerID); ok {
 			state.OpponentID = pair.OpponentID
 			state.CombatBoard = api.CombatCards(pair.PlayerBoard)

@@ -42,19 +42,13 @@ func (t *Toast) Update() {
 	}
 }
 
-// Draw renders the toast as a colored rectangle with centered text.
-func (t *Toast) Draw(screen *ebiten.Image) {
+// Draw renders the toast inside the given rect.
+func (t *Toast) Draw(screen *ebiten.Image, rect ui.Rect) {
 	if t.timer <= 0 {
 		return
 	}
 
-	boxW := float64(ui.BaseWidth) * 0.3
-	boxH := float64(ui.BaseHeight) * 0.1
-	boxX := float64(ui.BaseWidth)/2 - boxW/2
-	boxY := float64(ui.BaseHeight)/2 - boxH/2
-
-	r := ui.Rect{X: boxX, Y: boxY, W: boxW, H: boxH}
-	sr := r.Screen()
+	sr := rect.Screen()
 	s := ui.ActiveRes.Scale()
 
 	vector.FillRect(
@@ -77,12 +71,13 @@ func (t *Toast) Draw(screen *ebiten.Image) {
 		false,
 	)
 
-	ui.DrawText(screen, t.font, t.text, boxX+boxW*0.5-float64(len(t.text))*4, boxY+boxH*0.3, color.White)
+	ui.DrawText(screen, t.font, t.text, rect.X+rect.W*0.5-float64(len(t.text))*4, rect.Y+rect.H*0.3, color.White)
 }
 
 // Popup is a generic modal overlay that displays a title, message, and an optional button.
 type Popup struct {
 	font *text.GoTextFace
+	rect ui.Rect
 
 	mu      sync.Mutex
 	title   string
@@ -90,9 +85,10 @@ type Popup struct {
 	btn     *Button
 }
 
-func NewPopup(font *text.GoTextFace, title, message string) *Popup {
+func NewPopup(font *text.GoTextFace, rect ui.Rect, title, message string) *Popup {
 	return &Popup{
 		font:    font,
+		rect:    rect,
 		title:   title,
 		message: message,
 	}
@@ -112,26 +108,15 @@ func (p *Popup) SetMessage(s string) {
 	p.mu.Unlock()
 }
 
-// popupBox returns the base-space rect for the popup box.
-func popupBox() (float64, float64, float64, float64) {
-	boxW := float64(ui.BaseWidth) * 0.40
-	boxH := float64(ui.BaseHeight) * 0.25
-	boxX := float64(ui.BaseWidth)/2 - boxW/2
-	boxY := float64(ui.BaseHeight)/2 - boxH/2
-	return boxX, boxY, boxW, boxH
-}
-
 // ShowButton shows a button at the bottom of the popup.
 func (p *Popup) ShowButton(text string, onClick func()) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	boxX, boxY, boxW, boxH := popupBox()
-
-	btnW := boxW * 0.22
-	btnH := boxH * 0.20
+	btnW := p.rect.W * 0.22
+	btnH := p.rect.H * 0.20
 	p.btn = &Button{
-		Rect:      ui.Rect{X: boxX + boxW/2 - btnW/2, Y: boxY + boxH*0.72, W: btnW, H: btnH},
+		Rect:      ui.Rect{X: p.rect.X + p.rect.W/2 - btnW/2, Y: p.rect.Y + p.rect.H*0.72, W: btnW, H: btnH},
 		Text:      text,
 		Color:     color.RGBA{120, 50, 50, 255},
 		BorderClr: color.RGBA{160, 80, 80, 255},
@@ -154,10 +139,7 @@ func (p *Popup) Draw(screen *ebiten.Image) {
 	// Semi-transparent overlay covering actual screen.
 	ui.FillScreen(screen, color.RGBA{0, 0, 0, 160})
 
-	// Centered box in base coords.
-	boxX, boxY, boxW, boxH := popupBox()
-	boxRect := ui.Rect{X: boxX, Y: boxY, W: boxW, H: boxH}
-	sr := boxRect.Screen()
+	sr := p.rect.Screen()
 	sw := float32(ui.ActiveRes.Scale())
 
 	vector.FillRect(
@@ -187,10 +169,10 @@ func (p *Popup) Draw(screen *ebiten.Image) {
 	p.mu.Unlock()
 
 	if title != "" {
-		ui.DrawText(screen, p.font, title, boxX+boxW*0.05, boxY+boxH*0.15, color.RGBA{220, 200, 60, 255})
+		ui.DrawText(screen, p.font, title, p.rect.X+p.rect.W*0.05, p.rect.Y+p.rect.H*0.15, color.RGBA{220, 200, 60, 255})
 	}
 
-	ui.DrawText(screen, p.font, message, boxX+boxW*0.05, boxY+boxH*0.45, color.RGBA{200, 200, 200, 255})
+	ui.DrawText(screen, p.font, message, p.rect.X+p.rect.W*0.05, p.rect.Y+p.rect.H*0.45, color.RGBA{200, 200, 200, 255})
 
 	if btn != nil {
 		btn.Draw(screen, p.font)

@@ -12,9 +12,9 @@ var tierPoolSize = map[Tier]int{
 
 // CardStore provides access to card templates.
 type CardStore interface {
-	ByTemplateID(id string) *CardTemplate
-	ByMaxTierTribes(maxTier Tier, tribes []Tribe) []*CardTemplate
-	ByTierTribes(tier Tier, tribes []Tribe) []*CardTemplate
+	ByTemplateID(id string) CardTemplate
+	ByMaxTierTribes(maxTier Tier, tribes []Tribe) []CardTemplate
+	ByTierTribes(tier Tier, tribes []Tribe) []CardTemplate
 }
 
 // CardPool manages a finite pool of cards shared across all players in a lobby.
@@ -33,8 +33,8 @@ func NewCardPool(cards CardStore) *CardPool {
 	for tier := Tier1; tier <= Tier6; tier++ {
 		count := tierPoolSize[tier]
 		for _, tmpl := range cards.ByTierTribes(tier, nil) {
-			if !tmpl.IsSpell() {
-				pool.quantities[tmpl.ID] = count
+			if tmpl.Kind() != CardKindSpell {
+				pool.quantities[tmpl.ID()] = count
 			}
 		}
 	}
@@ -58,9 +58,9 @@ func (p *CardPool) Roll(maxTier Tier, tribes []Tribe, count int) []Card {
 		idx := rand.IntN(len(available)) //nolint:gosec // game logic, not crypto
 		tmpl := available[idx]
 		res = append(res, NewMinion(tmpl))
-		p.quantities[tmpl.ID]--
+		p.quantities[tmpl.ID()]--
 
-		if p.quantities[tmpl.ID] <= 0 {
+		if p.quantities[tmpl.ID()] <= 0 {
 			available = append(available[:idx], available[idx+1:]...)
 		}
 	}
@@ -75,18 +75,18 @@ func (p *CardPool) RollExactTier(tier Tier, tribes []Tribe) []Card {
 		return nil
 	}
 
-	res := make([]Card, 0, DiscoverCount)
+	res := make([]Card, 0, discoverCount)
 
-	for range DiscoverCount {
+	for range discoverCount {
 		if len(available) == 0 {
 			break
 		}
 		idx := rand.IntN(len(available)) //nolint:gosec // game logic, not crypto
 		tmpl := available[idx]
 		res = append(res, NewMinion(tmpl))
-		p.quantities[tmpl.ID]--
+		p.quantities[tmpl.ID()]--
 
-		if p.quantities[tmpl.ID] <= 0 {
+		if p.quantities[tmpl.ID()] <= 0 {
 			available = append(available[:idx], available[idx+1:]...)
 		}
 	}
@@ -97,7 +97,7 @@ func (p *CardPool) RollExactTier(tier Tier, tribes []Tribe) []Card {
 // ReturnCard returns a card to the pool. Skips spells and golden minions.
 func (p *CardPool) ReturnCard(c Card) {
 	if c.IsMinion() && !c.IsGolden() {
-		p.quantities[c.TemplateID()]++
+		p.quantities[c.Template().ID()]++
 	}
 }
 
@@ -109,10 +109,10 @@ func (p *CardPool) ReturnCards(cards []Card) {
 }
 
 // availableTemplates filters templates to only those with quantity > 0.
-func (p *CardPool) availableTemplates(templates []*CardTemplate) []*CardTemplate {
-	res := make([]*CardTemplate, 0, len(templates))
+func (p *CardPool) availableTemplates(templates []CardTemplate) []CardTemplate {
+	res := make([]CardTemplate, 0, len(templates))
 	for _, t := range templates {
-		if p.quantities[t.ID] > 0 {
+		if p.quantities[t.ID()] > 0 {
 			res = append(res, t)
 		}
 	}

@@ -35,7 +35,7 @@ func (s *shopPanel) syncSize() {
 
 func (s *shopPanel) isSpell(c api.Card) bool {
 	t := s.cr.Cards.ByTemplateID(c.TemplateID)
-	return t != nil && t.IsSpell()
+	return t != nil && t.Kind() == game.CardKindSpell
 }
 
 func (s *shopPanel) handleStartDrag(lay ui.GameLayout, mx, my int, drag *dragState) bool {

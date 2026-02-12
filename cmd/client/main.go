@@ -10,7 +10,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 
 	"github.com/ysomad/gigabg/client"
-	"github.com/ysomad/gigabg/game/cards"
+	"github.com/ysomad/gigabg/game/card"
 	"github.com/ysomad/gigabg/ui"
 	"github.com/ysomad/gigabg/ui/scene"
 	"github.com/ysomad/gigabg/ui/widget"
@@ -19,7 +19,7 @@ import (
 func main() {
 	serverAddr := flag.String("addr", "localhost:8080", "game server address")
 	flag.Parse()
-	cardStore, err := cards.New()
+	cardStore, err := card.New()
 	if err != nil {
 		slog.Error("load cards failed", "error", err)
 		return
@@ -32,6 +32,12 @@ func main() {
 	}
 
 	httpClient := client.New(*serverAddr)
+
+	w := float64(ui.BaseWidth)
+	h := float64(ui.BaseHeight)
+	popupW := w * 0.40
+	popupH := h * 0.25
+	popupRect := ui.Rect{X: w/2 - popupW/2, Y: h/2 - popupH/2, W: popupW, H: popupH}
 
 	var showMenu func()
 
@@ -76,7 +82,7 @@ func main() {
 	}
 
 	onJoin := func(playerID, lobbyID string) {
-		p := widget.NewPopup(app.Font(), "", "Connecting...")
+		p := widget.NewPopup(app.Font(), popupRect, "", "Connecting...")
 		app.ShowOverlay(p)
 
 		go func() {
@@ -85,7 +91,7 @@ func main() {
 	}
 
 	onCreate := func(playerID string, lobbySize int) {
-		p := widget.NewPopup(app.Font(), "", "Creating lobby...")
+		p := widget.NewPopup(app.Font(), popupRect, "", "Creating lobby...")
 		app.ShowOverlay(p)
 
 		go func() {

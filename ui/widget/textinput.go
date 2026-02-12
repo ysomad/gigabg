@@ -2,6 +2,7 @@ package widget
 
 import (
 	"image/color"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -53,7 +54,7 @@ func (t *TextInput) handlePaste() bool {
 		return false
 	}
 
-	clip := readClipboard()
+	clip := strings.TrimSpace(readClipboard())
 	if clip == "" {
 		return false
 	}

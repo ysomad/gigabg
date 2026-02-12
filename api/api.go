@@ -202,7 +202,7 @@ func NewCard(c game.Card) Card {
 			Tribe:      m.Tribe(),
 		}
 	}
-	return Card{TemplateID: c.TemplateID()}
+	return Card{TemplateID: c.Template().ID()}
 }
 
 func NewCardFromMinion(m *game.Minion) Card {

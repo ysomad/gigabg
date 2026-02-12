@@ -19,7 +19,7 @@ func NewBoard(size int) Board {
 func (b Board) Len() int { return len(b.minions) }
 
 // IsFull returns true if the board has reached MaxBoardSize.
-func (b Board) IsFull() bool { return len(b.minions) >= MaxBoardSize }
+func (b Board) IsFull() bool { return len(b.minions) >= maxBoardSize }
 
 // GetMinion returns the minion at the given index, or nil if out of range.
 func (b Board) GetMinion(i int) *Minion {
@@ -59,7 +59,7 @@ func (b Board) HasLivingAttacker() bool {
 func (b Board) PickDefender() *Minion {
 	var taunt []*Minion
 	for _, m := range b.minions {
-		if m.Alive() && m.HasKeyword(KeywordTaunt) {
+		if m.Alive() && m.HasAbility(KeywordTaunt) {
 			taunt = append(taunt, m)
 		}
 	}
@@ -69,7 +69,7 @@ func (b Board) PickDefender() *Minion {
 
 	var targets []*Minion
 	for _, m := range b.minions {
-		if m.Alive() && !m.HasKeyword(KeywordStealth) {
+		if m.Alive() && !m.HasAbility(KeywordStealth) {
 			targets = append(targets, m)
 		}
 	}
@@ -127,13 +127,20 @@ func (b Board) MajorityTribe() (Tribe, int) {
 	return CalcMajorityTribe(tribes)
 }
 
-// CalcMajorityTribe returns the dominant non-neutral tribe and its count.
+// CalcMajorityTribe returns the dominant tribe and its count.
+// All-tribe minions are added to the majority count after it is determined.
 // Returns TribeMixed when multiple tribes exist but none dominates.
-// Returns TribeNeutral when no non-neutral tribes are present.
+// Returns TribeNeutral when no countable tribes are present.
 func CalcMajorityTribe(tribes []Tribe) (Tribe, int) {
+	var allCount int
+
 	counts := make(map[Tribe]int)
 	for _, t := range tribes {
-		if t != TribeNeutral {
+		switch t {
+		case TribeNeutral:
+		case TribeAll:
+			allCount++
+		default:
 			counts[t]++
 		}
 	}
@@ -143,30 +150,39 @@ func CalcMajorityTribe(tribes []Tribe) (Tribe, int) {
 		return TribeNeutral, 0
 	case 1:
 		for t, n := range counts {
-			if n >= 2 {
-				return t, n
-			}
+			return t, n + allCount
 		}
-		return TribeNeutral, 0
 	}
 
-	// 2+ tribes: find single dominant with count >= 2.
-	var best Tribe
-	var bestN int
-	var tied bool
+	// 2+ tribes: find single dominant.
+	var (
+		best  Tribe
+		bestN int
+		tied  bool
+	)
+
 	for t, n := range counts {
 		switch {
 		case n > bestN:
 			best, bestN, tied = t, n, false
 		case n == bestN:
 			tied = true
+			if t > best {
+				best = t
+			}
 		}
 	}
 
-	if !tied && bestN >= 2 {
-		return best, bestN
+	if !tied {
+		return best, bestN + allCount
 	}
-	return TribeMixed, 0
+
+	// Tied: All minions break the tie by boosting the highest tribe.
+	if allCount > 0 {
+		return best, bestN + allCount
+	}
+
+	return TribeMixed, len(counts)
 }
 
 // Reorder reorders the board based on the given index mapping.

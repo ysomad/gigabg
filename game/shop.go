@@ -1,5 +1,7 @@
 package game
 
+import "slices"
+
 // Shop tier upgrade costs (index = current tier).
 var _upgradeCosts = [6]int{0, 5, 7, 8, 9, 10} // tier 1->2 costs 5, etc.
 
@@ -10,7 +12,7 @@ type Shop struct {
 	discount int
 }
 
-func (s Shop) Cards() []Card  { return s.cards }
+func (s Shop) Cards() []Card  { return slices.Clone(s.cards) }
 func (s Shop) Tier() Tier     { return s.tier }
 func (s Shop) IsFrozen() bool { return s.frozen }
 

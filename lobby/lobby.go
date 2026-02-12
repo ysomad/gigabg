@@ -72,6 +72,7 @@ type Lobby struct {
 	combatLogs        map[string][]game.CombatResult // playerID -> last N results
 	combatAnimations  []game.CombatAnimation         // ephemeral, cleared after send
 	combatPairings    map[string]CombatPairing       // playerID -> pairing, combat phase only
+	nextPairings      map[string]string              // playerID -> next opponentID, recruit phase only
 	majorityTribes    map[string]game.TribeSnapshot  // playerID -> snapshot from last combat
 	startedAt         time.Time
 	eliminated        int              // number of eliminated players
@@ -131,10 +132,77 @@ func (l *Lobby) start() {
 func (l *Lobby) startRecruit() {
 	l.phase = game.PhaseRecruit
 	l.phaseEndTimestamp = time.Now().Add(game.RecruitDuration).Unix()
+	l.computeNextPairings()
 
 	for _, p := range l.players {
 		p.StartTurn(l.pool, l.turn)
 	}
+}
+
+// prevOpponents returns a map of playerID -> previous opponentID from the
+// current combat pairings.
+func (l *Lobby) prevOpponents() map[string]string {
+	prev := make(map[string]string, len(l.combatPairings))
+	for id, cp := range l.combatPairings {
+		prev[id] = cp.OpponentID
+	}
+	return prev
+}
+
+// computeNextPairings pre-determines the next combat opponents so clients
+// can display them during recruit phase. Avoids repeating the previous
+// opponent when other players are available.
+func (l *Lobby) computeNextPairings() {
+	alive := make([]*game.Player, 0, len(l.players))
+	for _, p := range l.players {
+		if p.IsAlive() {
+			alive = append(alive, p)
+		}
+	}
+
+	prev := l.prevOpponents()
+
+	rand.Shuffle(len(alive), func(i, j int) { alive[i], alive[j] = alive[j], alive[i] })
+
+	l.nextPairings = make(map[string]string, len(alive))
+	paired := make(map[string]struct{}, len(alive))
+
+	for _, p := range alive {
+		if _, ok := paired[p.ID()]; ok {
+			continue
+		}
+
+		var fallback *game.Player
+		var found bool
+		for _, q := range alive {
+			if _, ok := paired[q.ID()]; q.ID() == p.ID() || ok {
+				continue
+			}
+			if fallback == nil {
+				fallback = q
+			}
+			if prev[p.ID()] != q.ID() && prev[q.ID()] != p.ID() {
+				l.nextPairings[p.ID()] = q.ID()
+				l.nextPairings[q.ID()] = p.ID()
+				paired[p.ID()] = struct{}{}
+				paired[q.ID()] = struct{}{}
+				found = true
+				break
+			}
+		}
+
+		if !found && fallback != nil {
+			l.nextPairings[p.ID()] = fallback.ID()
+			l.nextPairings[fallback.ID()] = p.ID()
+			paired[p.ID()] = struct{}{}
+			paired[fallback.ID()] = struct{}{}
+		}
+	}
+}
+
+// NextOpponentID returns the pre-determined next opponent for the given player.
+func (l *Lobby) NextOpponentID(playerID string) string {
+	return l.nextPairings[playerID]
 }
 
 func (l *Lobby) startCombat() {
@@ -168,15 +236,22 @@ func (l *Lobby) runCombat() {
 		l.combatLogs = make(map[string][]game.CombatResult, len(l.players))
 	}
 
-	// Shuffle for random pairing.
-	perm := rand.Perm(len(l.players))
-
 	l.combatAnimations = l.combatAnimations[:0]
 	l.combatPairings = make(map[string]CombatPairing, len(l.players))
 
-	// Pair consecutive players; odd player out gets a bye.
-	for i := 0; i+1 < len(perm); i += 2 {
-		l.resolvePairing(l.players[perm[i]], l.players[perm[i+1]])
+	// Use pre-computed pairings from recruit phase.
+	resolved := make(map[string]struct{}, len(l.nextPairings))
+	for pid, oid := range l.nextPairings {
+		if _, ok := resolved[pid]; ok {
+			continue
+		}
+		p1 := l.Player(pid)
+		p2 := l.Player(oid)
+		if p1 != nil && p2 != nil && p1.IsAlive() && p2.IsAlive() {
+			l.resolvePairing(p1, p2)
+			resolved[pid] = struct{}{}
+			resolved[oid] = struct{}{}
+		}
 	}
 
 	l.checkFinished()
@@ -186,7 +261,7 @@ func (l *Lobby) checkFinished() {
 	var alive int
 	var winner *game.Player
 	for _, p := range l.players {
-		if p.Alive() {
+		if p.IsAlive() {
 			alive++
 			winner = p
 		}
@@ -248,7 +323,7 @@ func (l *Lobby) resolvePairing(p1, p2 *game.Player) {
 		if r1.WinnerID == p2.ID() {
 			loser = p1
 		}
-		if loser.Alive() {
+		if loser.IsAlive() {
 			if loser.TakeDamage(r1.Damage) {
 				l.eliminated++
 				loser.SetPlacement(len(l.players) - l.eliminated + 1)

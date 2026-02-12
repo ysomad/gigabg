@@ -9,13 +9,13 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/vector"
 
 	"github.com/ysomad/gigabg/api"
-	"github.com/ysomad/gigabg/game/cards"
+	"github.com/ysomad/gigabg/game/card"
 	"github.com/ysomad/gigabg/ui"
 )
 
 // CardRenderer draws cards in different contexts.
 type CardRenderer struct {
-	Cards *cards.Cards
+	Cards *card.Cards
 	Font  *text.GoTextFace
 }
 
@@ -30,8 +30,8 @@ func (r *CardRenderer) DrawMinionCard(screen *ebiten.Image, c api.Card, rect ui.
 	ui.DrawText(screen, r.Font, name, rect.X+rect.W*0.04, rect.Y+rect.H*0.04, color.White)
 
 	// Tier (top-right).
-	if t != nil && t.Tier.IsValid() {
-		ui.DrawText(screen, r.Font, "T"+strconv.Itoa(int(t.Tier)),
+	if t != nil && t.Tier().IsValid() {
+		ui.DrawText(screen, r.Font, "T"+strconv.Itoa(int(t.Tier())),
 			rect.Right()-rect.W*0.22, rect.Y+rect.H*0.04,
 			color.RGBA{180, 180, 180, 255})
 	}
@@ -83,8 +83,8 @@ func (r *CardRenderer) DrawShopMinion(screen *ebiten.Image, c api.Card, rect ui.
 	ui.DrawText(screen, r.Font, c.TemplateID, rect.X+rect.W*0.15, rect.Y+rect.H*0.42, color.RGBA{100, 100, 120, 255})
 
 	// Tier (top, gold).
-	if t != nil && t.Tier.IsValid() {
-		ui.DrawText(screen, r.Font, "T"+strconv.Itoa(int(t.Tier)),
+	if t != nil && t.Tier().IsValid() {
+		ui.DrawText(screen, r.Font, "T"+strconv.Itoa(int(t.Tier())),
 			rect.X+rect.W*0.42, rect.Y+rect.H*0.15,
 			color.RGBA{255, 215, 0, 255})
 	}
@@ -92,7 +92,7 @@ func (r *CardRenderer) DrawShopMinion(screen *ebiten.Image, c api.Card, rect ui.
 	// Keywords (below placeholder).
 	if t != nil {
 		kwY := rect.Y + rect.H*0.58
-		for _, kw := range t.Keywords.List() {
+		for _, kw := range t.Abilities().Keywords() {
 			ui.DrawText(screen, r.Font, kw.String(),
 				rect.X+rect.W*0.20, kwY,
 				color.RGBA{180, 220, 140, 255})
@@ -144,7 +144,7 @@ func (r *CardRenderer) DrawMinion(screen *ebiten.Image, c api.Card, rect ui.Rect
 	// Keywords (below placeholder).
 	if t := r.Cards.ByTemplateID(c.TemplateID); t != nil {
 		kwY := rect.Y + rect.H*0.58
-		for _, kw := range t.Keywords.List() {
+		for _, kw := range t.Abilities().Keywords() {
 			ui.DrawText(screen, r.Font, kw.String(),
 				rect.X+rect.W*0.20, kwY,
 				color.RGBA{180, 220, 140, alpha})
@@ -212,9 +212,9 @@ func (r *CardRenderer) cardInfo(c api.Card) (string, string, string) {
 	name := c.TemplateID
 	var desc, tribe string
 	if t := r.Cards.ByTemplateID(c.TemplateID); t != nil {
-		name = t.Name
-		desc = t.Description
-		tribe = t.Tribe.String()
+		name = t.Name()
+		desc = t.Description()
+		tribe = t.Tribe().String()
 	}
 	return name, desc, tribe
 }

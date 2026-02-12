@@ -12,6 +12,7 @@ import (
 
 	"github.com/ysomad/gigabg/api"
 	"github.com/ysomad/gigabg/client"
+	"github.com/ysomad/gigabg/game"
 	"github.com/ysomad/gigabg/ui"
 	"github.com/ysomad/gigabg/ui/widget"
 )
@@ -50,7 +51,7 @@ func (r *recruitPhase) syncSizes() {
 
 func (r *recruitPhase) isSpell(c api.Card) bool {
 	t := r.cr.Cards.ByTemplateID(c.TemplateID)
-	return t != nil && t.IsSpell()
+	return t != nil && t.Kind() == game.CardKindSpell
 }
 
 // Update processes recruit-phase input.

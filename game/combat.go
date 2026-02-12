@@ -1,6 +1,9 @@
 package game
 
-import "math/rand/v2"
+import (
+	"math/rand/v2"
+	"slices"
+)
 
 const maxCombatIterations = 200
 
@@ -190,7 +193,7 @@ func (c *Combat) Animation() CombatAnimation {
 	return CombatAnimation{
 		Player1ID: c.player1ID,
 		Player2ID: c.player2ID,
-		Events:    c.events,
+		Events:    slices.Clone(c.events),
 	}
 }
 

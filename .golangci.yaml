@@ -59,7 +59,7 @@ linters:
       check-type-assertions: true
       check-blank: true
     ireturn:
-      allow: [stdlib, error, Responder$, generic]
+      allow: [stdlib, error, Responder$, generic, github.com/ysomad/gigabg/game]
     nakedret:
       max-func-lines: 1
     nolintlint:
@@ -77,8 +77,5 @@ linters:
         linters: [gosec, promlinter]
       - linters: [errcheck]
         text: (?i)Error return value of .((os\.)?std(out|err)\..*|.*Close|.*Flush|os\.Remove(All)?|.*print(f|ln)?|os\.(Un)?Setenv). is not checked
-      - linters: [errcheck]
-        path: ui/app\.go
-        text: Error return value of .a\.client\.(Buy|Sell|Refresh|Upgrade|EndTurn). is not checked
 formatters:
   enable: [gofumpt]

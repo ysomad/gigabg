@@ -9,7 +9,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/ysomad/gigabg/game/cards"
+	"github.com/ysomad/gigabg/game/card"
 	"github.com/ysomad/gigabg/server"
 	"github.com/ysomad/gigabg/lobby"
 	"github.com/ysomad/gigabg/pkg/httpserver"
@@ -29,7 +29,7 @@ func run(ctx context.Context) error {
 	ctx, notifyCancel := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM, syscall.SIGKILL, syscall.SIGQUIT)
 	defer notifyCancel()
 
-	cardStore, err := cards.New()
+	cardStore, err := card.New()
 	if err != nil {
 		return fmt.Errorf("cards: %w", err)
 	}
