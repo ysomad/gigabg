@@ -64,7 +64,6 @@ type Lobby struct {
 	state             State
 	maxPlayers        int
 	players           []*game.Player
-	catalog           game.CardCatalog
 	pool              *game.CardPool
 	turn              int
 	phase             game.Phase
@@ -87,9 +86,8 @@ func New(cards game.CardCatalog, maxPlayers int) (*Lobby, error) {
 		id:         strconv.Itoa(rand.IntN(100_000_000)),
 		state:      StateWaiting,
 		maxPlayers: maxPlayers,
-		players:    make([]*game.Player, 0, maxPlayers),
-		catalog:    cards,
-		pool:       game.NewCardPool(cards, maxPlayers),
+		players: make([]*game.Player, 0, maxPlayers),
+		pool:    game.NewCardPool(cards, maxPlayers),
 	}, nil
 }
 
@@ -430,9 +428,6 @@ func (l *Lobby) Phase() game.Phase {
 func (l *Lobby) PhaseEndTimestamp() int64 {
 	return l.phaseEndTimestamp
 }
-
-// Catalog returns the card catalog.
-func (l *Lobby) Catalog() game.CardCatalog { return l.catalog }
 
 // CombatResults returns combat results for the given player (last 3).
 func (l *Lobby) CombatResults(playerID string) []game.CombatResult {

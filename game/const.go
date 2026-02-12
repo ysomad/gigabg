@@ -27,3 +27,5 @@ const (
 )
 
 const discoverCount = 3
+
+const TripleRewardID = "triple_reward"

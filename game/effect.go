@@ -53,7 +53,7 @@ var (
 type EffectContext struct {
 	Source        *Minion   // minion that triggered the effect
 	Board         *Board    // player's board
-	Hand          *[]Card   // player's hand (pointer so effects can append)
+	Hand          *Hand     // player's hand
 	Shop          *Shop     // player's shop (nil during combat)
 	Pool          *CardPool // shared card pool (nil during combat)
 	OpponentBoard *Board    // opponent's board (nil outside combat)
@@ -203,15 +203,24 @@ func (e *DestroyMinion) golden() Effect {
 }
 
 // AddCard adds cards to the player's hand.
+// When TemplateID is set, adds that specific card template (ignores filters).
 type AddCard struct {
-	Tribe Tribe
-	Tier  Tier
-	Kind  CardKind
-	Count int
+	TemplateID string
+	Tribe      Tribe
+	Tier       Tier
+	Kind       CardKind
+	Count      int
 }
 
 func (e *AddCard) Apply(ctx EffectContext) {
-	panic("AddCard.Apply not implemented")
+	if e.TemplateID != "" {
+		tmpl := ctx.Pool.ByTemplateID(e.TemplateID)
+		if tmpl != nil && !ctx.Hand.IsFull() {
+			ctx.Hand.Add(NewCard(tmpl))
+		}
+		return
+	}
+	panic("AddCard.Apply: filter mode not implemented")
 }
 
 func (e *AddCard) golden() Effect {

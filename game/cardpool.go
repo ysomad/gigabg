@@ -29,6 +29,11 @@ func spellCopies() map[Tier]int {
 	}
 }
 
+// scaleCopies scales base 8-player copies for the actual player count.
+func scaleCopies(base, players int) int {
+	return max(1, base*players/MaxPlayers)
+}
+
 // CardCatalog provides access to card templates.
 type CardCatalog interface {
 	ByTemplateID(id string) CardTemplate
@@ -40,11 +45,6 @@ type CardPool struct {
 	cards      CardCatalog
 	quantities map[string]int          // template ID → available copies
 	byTier     map[Tier][]CardTemplate // pool templates indexed by tier
-}
-
-// scaleCopies scales base 8-player copies for the actual player count.
-func scaleCopies(base, players int) int {
-	return max(1, base*players/MaxPlayers)
 }
 
 // NewCardPool creates a new card pool with finite quantities per template.
@@ -75,7 +75,7 @@ func NewCardPool(cards CardCatalog, players int) *CardPool {
 			pool.byTier[tier] = append(pool.byTier[tier], tmpl)
 		}
 
-		slog.Info("card pool",
+		slog.Debug("card pool",
 			"tier", tier,
 			"minions", len(minions),
 			"minion_copies", mCopies,
@@ -101,6 +101,11 @@ func (p *CardPool) Roll(maxTier Tier, count int) []Card {
 func (p *CardPool) RollDiscover(tier Tier, tribe Tribe, kind CardKind) []Card {
 	templates := p.filter(p.byTier[tier], tribe, kind)
 	return p.roll(templates, discoverCount)
+}
+
+// ByTemplateID returns a card template by ID from the catalog.
+func (p *CardPool) ByTemplateID(id string) CardTemplate {
+	return p.cards.ByTemplateID(id)
 }
 
 // ReturnCard returns a card to the pool. Skips golden cards and cards not in the pool.

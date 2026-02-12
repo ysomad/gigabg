@@ -26,6 +26,8 @@ func run(ctx context.Context) error {
 	port := flag.Int("port", 8080, "server port")
 	flag.Parse()
 
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})))
+
 	ctx, notifyCancel := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM, syscall.SIGKILL, syscall.SIGQUIT)
 	defer notifyCancel()
 

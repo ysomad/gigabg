@@ -20,6 +20,8 @@ func main() {
 	serverAddr := flag.String("addr", "localhost:8080", "game server address")
 	flag.Parse()
 
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})))
+
 	cards, err := catalog.New()
 	if err != nil {
 		slog.Error("card catalog", "error", err)

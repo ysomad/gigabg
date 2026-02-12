@@ -5,7 +5,7 @@ import "github.com/ysomad/gigabg/game"
 // spells returns all spell card templates.
 func spells() map[string]*template {
 	return map[string]*template{
-		"triple_reward": {
+		game.TripleRewardID: {
 			kind:        game.CardKindSpell,
 			name:        "Triple Reward",
 			description: "Discover a minion from a higher tavern tier.",

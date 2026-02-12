@@ -25,9 +25,9 @@ type Player struct {
 	maxGold   int
 	placement int
 	shop      Shop
-	board     Board  // minions on board
-	hand      []Card // can hold minions and spells
-	discover  []Card // pending discover options
+	board    Board  // minions on board
+	hand     Hand   // can hold minions and spells
+	discover []Card // pending discover options
 }
 
 func NewPlayer(id string) *Player {
@@ -36,9 +36,9 @@ func NewPlayer(id string) *Player {
 		hp:      initialHP,
 		gold:    initialGold,
 		maxGold: maxGold,
-		shop:    Shop{tier: 1},
-		board:   NewBoard(maxBoardSize),
-		hand:    make([]Card, 0, maxHandSize),
+		shop:  Shop{tier: 1},
+		board: NewBoard(maxBoardSize),
+		hand:  NewHand(),
 	}
 }
 
@@ -50,11 +50,11 @@ func (p *Player) Placement() int     { return p.placement }
 func (p *Player) SetPlacement(n int) { p.placement = n }
 func (p *Player) Shop() Shop         { return p.shop }
 
-// Hand returns a copy of the player's hand.
-func (p *Player) Hand() []Card { return slices.Clone(p.hand) }
+// Hand returns a copy of the player's hand cards.
+func (p *Player) Hand() []Card { return p.hand.Cards() }
 
 // HandSize returns the number of cards in hand.
-func (p *Player) HandSize() int { return len(p.hand) }
+func (p *Player) HandSize() int { return p.hand.Len() }
 
 // Discover returns a copy of the pending discover choices.
 func (p *Player) Discover() []Card { return slices.Clone(p.discover) }
@@ -91,7 +91,7 @@ func (p *Player) BuyCard(shopIndex int) error {
 	if shopIndex < 0 || shopIndex >= len(p.shop.cards) {
 		return ErrInvalidIndex
 	}
-	if len(p.hand) >= maxHandSize {
+	if p.hand.IsFull() {
 		return ErrHandFull
 	}
 
@@ -101,7 +101,7 @@ func (p *Player) BuyCard(shopIndex int) error {
 	}
 
 	card, _ := p.shop.BuyCard(shopIndex)
-	p.hand = append(p.hand, card)
+	p.hand.Add(card)
 	p.gold -= cost
 	return nil
 }
@@ -122,30 +122,33 @@ func (p *Player) SellMinion(boardIndex int, pool *CardPool) error {
 	return nil
 }
 
-// PlaceMinion moves a minion from hand to board.
-// When a golden minion is placed, a Triple Reward spell is added to hand.
-func (p *Player) PlaceMinion(handIndex, boardPosition int, cards CardCatalog) error {
-	if handIndex < 0 || handIndex >= len(p.hand) {
+// PlaceMinion moves a minion from hand to board and executes its Battlecry effects.
+func (p *Player) PlaceMinion(handIndex, boardPosition int, pool *CardPool) error {
+	if handIndex < 0 || handIndex >= p.hand.Len() {
 		return ErrInvalidIndex
 	}
 	if p.board.IsFull() {
 		return ErrBoardFull
 	}
 
-	card := p.hand[handIndex]
+	card := p.hand.CardAt(handIndex)
 	minion, ok := card.(*Minion)
 	if !ok {
 		return ErrInvalidIndex
 	}
 
-	p.hand = append(p.hand[:handIndex], p.hand[handIndex+1:]...)
+	p.hand.Remove(handIndex)
 	p.board.PlaceMinion(minion, boardPosition)
 
-	// Golden minion placement grants Triple Reward spell
-	if minion.IsGolden() {
-		if tmpl := cards.ByTemplateID("triple_reward"); tmpl != nil && len(p.hand) < maxHandSize {
-			p.hand = append(p.hand, NewSpell(tmpl))
-		}
+	for _, e := range minion.EffectsByTrigger(TriggerBattlecry) {
+		e.Apply(EffectContext{
+			Source:   minion,
+			Board:    &p.board,
+			Hand:     &p.hand,
+			Shop:     &p.shop,
+			Pool:     pool,
+			Discover: &p.discover,
+		})
 	}
 
 	return nil
@@ -156,12 +159,12 @@ func (p *Player) RemoveMinion(boardIndex int) error {
 	if boardIndex < 0 || boardIndex >= p.board.Len() {
 		return ErrInvalidIndex
 	}
-	if len(p.hand) >= maxHandSize {
+	if p.hand.IsFull() {
 		return ErrHandFull
 	}
 
 	minion := p.board.RemoveMinion(boardIndex)
-	p.hand = append(p.hand, minion)
+	p.hand.Add(minion)
 	return nil
 }
 
@@ -216,8 +219,8 @@ func (p *Player) CheckTriples() bool {
 		groups[tid] = append(groups[tid], loc{board: true, index: i})
 		instances[tid] = append(instances[tid], m)
 	}
-	for i, c := range p.hand {
-		m, ok := c.(*Minion)
+	for i := range p.hand.Len() {
+		m, ok := p.hand.CardAt(i).(*Minion)
 		if !ok || m.IsGolden() {
 			continue
 		}
@@ -249,11 +252,9 @@ func (p *Player) CheckTriples() bool {
 		for _, idx := range boardIdxs {
 			p.board.RemoveMinion(idx)
 		}
-		for _, idx := range handIdxs {
-			p.hand = slices.Delete(p.hand, idx, idx+1)
-		}
+		p.hand.RemoveDesc(handIdxs)
 
-		p.hand = append(p.hand, instances[tid][0].MergeGolden(instances[tid][1]))
+		p.hand.Add(instances[tid][0].MergeGolden(instances[tid][1]))
 		return true
 	}
 
@@ -262,11 +263,11 @@ func (p *Player) CheckTriples() bool {
 
 // PlaySpell plays a spell from hand.
 func (p *Player) PlaySpell(handIndex int, pool *CardPool) error {
-	if handIndex < 0 || handIndex >= len(p.hand) {
+	if handIndex < 0 || handIndex >= p.hand.Len() {
 		return ErrInvalidIndex
 	}
 
-	spell, ok := p.hand[handIndex].(*Spell)
+	spell, ok := p.hand.CardAt(handIndex).(*Spell)
 	if !ok {
 		return ErrNotASpell
 	}
@@ -275,10 +276,8 @@ func (p *Player) PlaySpell(handIndex int, pool *CardPool) error {
 		return ErrDiscoverPending
 	}
 
-	// Remove spell from hand
-	p.hand = append(p.hand[:handIndex], p.hand[handIndex+1:]...)
+	p.hand.Remove(handIndex)
 
-	// Execute spell effects
 	ctx := EffectContext{
 		Board:    &p.board,
 		Hand:     &p.hand,
@@ -303,7 +302,7 @@ func (p *Player) DiscoverPick(index int, pool *CardPool) error {
 	if index < 0 || index >= len(p.discover) {
 		return ErrInvalidIndex
 	}
-	if len(p.hand) >= maxHandSize {
+	if p.hand.IsFull() {
 		return ErrHandFull
 	}
 
@@ -314,7 +313,7 @@ func (p *Player) DiscoverPick(index int, pool *CardPool) error {
 		}
 	}
 
-	p.hand = append(p.hand, p.discover[index])
+	p.hand.Add(p.discover[index])
 	p.discover = nil
 	return nil
 }
@@ -329,13 +328,13 @@ func (p *Player) ResolveDiscover(pool *CardPool) {
 		return
 	}
 
-	if len(p.hand) >= maxHandSize {
+	if p.hand.IsFull() {
 		pool.ReturnCards(p.discover)
 		return
 	}
 
 	idx := rand.IntN(len(p.discover)) //nolint:gosec // game logic, not crypto
-	p.hand = append(p.hand, p.discover[idx])
+	p.hand.Add(p.discover[idx])
 
 	for i, c := range p.discover {
 		if i != idx {

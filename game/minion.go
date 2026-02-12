@@ -125,15 +125,20 @@ func (m *Minion) EffectsByTrigger(t Trigger) []Effect {
 }
 
 // MergeGolden combines two copies into a golden minion.
-// Stats = sum of both copies (retains buffs). Effects = doubled from template.
+// Stats = sum of both copies (retains buffs). Effects = doubled from template + Battlecry triple reward.
 func (m *Minion) MergeGolden(other *Minion) *Minion {
+	effects := m.template.GoldenEffects()
+	effects = append(effects, TriggeredEffect{
+		Trigger: TriggerBattlecry,
+		Effect:  &AddCard{TemplateID: TripleRewardID},
+	})
 	return &Minion{
 		template: m.template,
 		attack:   m.attack + other.attack,
 		health:   m.health + other.health,
 		golden:   true,
 		keywords: m.template.Keywords(),
-		effects:  m.template.GoldenEffects(),
+		effects:  effects,
 	}
 }
 
