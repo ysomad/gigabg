@@ -108,6 +108,8 @@ func buildAnimBoard(cards []api.Card) []animMinion {
 
 // Update advances animation state. Returns true when all animations are done.
 func (cp *combatPanel) Update(dt float64) bool {
+	cp.cr.Tick++
+
 	if cp.done {
 		return true
 	}
