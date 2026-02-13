@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log/slog"
+	"math/rand/v2"
 	"os"
 	"time"
 
@@ -18,6 +20,8 @@ import (
 
 func main() {
 	serverAddr := flag.String("addr", "localhost:8080", "game server address")
+	devLobby := flag.String("dev-lobby", "", "dev lobby ID to auto-join with a random player name")
+	debug := flag.Bool("debug", false, "enable debug overlay on start")
 	flag.Parse()
 
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})))
@@ -33,6 +37,7 @@ func main() {
 		slog.Error("init app failed", "error", err)
 		return
 	}
+	app.SetDebug(*debug)
 
 	httpClient := client.New(*serverAddr)
 
@@ -121,6 +126,13 @@ func main() {
 		app.SwitchScene(scene.NewMenu(app.Font(), onJoin, onCreate))
 	}
 	showMenu()
+
+	if *devLobby != "" {
+		adj := []string{"swift", "brave", "wild", "calm", "bold", "keen", "warm", "cool", "fair", "wise"}
+		noun := []string{"fox", "bear", "wolf", "hawk", "deer", "lynx", "owl", "elk", "ram", "jay"}
+		name := fmt.Sprintf("%s-%s", adj[rand.IntN(len(adj))], noun[rand.IntN(len(noun))])
+		onJoin(name, *devLobby)
+	}
 
 	ebiten.SetWindowSize(ui.BaseWidth, ui.BaseHeight)
 	ebiten.SetWindowTitle("GIGA Battlegrounds")

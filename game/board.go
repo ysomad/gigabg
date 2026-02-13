@@ -29,6 +29,16 @@ func (b Board) MinionAt(i int) *Minion {
 	return b.minions[i]
 }
 
+// IndexOf returns the index of the given minion, or -1 if not found.
+func (b Board) IndexOf(m *Minion) int {
+	for i, min := range b.minions {
+		if min == m {
+			return i
+		}
+	}
+	return -1
+}
+
 // Minions returns a copy of the minions slice.
 func (b Board) Minions() []*Minion { return slices.Clone(b.minions) }
 

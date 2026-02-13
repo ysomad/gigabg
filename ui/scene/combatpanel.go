@@ -23,7 +23,7 @@ const (
 	attackBackDuration  = 0.8
 	damageIndicatorTime = 1.5
 	poisonIndicatorTime = 0.8
-	deathFadeDuration   = 0.4
+	deathFadeDuration = 0.4
 	eventPause          = 0.5
 )
 
@@ -387,6 +387,8 @@ func (cp *combatPanel) minionPos(lay ui.GameLayout, idx int, isPlayer bool) (flo
 	r := ui.CardRect(zone, idx, len(board), lay.CardW, lay.CardH, lay.Gap)
 	return r.X, r.Y
 }
+
+// startCleaveSlash begins a blade trail effect if the attacker has Cleave.
 
 // drawOpponentBoard renders opponent minions with animations into the Shop zone.
 func (cp *combatPanel) drawOpponentBoard(screen *ebiten.Image, lay ui.GameLayout) {

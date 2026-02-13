@@ -2,9 +2,12 @@ package ui
 
 import (
 	"bytes"
+	"fmt"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/examples/resources/fonts"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
 	"golang.org/x/image/font/gofont/gobold"
 )
@@ -25,6 +28,7 @@ type App struct {
 	boldFontSource *text.GoTextFaceSource
 	font           *text.GoTextFace
 	boldFont       *text.GoTextFace
+	debug          bool
 }
 
 func NewApp() (*App, error) {
@@ -60,7 +64,13 @@ func (a *App) ShowOverlay(o Overlay) { a.overlay = o }
 // HideOverlay removes the current overlay.
 func (a *App) HideOverlay() { a.overlay = nil }
 
+// SetDebug enables or disables the debug overlay.
+func (a *App) SetDebug(on bool) { a.debug = on }
+
 func (a *App) Update() error {
+	if inpututil.IsKeyJustPressed(ebiten.KeyF3) {
+		a.debug = !a.debug
+	}
 	a.font.Size = baseFontSize * ActiveRes.Scale()
 	a.boldFont.Size = baseFontSize * ActiveRes.Scale()
 	if a.overlay != nil {
@@ -75,6 +85,29 @@ func (a *App) Draw(screen *ebiten.Image) {
 	if a.overlay != nil {
 		a.overlay.Draw(screen)
 	}
+	if a.debug {
+		a.drawDebug(screen)
+	}
+}
+
+func (a *App) drawDebug(screen *ebiten.Image) {
+	cx, cy := ebiten.CursorPosition()
+	s := ActiveRes.Scale()
+	bx := (float64(cx) - ActiveRes.OffsetX()) / s
+	by := (float64(cy) - ActiveRes.OffsetY()) / s
+
+	ww, wh := ebiten.WindowSize()
+	var dbg ebiten.DebugInfo
+	ebiten.ReadDebugInfo(&dbg)
+
+	msg := fmt.Sprintf(
+		"TPS: %.1f  FPS: %.1f\nWindow: %dx%d  Scale: %.2f\nCursor: %d,%d  Base: %.0f,%.0f\nGPU: %s  VRAM: %d KB",
+		ebiten.ActualTPS(), ebiten.ActualFPS(),
+		ww, wh, s,
+		cx, cy, bx, by,
+		dbg.GraphicsLibrary, dbg.TotalGPUImageMemoryUsageInBytes/1024,
+	)
+	ebitenutil.DebugPrintAt(screen, msg, 4, ActiveRes.Height-64)
 }
 
 func (a *App) Layout(outsideWidth, outsideHeight int) (int, int) {

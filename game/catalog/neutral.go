@@ -27,6 +27,13 @@ func neutrals() map[string]*template {
 			health:   1,
 			keywords: game.NewKeywords(game.KeywordVenomous),
 		},
+		"cleave_brute": {
+			name:     "Cleave Brute",
+			tier:     game.Tier1,
+			attack:   2,
+			health:   2,
+			keywords: game.NewKeywords(game.KeywordCleave),
+		},
 		// Tier 2
 		"spawn_of_nzoth": {
 			name:        "Spawn of N'Zoth",

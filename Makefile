@@ -4,6 +4,8 @@ export
 export GOOSE_DRIVER=postgres
 export GOOSE_DBSTRING=${PG_URL}
 
+DEV_LOBBY ?= 1
+
 .PHONY: run
 run:
 	go run .
@@ -18,7 +20,7 @@ lint:
 
 .PHONY: server
 server:
-	air --build.cmd "go build -o ./tmp/server ./cmd/server" --build.bin "./tmp/server"
+	air --build.cmd "go build -o ./tmp/server ./cmd/server" --build.bin "./tmp/server" --build.args_bin "-dev-lobby,$(DEV_LOBBY)"
 
 .PHONY: client
 client:
@@ -26,7 +28,7 @@ client:
 
 .PHONY: clients
 clients:
-	go run ./cmd/client & go run ./cmd/client
+	go run ./cmd/client -dev-lobby $(DEV_LOBBY) -debug & go run ./cmd/client -dev-lobby $(DEV_LOBBY) -debug
 
 .PHONY: wasm
 wasm:

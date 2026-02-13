@@ -40,9 +40,9 @@ type Combat struct {
 	events       []CombatEvent
 	player1ID    string
 	player2ID    string
-	player1Board Board              // snapshot with combat IDs
-	player2Board Board              // snapshot with combat IDs
-	poisonKilled map[int]struct{}   // combat IDs killed by poison/venom this attack
+	player1Board Board            // snapshot with combat IDs
+	player2Board Board            // snapshot with combat IDs
+	poisonKilled map[int]struct{} // combat IDs killed by poison/venom this attack
 }
 
 // NewCombat creates a combat with cloned boards.
@@ -139,14 +139,43 @@ func (c *Combat) attack(src, dst *Minion) {
 	})
 
 	c.poisonKilled = make(map[int]struct{})
+	defenderID := c.defender.player.ID()
 
-	hitDst := c.dealDamage(src, dst, src.Attack(), c.defender.player.ID())
+	// Simultaneous damage exchange.
+	hitDst := c.dealDamage(src, dst, src.Attack(), defenderID)
 	hitSrc := c.dealDamage(dst, src, dst.Attack(), c.attacker.player.ID())
 
-	// Poisonous: kills target on damage (permanent).
-	// Venomous: kills target on damage (one-time, keyword consumed).
-	c.applyPoison(src, dst, hitDst, c.defender.player.ID())
+	// Cleave: damage minions adjacent to the target.
+	c.applyCleave(src, dst, defenderID)
+
+	// Poison/Venom: main target first (may consume Venomous), then cleave targets.
+	c.applyPoison(src, dst, hitDst, defenderID)
 	c.applyPoison(dst, src, hitSrc, c.attacker.player.ID())
+}
+
+// applyCleave deals attacker's damage to minions adjacent to the target
+// and applies poison to each hit target.
+func (c *Combat) applyCleave(src, dst *Minion, defenderID string) {
+	if !src.HasKeyword(KeywordCleave) {
+		return
+	}
+
+	idx := c.defender.board.IndexOf(dst)
+	if idx < 0 {
+		return
+	}
+
+	for _, adj := range [2]*Minion{
+		c.defender.board.MinionAt(idx - 1),
+		c.defender.board.MinionAt(idx + 1),
+	} {
+		if adj == nil {
+			continue
+		}
+		hit := c.dealDamage(src, adj, src.Attack(), defenderID)
+		c.applyPoison(src, adj, hit, defenderID)                  // src's poison kills adj
+		c.applyPoison(adj, src, hit, c.attacker.player.ID()) // adj's poison/venom kills src
+	}
 }
 
 // applyPoison checks if src has Poisonous or Venomous and kills dst if damage was dealt.

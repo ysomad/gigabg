@@ -12,6 +12,13 @@ func pirates() map[string]*template {
 			attack: 1,
 			health: 2,
 		},
+		"cutlass_courier": {
+			name:     "Cutlass Courier",
+			tier:     game.Tier1,
+			attack:   2,
+			health:   1,
+			keywords: game.NewKeywords(game.KeywordCleave),
+		},
 
 		// Tier 2
 		"yo_ho_ogre": {

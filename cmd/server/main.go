@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/ysomad/gigabg/game"
 	"github.com/ysomad/gigabg/game/catalog"
 	"github.com/ysomad/gigabg/lobby"
 	"github.com/ysomad/gigabg/pkg/httpserver"
@@ -24,6 +25,7 @@ func main() {
 
 func run(ctx context.Context) error {
 	port := flag.Int("port", 8080, "server port")
+	devLobby := flag.String("dev-lobby", "", "create a 2-player dev lobby with this ID on start")
 	flag.Parse()
 
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})))
@@ -38,14 +40,10 @@ func run(ctx context.Context) error {
 
 	memstore := lobby.NewMemoryStore()
 
-	testLobby, err := lobby.New(cards, 2)
-	if err != nil {
-		return err
-	}
-	testLobby.SetID("1")
-
-	if err := memstore.CreateLobby(testLobby); err != nil {
-		return err
+	if *devLobby != "" {
+		if err := createDevLobby(memstore, cards, *devLobby); err != nil {
+			return fmt.Errorf("dev lobby: %w", err)
+		}
 	}
 
 	gameServer := server.New(memstore, cards)
@@ -63,5 +61,18 @@ func run(ctx context.Context) error {
 		slog.WarnContext(ctx, "httpserver: shutdown: "+err.Error())
 	}
 
+	return nil
+}
+
+func createDevLobby(store *lobby.MemoryStore, cards game.CardCatalog, id string) error {
+	l, err := lobby.New(cards, 2)
+	if err != nil {
+		return err
+	}
+	l.SetID(id)
+	if err := store.CreateLobby(l); err != nil {
+		return err
+	}
+	slog.Info("dev lobby created", "id", id)
 	return nil
 }
