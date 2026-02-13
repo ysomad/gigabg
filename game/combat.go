@@ -131,6 +131,17 @@ func (c *Combat) Run() (r1, r2 CombatResult) {
 
 // attack performs simultaneous damage exchange between two minions.
 func (c *Combat) attack(src, dst *Minion) {
+	// Stealth is lost when the minion attacks.
+	if src.HasKeyword(KeywordStealth) {
+		src.RemoveKeyword(KeywordStealth)
+		c.emit(CombatEvent{
+			Type:     CombatEventRemoveKeyword,
+			TargetID: src.combatID,
+			Keyword:  KeywordStealth,
+			OwnerID:  c.attacker.player.ID(),
+		})
+	}
+
 	c.emit(CombatEvent{
 		Type:     CombatEventAttack,
 		SourceID: src.combatID,

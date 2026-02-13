@@ -101,26 +101,27 @@ func (r *CardRenderer) DrawShopCard(screen *ebiten.Image, c api.Card, rect ui.Re
 }
 
 func (r *CardRenderer) drawShopMinion(screen *ebiten.Image, c api.Card, rect ui.Rect) {
-	r.drawEllipseBase(screen, rect, color.RGBA{35, 40, 70, 255}, c.IsGolden, false, 255, c.Keywords, c.Attack, c.Health)
+	r.drawEllipseBase(screen, rect, color.RGBA{35, 40, 70, 255}, c.IsGolden, false, 255, c.Keywords)
 
 	t := r.Cards.ByTemplateID(c.TemplateID)
 
 	// Image placeholder (center).
 	ui.DrawText(screen, r.Font, c.TemplateID, rect.X+rect.W*0.15, rect.Y+rect.H*0.42, color.RGBA{100, 100, 120, 255})
 
-	// Tier (top, gold).
-	if t != nil && t.Tier().IsValid() {
-		ui.DrawText(screen, r.Font, "T"+strconv.Itoa(int(t.Tier())),
-			rect.X+rect.W*0.42, rect.Y+rect.H*0.15,
-			color.RGBA{255, 215, 0, 255})
-	}
-
 	// Keywords (below placeholder).
 	r.drawKeywords(screen, c.Keywords, rect, 255)
+
+	// Keyword effects on top of text/art.
+	r.drawKeywordEffects(screen, rect, c.Keywords, 255, c.Attack, c.Health)
+
+	// Tier badge on top of everything.
+	if t != nil && t.Tier().IsValid() {
+		r.drawTierBadge(screen, int(t.Tier()), rect.X+rect.W*0.5, rect.Y-rect.H*0.02, rect.W*0.144, 255)
+	}
 }
 
 func (r *CardRenderer) drawShopSpell(screen *ebiten.Image, c api.Card, rect ui.Rect) {
-	r.drawEllipseBase(screen, rect, color.RGBA{70, 35, 100, 255}, c.IsGolden, true, 255, 0, 0, 0)
+	r.drawEllipseBase(screen, rect, color.RGBA{70, 35, 100, 255}, c.IsGolden, true, 255, 0)
 
 	t := r.Cards.ByTemplateID(c.TemplateID)
 	name, _, _ := r.cardInfo(c)
@@ -153,13 +154,16 @@ func (r *CardRenderer) DrawMinion(screen *ebiten.Image, c api.Card, rect ui.Rect
 	if flashPct > 0.7 {
 		bg = color.RGBA{200, 200, 220, alpha}
 	}
-	r.drawEllipseBase(screen, rect, bg, c.IsGolden, false, alpha, c.Keywords, c.Attack, c.Health)
+	r.drawEllipseBase(screen, rect, bg, c.IsGolden, false, alpha, c.Keywords)
 
 	// Image placeholder (center).
 	ui.DrawText(screen, r.Font, c.TemplateID, rect.X+rect.W*0.15, rect.Y+rect.H*0.42, color.RGBA{100, 100, 120, alpha})
 
 	// Keywords (below placeholder).
 	r.drawKeywords(screen, c.Keywords, rect, alpha)
+
+	// Keyword effects on top of text/art.
+	r.drawKeywordEffects(screen, rect, c.Keywords, alpha, c.Attack, c.Health)
 }
 
 // drawKeywords renders keyword labels below the card center.
@@ -170,6 +174,53 @@ func (r *CardRenderer) drawKeywords(screen *ebiten.Image, kw game.Keywords, rect
 			rect.X+rect.W*0.20, kwY,
 			color.RGBA{180, 220, 140, alpha})
 		kwY += rect.H * 0.08
+	}
+}
+
+// drawKeywordEffects draws all keyword visual effects on top of text and art.
+// Badges are drawn after stealth but before divine shield so they stay visible.
+func (r *CardRenderer) drawKeywordEffects(
+	screen *ebiten.Image,
+	rect ui.Rect,
+	keywords game.Keywords,
+	alpha uint8,
+	attack, health int,
+) {
+	sr := rect.Screen()
+	s := ui.ActiveRes.Scale()
+
+	cx := float32(sr.X + sr.W/2)
+	cy := float32(sr.Y + sr.H/2)
+	rx := float32(sr.W / 2)
+	ry := float32(sr.H / 2)
+
+	if keywords.Has(game.KeywordPoisonous) {
+		r.drawPoisonous(screen, cx, cy+ry*0.95, s, alpha)
+	}
+
+	if keywords.Has(game.KeywordVenomous) {
+		r.drawVenomous(screen, cx, cy+ry*0.95, s, alpha)
+	}
+
+	if keywords.Has(game.KeywordStealth) {
+		r.drawStealth(screen, cx, cy, rx, ry, s, alpha)
+	}
+
+	// Badges on top of effects but below windfury and divine shield.
+	badgeR := rect.W * 0.11
+	bcx, bcy := rect.X+rect.W*0.5, rect.Y+rect.H*0.5
+	brx, bry := rect.W*0.5, rect.H*0.5
+	angle := math.Pi * 0.75
+	r.drawAttackBadge(screen, attack, bcx+brx*math.Cos(angle), bcy+bry*math.Sin(angle), badgeR, alpha)
+	r.drawHealthBadge(screen, health, bcx+brx*math.Cos(math.Pi-angle), bcy+bry*math.Sin(math.Pi-angle), badgeR, alpha)
+
+	// Wind streaks in front of the minion (back pass is in drawEllipseBase).
+	if keywords.Has(game.KeywordWindfury) {
+		r.drawWindfury(screen, cx, cy, ry, s, alpha, true)
+	}
+
+	if keywords.Has(game.KeywordDivineShield) {
+		r.drawDivineShield(screen, cx, cy, rx, ry, s, alpha)
 	}
 }
 
@@ -196,7 +247,6 @@ func (r *CardRenderer) drawRectBase(
 func (r *CardRenderer) drawEllipseBase(
 	screen *ebiten.Image, rect ui.Rect, bg color.RGBA,
 	golden, spell bool, alpha uint8, keywords game.Keywords,
-	attack, health int,
 ) {
 	sr := rect.Screen()
 	s := ui.ActiveRes.Scale()
@@ -206,6 +256,7 @@ func (r *CardRenderer) drawEllipseBase(
 	rx := float32(sr.W / 2)
 	ry := float32(sr.H / 2)
 
+	// Taunt shield drawn behind the minion body.
 	if keywords.Has(game.KeywordTaunt) {
 		r.drawTaunt(screen, cx, cy, rx, ry, s, alpha)
 	}
@@ -227,40 +278,6 @@ func (r *CardRenderer) drawEllipseBase(
 		border = color.RGBA{140, 80, 180, alpha}
 	}
 	ui.StrokeEllipse(screen, cx, cy, rx, ry, borderW, border)
-
-	// Attack and health badges (below effects).
-	if !spell {
-		badgeR := rect.W * 0.11
-		bcx, bcy := rect.X+rect.W*0.5, rect.Y+rect.H*0.5
-		brx, bry := rect.W*0.5, rect.H*0.5
-		angle := math.Pi * 0.75
-		r.drawAttackBadge(screen, attack, bcx+brx*math.Cos(angle), bcy+bry*math.Sin(angle), badgeR, alpha)
-		r.drawHealthBadge(
-			screen,
-			health,
-			bcx+brx*math.Cos(math.Pi-angle),
-			bcy+bry*math.Sin(math.Pi-angle),
-			badgeR,
-			alpha,
-		)
-	}
-
-	// Wind streaks in front of the minion.
-	if keywords.Has(game.KeywordWindfury) {
-		r.drawWindfury(screen, cx, cy, ry, s, alpha, true)
-	}
-
-	if keywords.Has(game.KeywordPoisonous) {
-		r.drawPoisonous(screen, cx, cy+ry*0.95, s, alpha)
-	}
-
-	if keywords.Has(game.KeywordVenomous) {
-		r.drawVenomous(screen, cx, cy+ry*0.95, s, alpha)
-	}
-
-	if keywords.Has(game.KeywordDivineShield) {
-		r.drawDivineShield(screen, cx, cy, rx, ry, s, alpha)
-	}
 }
 
 // drawWindfury draws two crossing orbits of wind ribbons wrapping the minion in 3D.
@@ -495,6 +512,126 @@ func (r *CardRenderer) drawHealthBadge(screen *ebiten.Image, health int, baseX, 
 	text.Draw(screen, strconv.Itoa(health), r.BoldFont, op)
 }
 
+// drawTierBadge draws a shield-shaped badge with golden stars (one per tier level).
+// Shield has deep purple fill with ellipse-matching outline color.
+func (r *CardRenderer) drawTierBadge(screen *ebiten.Image, tier int, baseX, baseY, baseR float64, alpha uint8) {
+	s := ui.ActiveRes.Scale()
+	ox := ui.ActiveRes.OffsetX()
+	oy := ui.ActiveRes.OffsetY()
+
+	cx := float32(baseX*s + ox)
+	cy := float32(baseY*s + oy)
+	radius := float32(baseR * s)
+
+	starR := radius * 0.30
+
+	// Fixed shield size for all tiers.
+	shieldW := radius * 1.3
+	shieldH := radius * 2.6
+
+	// Shield shape: rounded top, tapered bottom point.
+	topY := cy - shieldH*0.4
+	botY := cy + shieldH*0.6
+
+	var shield vector.Path
+	shield.MoveTo(cx, topY)
+	shield.CubicTo(cx+shieldW*0.8, topY, cx+shieldW, topY+shieldH*0.05, cx+shieldW, topY+shieldH*0.15)
+	shield.LineTo(cx+shieldW, topY+shieldH*0.55)
+	shield.CubicTo(cx+shieldW, topY+shieldH*0.75, cx+shieldW*0.3, botY-shieldH*0.05, cx, botY)
+	shield.CubicTo(cx-shieldW*0.3, botY-shieldH*0.05, cx-shieldW, topY+shieldH*0.75, cx-shieldW, topY+shieldH*0.55)
+	shield.LineTo(cx-shieldW, topY+shieldH*0.15)
+	shield.CubicTo(cx-shieldW, topY+shieldH*0.05, cx-shieldW*0.8, topY, cx, topY)
+	shield.Close()
+
+	// Fill: deep purple/magenta.
+	{
+		op := &vector.DrawPathOptions{AntiAlias: true}
+		op.ColorScale.ScaleWithColor(color.RGBA{55, 15, 75, alpha})
+		vector.FillPath(screen, &shield, nil, op)
+	}
+
+	// Outline: same color as ellipse border.
+	{
+		op := &vector.DrawPathOptions{AntiAlias: true}
+		op.ColorScale.ScaleWithColor(color.RGBA{80, 80, 100, alpha})
+		vector.StrokePath(screen, &shield, &vector.StrokeOptions{Width: float32(1.5 * s)}, op)
+	}
+
+	// Star positions per tier (offsets from shield center).
+	shieldCY := cy + shieldH*0.05 // visual center of shield content area
+	gap := starR * 1.2            // half gap between stars
+
+	switch tier {
+	case 1:
+		// Single centered star.
+		r.drawStar(screen, cx, shieldCY, starR, alpha)
+	case 2:
+		// Two stars in a row.
+		r.drawStar(screen, cx-gap, shieldCY, starR, alpha)
+		r.drawStar(screen, cx+gap, shieldCY, starR, alpha)
+	case 3:
+		// Triangle: 1 on top, 2 on bottom.
+		r.drawStar(screen, cx, shieldCY-gap, starR, alpha)
+		r.drawStar(screen, cx-gap, shieldCY+gap*0.7, starR, alpha)
+		r.drawStar(screen, cx+gap, shieldCY+gap*0.7, starR, alpha)
+	case 4:
+		// 2x2 grid.
+		r.drawStar(screen, cx-gap, shieldCY-gap*0.7, starR, alpha)
+		r.drawStar(screen, cx+gap, shieldCY-gap*0.7, starR, alpha)
+		r.drawStar(screen, cx-gap, shieldCY+gap*0.7, starR, alpha)
+		r.drawStar(screen, cx+gap, shieldCY+gap*0.7, starR, alpha)
+	case 5:
+		// 2 top, 1 middle, 2 bottom.
+		r.drawStar(screen, cx-gap, shieldCY-gap*1.1, starR, alpha)
+		r.drawStar(screen, cx+gap, shieldCY-gap*1.1, starR, alpha)
+		r.drawStar(screen, cx, shieldCY, starR, alpha)
+		r.drawStar(screen, cx-gap, shieldCY+gap*1.1, starR, alpha)
+		r.drawStar(screen, cx+gap, shieldCY+gap*1.1, starR, alpha)
+	case 6:
+		// 3x2 grid.
+		r.drawStar(screen, cx-gap, shieldCY-gap*1.1, starR, alpha)
+		r.drawStar(screen, cx+gap, shieldCY-gap*1.1, starR, alpha)
+		r.drawStar(screen, cx-gap, shieldCY, starR, alpha)
+		r.drawStar(screen, cx+gap, shieldCY, starR, alpha)
+		r.drawStar(screen, cx-gap, shieldCY+gap*1.1, starR, alpha)
+		r.drawStar(screen, cx+gap, shieldCY+gap*1.1, starR, alpha)
+	}
+}
+
+// drawStar draws a 5-pointed golden star at (cx, cy) with the given outer radius
+// and a thin dark outline.
+func (r *CardRenderer) drawStar(screen *ebiten.Image, cx, cy, outerR float32, alpha uint8) {
+	innerR := outerR * 0.45
+	const points = 5
+
+	var path vector.Path
+	for i := range points * 2 {
+		angle := float64(i)*math.Pi/float64(points) - math.Pi/2
+		rad := outerR
+		if i%2 == 1 {
+			rad = innerR
+		}
+		px := cx + float32(math.Cos(angle))*rad
+		py := cy + float32(math.Sin(angle))*rad
+		if i == 0 {
+			path.MoveTo(px, py)
+		} else {
+			path.LineTo(px, py)
+		}
+	}
+	path.Close()
+
+	// Gold fill.
+	fillOp := &vector.DrawPathOptions{AntiAlias: true}
+	fillOp.ColorScale.ScaleWithColor(color.RGBA{255, 215, 0, alpha})
+	vector.FillPath(screen, &path, nil, fillOp)
+
+	// Thin dark outline.
+	strokeOp := &vector.DrawPathOptions{AntiAlias: true}
+	strokeOp.ColorScale.ScaleWithColor(color.RGBA{40, 30, 0, alpha})
+	vector.StrokePath(screen, &path, &vector.StrokeOptions{Width: outerR * 0.15}, strokeOp)
+}
+
 // drawDivineShield draws a golden glow over the minion using additive blending.
 // Perfect vertical ellipse slightly larger than the portrait.
 func (r *CardRenderer) drawDivineShield(screen *ebiten.Image, cx, cy, rx, ry float32, s float64, alpha uint8) {
@@ -514,6 +651,27 @@ func (r *CardRenderer) drawDivineShield(screen *ebiten.Image, cx, cy, rx, ry flo
 	op := &vector.DrawPathOptions{AntiAlias: true}
 	op.ColorScale.ScaleWithColor(color.RGBA{40, 35, 10, alpha})
 	op.Blend = ebiten.BlendLighter
+	vector.FillPath(screen, &path, nil, op)
+}
+
+// drawStealth draws a dark semi-transparent overlay on the minion, giving a shadowy appearance.
+func (r *CardRenderer) drawStealth(screen *ebiten.Image, cx, cy, rx, ry float32, s float64, alpha uint8) {
+	shrink := float32(2 * s)
+	srx := rx - shrink
+	sry := ry - shrink
+
+	const k = 0.5522847498
+	var path vector.Path
+	path.MoveTo(cx, cy-sry)
+	path.CubicTo(cx+srx*k, cy-sry, cx+srx, cy-sry*k, cx+srx, cy)
+	path.CubicTo(cx+srx, cy+sry*k, cx+srx*k, cy+sry, cx, cy+sry)
+	path.CubicTo(cx-srx*k, cy+sry, cx-srx, cy+sry*k, cx-srx, cy)
+	path.CubicTo(cx-srx, cy-sry*k, cx-srx*k, cy-sry, cx, cy-sry)
+	path.Close()
+
+	a := uint8(float64(alpha) * 0.55)
+	op := &vector.DrawPathOptions{AntiAlias: true}
+	op.ColorScale.ScaleWithColor(color.RGBA{3, 3, 5, a})
 	vector.FillPath(screen, &path, nil, op)
 }
 

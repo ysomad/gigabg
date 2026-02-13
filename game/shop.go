@@ -3,7 +3,7 @@ package game
 import "slices"
 
 // Shop tier upgrade costs (index = current tier).
-var _upgradeCosts = [6]int{0, 5, 7, 8, 9, 10} // tier 1->2 costs 5, etc.
+var _upgradeCosts = [6]int{0, 5, 7, 8, 11, 11} // tier 1->2 costs 5, etc.
 
 type Shop struct {
 	cards    []Card

@@ -45,6 +45,13 @@ func pirates() map[string]*template {
 			attack: 4,
 			health: 4,
 		},
+		"shadow_blade_pirate": {
+			name:     "Shadow Blade Pirate",
+			tier:     game.Tier4,
+			attack:   6,
+			health:   4,
+			keywords: game.NewKeywords(game.KeywordStealth, game.KeywordCleave),
+		},
 
 		// Tier 5
 		"cap_n_hoggarr": {

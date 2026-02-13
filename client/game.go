@@ -341,8 +341,8 @@ func (c *GameClient) SyncBoards(boardOrder, shopOrder []int) error {
 	})
 }
 
-// Discover returns the current discover offer, or nil if none pending.
-func (c *GameClient) Discover() []api.Card {
+// Discovers returns the current discover offer, or nil if none pending.
+func (c *GameClient) Discovers() []api.Card {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	if c.state == nil {

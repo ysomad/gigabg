@@ -17,6 +17,13 @@ func beasts() map[string]*template {
 			attack: 3,
 			health: 2,
 		},
+		"jungle_panther": {
+			name:     "Jungle Panther",
+			tier:     game.Tier2,
+			attack:   4,
+			health:   2,
+			keywords: game.NewKeywords(game.KeywordStealth),
+		},
 		"savannah_highmane": {
 			name:   "Savannah Highmane",
 			tier:   game.Tier3,

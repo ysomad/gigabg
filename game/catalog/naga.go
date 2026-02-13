@@ -29,6 +29,13 @@ func nagas() map[string]*template {
 			attack: 4,
 			health: 5,
 		},
+		"shadow_fin": {
+			name:     "Shadow Fin",
+			tier:     game.Tier3,
+			attack:   5,
+			health:   3,
+			keywords: game.NewKeywords(game.KeywordStealth),
+		},
 
 		// Tier 4
 		"electric_eel": {

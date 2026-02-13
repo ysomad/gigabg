@@ -34,6 +34,13 @@ func neutrals() map[string]*template {
 			health:   2,
 			keywords: game.NewKeywords(game.KeywordCleave),
 		},
+		"sneaky_scout": {
+			name:     "Sneaky Scout",
+			tier:     game.Tier1,
+			attack:   2,
+			health:   1,
+			keywords: game.NewKeywords(game.KeywordStealth),
+		},
 		// Tier 2
 		"spawn_of_nzoth": {
 			name:        "Spawn of N'Zoth",

@@ -450,20 +450,25 @@ func (s *Server) broadcastState(lobbyID string, l *lobby.Lobby) {
 
 func (s *Server) sendPlayerState(client *ClientConn, l *lobby.Lobby, p *game.Player) {
 	state := &api.GameState{
-		Player:            api.NewPlayer(p),
-		Opponents:         api.NewOpponents(l.Players(), client.playerID, api.NewAllCombatResults(l.AllCombatResults()), l.MajorityTribes()),
-		Turn:              l.Turn(),
-		Phase:             l.Phase(),
-		PhaseEndsAt:    l.PhaseEndsAt(),
-		Shop:              api.NewCards(p.Shop().Cards()),
-		IsShopFrozen:      p.Shop().IsFrozen(),
-		Hand:              api.NewCards(p.Hand()),
-		Board:             api.NewCardsFromMinions(p.Board().Minions()),
-		CombatResults:     api.NewCombatResults(l.CombatResults(client.playerID)),
+		Player: api.NewPlayer(p),
+		Opponents: api.NewOpponents(
+			l.Players(),
+			client.playerID,
+			api.NewAllCombatResults(l.AllCombatResults()),
+			l.MajorityTribes(),
+		),
+		Turn:          l.Turn(),
+		Phase:         l.Phase(),
+		PhaseEndsAt:   l.PhaseEndsAt(),
+		Shop:          api.NewCards(p.Shop().Cards()),
+		IsShopFrozen:  p.Shop().IsFrozen(),
+		Hand:          api.NewCards(p.Hand()),
+		Board:         api.NewCardsFromMinions(p.Board().Minions()),
+		CombatResults: api.NewCombatResults(l.CombatResults(client.playerID)),
 	}
 
-	if p.HasDiscover() {
-		state.Discovers = api.NewCards(p.Discover())
+	if p.HasDiscovers() {
+		state.Discovers = api.NewCards(p.Discovers())
 	}
 
 	switch l.Phase() {

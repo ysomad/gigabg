@@ -59,7 +59,7 @@ func (r *recruitPhase) Update(lay ui.GameLayout) error {
 	r.hoverCard = nil
 
 	// Discover overlay blocks all other input.
-	if discover := r.client.Discover(); discover != nil {
+	if discover := r.client.Discovers(); discover != nil {
 		if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
 			r.handleDiscoverClick(lay, discover, mx, my)
 		}
@@ -238,8 +238,13 @@ func (r *recruitPhase) handleDiscoverClick(lay ui.GameLayout, discover []api.Car
 }
 
 // Draw renders the recruit phase.
-func (r *recruitPhase) Draw(screen *ebiten.Image, font *text.GoTextFace, lay ui.GameLayout, turn int, timeRemaining time.Duration) {
-
+func (r *recruitPhase) Draw(
+	screen *ebiten.Image,
+	font *text.GoTextFace,
+	lay ui.GameLayout,
+	turn int,
+	timeRemaining time.Duration,
+) {
 	r.drawHeader(screen, font, lay, turn, timeRemaining)
 	r.drawPlayerStats(screen, font, lay)
 	r.shop.drawButtons(screen, font, lay)
@@ -262,7 +267,7 @@ func (r *recruitPhase) Draw(screen *ebiten.Image, font *text.GoTextFace, lay ui.
 	r.drawDraggedCard(screen, lay)
 	r.drawHoverTooltip(screen, lay)
 
-	if discover := r.client.Discover(); discover != nil {
+	if discover := r.client.Discovers(); discover != nil {
 		r.drawDiscoverOverlay(screen, font, lay, discover)
 	}
 }

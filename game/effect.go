@@ -57,7 +57,7 @@ type EffectContext struct {
 	Shop          *Shop     // player's shop (nil during combat)
 	Pool          *CardPool // shared card pool (nil during combat)
 	OpponentBoard *Board    // opponent's board (nil outside combat)
-	Discover      *[]Card   // discover options output (set by DiscoverCard)
+	Discovers     *[]Card   // discover options output (set by DiscoverCard)
 }
 
 // TriggeredEffect pairs a trigger timing with an effect payload.
@@ -152,11 +152,11 @@ type DiscoverCard struct {
 }
 
 func (e *DiscoverCard) Apply(ctx EffectContext) {
-	if ctx.Shop == nil || ctx.Pool == nil || ctx.Discover == nil {
+	if ctx.Shop == nil || ctx.Pool == nil || ctx.Discovers == nil {
 		return
 	}
 	tier := min(ctx.Shop.Tier()+Tier(e.TierOffset), Tier6)
-	*ctx.Discover = ctx.Pool.RollDiscover(tier, e.Tribe, e.Kind)
+	*ctx.Discovers = ctx.Pool.RollDiscover(tier, e.Tribe, e.Kind)
 }
 
 func (e *DiscoverCard) golden() Effect { return e }

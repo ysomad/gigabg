@@ -25,9 +25,9 @@ type Player struct {
 	maxGold   int
 	placement int
 	shop      Shop
-	board    Board  // minions on board
-	hand     Hand   // can hold minions and spells
-	discover []Card // pending discover options
+	board     Board  // minions on board
+	hand      Hand   // can hold minions and spells
+	discovers []Card // pending discover options
 }
 
 func NewPlayer(id string) *Player {
@@ -36,9 +36,9 @@ func NewPlayer(id string) *Player {
 		hp:      initialHP,
 		gold:    initialGold,
 		maxGold: maxGold,
-		shop:  Shop{tier: 1},
-		board: NewBoard(maxBoardSize),
-		hand:  NewHand(),
+		shop:    Shop{tier: 1},
+		board:   NewBoard(maxBoardSize),
+		hand:    NewHand(),
 	}
 }
 
@@ -56,11 +56,11 @@ func (p *Player) Hand() []Card { return p.hand.Cards() }
 // HandSize returns the number of cards in hand.
 func (p *Player) HandSize() int { return p.hand.Len() }
 
-// Discover returns a copy of the pending discover choices.
-func (p *Player) Discover() []Card { return slices.Clone(p.discover) }
+// Discovers returns a copy of the pending discover choices.
+func (p *Player) Discovers() []Card { return slices.Clone(p.discovers) }
 
-// HasDiscover returns true if the player has pending discover options.
-func (p *Player) HasDiscover() bool { return len(p.discover) > 0 }
+// HasDiscovers returns true if the player has pending discover options.
+func (p *Player) HasDiscovers() bool { return len(p.discovers) > 0 }
 
 // Board returns a copy of the player's board.
 func (p *Player) Board() Board { return p.board.Clone() }
@@ -142,12 +142,12 @@ func (p *Player) PlaceMinion(handIndex, boardPosition int, pool *CardPool) error
 
 	for _, e := range minion.EffectsByTrigger(TriggerBattlecry) {
 		e.Apply(EffectContext{
-			Source:   minion,
-			Board:    &p.board,
-			Hand:     &p.hand,
-			Shop:     &p.shop,
-			Pool:     pool,
-			Discover: &p.discover,
+			Source:    minion,
+			Board:     &p.board,
+			Hand:      &p.hand,
+			Shop:      &p.shop,
+			Pool:      pool,
+			Discovers: &p.discovers,
 		})
 	}
 
@@ -272,18 +272,18 @@ func (p *Player) PlaySpell(handIndex int, pool *CardPool) error {
 		return ErrNotASpell
 	}
 
-	if p.discover != nil {
+	if p.discovers != nil {
 		return ErrDiscoverPending
 	}
 
 	p.hand.Remove(handIndex)
 
 	ctx := EffectContext{
-		Board:    &p.board,
-		Hand:     &p.hand,
-		Shop:     &p.shop,
-		Pool:     pool,
-		Discover: &p.discover,
+		Board:     &p.board,
+		Hand:      &p.hand,
+		Shop:      &p.shop,
+		Pool:      pool,
+		Discovers: &p.discovers,
 	}
 
 	for _, e := range EffectsByTrigger(spell.Template().Effects(), TriggerSpell) {
@@ -296,10 +296,10 @@ func (p *Player) PlaySpell(handIndex int, pool *CardPool) error {
 // DiscoverPick picks one of the discover options and adds it to hand.
 // Unpicked options are returned to the pool.
 func (p *Player) DiscoverPick(index int, pool *CardPool) error {
-	if p.discover == nil {
+	if p.discovers == nil {
 		return ErrNoDiscover
 	}
-	if index < 0 || index >= len(p.discover) {
+	if index < 0 || index >= len(p.discovers) {
 		return ErrInvalidIndex
 	}
 	if p.hand.IsFull() {
@@ -307,14 +307,14 @@ func (p *Player) DiscoverPick(index int, pool *CardPool) error {
 	}
 
 	// Return unpicked options to pool
-	for i, c := range p.discover {
+	for i, c := range p.discovers {
 		if i != index {
 			pool.ReturnCard(c)
 		}
 	}
 
-	p.hand.Add(p.discover[index])
-	p.discover = nil
+	p.hand.Add(p.discovers[index])
+	p.discovers = nil
 	return nil
 }
 
@@ -322,21 +322,21 @@ func (p *Player) DiscoverPick(index int, pool *CardPool) error {
 // If hand is full, all options are returned to the pool.
 // Always clears discover options when done.
 func (p *Player) ResolveDiscover(pool *CardPool) {
-	defer func() { p.discover = nil }()
+	defer func() { p.discovers = nil }()
 
-	if len(p.discover) == 0 {
+	if len(p.discovers) == 0 {
 		return
 	}
 
 	if p.hand.IsFull() {
-		pool.ReturnCards(p.discover)
+		pool.ReturnCards(p.discovers)
 		return
 	}
 
-	idx := rand.IntN(len(p.discover)) //nolint:gosec // game logic, not crypto
-	p.hand.Add(p.discover[idx])
+	idx := rand.IntN(len(p.discovers)) //nolint:gosec // game logic, not crypto
+	p.hand.Add(p.discovers[idx])
 
-	for i, c := range p.discover {
+	for i, c := range p.discovers {
 		if i != idx {
 			pool.ReturnCard(c)
 		}
