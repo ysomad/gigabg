@@ -1,6 +1,8 @@
 package scene
 
 import (
+	"encoding/json"
+	"fmt"
 	"image/color"
 	"log/slog"
 	"math"
@@ -65,6 +67,7 @@ type combatPanel struct {
 	cr       *widget.CardRenderer
 	font     *text.GoTextFace
 	boldFont *text.GoTextFace
+	playerID string
 	turn     int
 
 	playerBoard   []animMinion
@@ -80,12 +83,13 @@ type combatPanel struct {
 
 func newCombatPanel(
 	turn int,
+	playerID string,
 	playerBoard, opponentBoard []api.Card,
 	events []api.CombatEvent,
 	c *catalog.Catalog,
 	font, boldFont *text.GoTextFace,
 ) *combatPanel {
-	slog.Info("combat panel created",
+	slog.Debug("combat panel created",
 		"player_board", len(playerBoard),
 		"opponent_board", len(opponentBoard),
 		"events", len(events))
@@ -93,6 +97,7 @@ func newCombatPanel(
 		cr:            &widget.CardRenderer{Cards: c, Font: font, BoldFont: boldFont},
 		font:          font,
 		boldFont:      boldFont,
+		playerID:      playerID,
 		turn:          turn,
 		playerBoard:   buildAnimBoard(playerBoard),
 		opponentBoard: buildAnimBoard(opponentBoard),
@@ -109,55 +114,65 @@ func buildAnimBoard(cards []api.Card) []animMinion {
 }
 
 // Update advances animation state. Returns true when all animations are done.
-func (cp *combatPanel) Update(dt float64, lay ui.GameLayout) bool {
+//
+// Event processing flow:
+//  1. Tick visual timers (death fades, damage indicators, poison transitions).
+//  2. If an attack animation is in progress, advance it. When the attacker
+//     reaches the target, processEffects consumes all following effect events
+//     (damage, death, keyword removal, reborn) until the next attack or end.
+//  3. Otherwise, scan for the next AttackEvent to start a new animation.
+//  4. When no events, indicators, or dying minions remain, combat is done.
+func (cp *combatPanel) Update(elapsed float64, lay ui.GameLayout) (bool, error) {
 	cp.cr.Tick++
 
 	if cp.done {
-		return true
+		return true, nil
 	}
 
-	cp.updateDeathFades(dt)
-
-	for i := range cp.playerBoard {
-		if cp.playerBoard[i].flash > 0 {
-			cp.playerBoard[i].flash -= dt
-		}
-	}
-	for i := range cp.opponentBoard {
-		if cp.opponentBoard[i].flash > 0 {
-			cp.opponentBoard[i].flash -= dt
-		}
-	}
-
+	// Tick visual timers.
+	cp.updateDeathFades(elapsed)
+	cp.tickFlashTimers(elapsed)
 	cp.startPoisonIndicators()
 
+	// Advance current attack animation; effects are applied on impact.
 	if cp.attackAnim != nil {
-		cp.updateAttackAnim(dt, lay)
-		return false
+		if err := cp.updateAttackAnim(elapsed, lay); err != nil {
+			return false, fmt.Errorf("update attack animation: %w", err)
+		}
+
+		return false, nil
 	}
 
 	if cp.pauseTimer > 0 {
-		cp.pauseTimer -= dt
-		return false
+		cp.pauseTimer -= elapsed
+		return false, nil
 	}
 
+	// Scan for the next AttackEvent to start a new animation.
 	for cp.eventIndex < len(cp.events) {
 		ev := cp.events[cp.eventIndex]
 		cp.eventIndex++
+
 		if ev.Type == game.CombatEventAttack {
-			cp.startAttack(ev, lay)
-			return false
+			var e game.AttackEvent
+			if err := json.Unmarshal(ev.Payload, &e); err != nil {
+				return false, fmt.Errorf("unmarshal attack event: %w", err)
+			}
+			cp.startAttack(e, lay)
+			return false, nil
 		}
 	}
 
+	// All events consumed; wait for remaining visuals to finish.
 	if !cp.hasActiveIndicator() && !cp.hasDying() {
 		cp.done = true
-		return true
+		return true, nil
 	}
-	return false
+
+	return false, nil
 }
 
-func (cp *combatPanel) startAttack(ev api.CombatEvent, lay ui.GameLayout) {
+func (cp *combatPanel) startAttack(ev game.AttackEvent, lay ui.GameLayout) {
 	srcIdx, srcIsPlayer := cp.findMinion(ev.SourceID)
 	dstIdx, dstIsPlayer := cp.findMinion(ev.TargetID)
 	if srcIdx < 0 || dstIdx < 0 {
@@ -181,20 +196,22 @@ func (cp *combatPanel) startAttack(ev api.CombatEvent, lay ui.GameLayout) {
 	}
 }
 
-func (cp *combatPanel) updateAttackAnim(dt float64, lay ui.GameLayout) {
+func (cp *combatPanel) updateAttackAnim(elapsed float64, lay ui.GameLayout) error {
 	a := cp.attackAnim
 
 	switch a.phase {
 	case animPhaseForward:
-		a.progress += dt / attackMoveDuration
+		a.progress += elapsed / attackMoveDuration
 		if a.progress >= 1.0 {
-			cp.consumeHitEvents()
+			if err := cp.processEvents(); err != nil {
+				return err
+			}
 
 			srcIdx, srcIsPlayer := cp.findMinion(a.srcCombatID)
 			if srcIdx < 0 || cp.boardFor(srcIsPlayer)[srcIdx].dying {
 				cp.attackAnim = nil
 				cp.pauseTimer = eventPause
-				return
+				return nil
 			}
 
 			a.srcIdx = srcIdx
@@ -204,7 +221,7 @@ func (cp *combatPanel) updateAttackAnim(dt float64, lay ui.GameLayout) {
 			a.phase = animPhaseBack
 		}
 	case animPhaseBack:
-		a.progress += dt / attackBackDuration
+		a.progress += elapsed / attackBackDuration
 		if a.progress >= 1.0 {
 			board := cp.boardFor(a.srcIsPlayer)
 			if a.srcIdx < len(board) {
@@ -213,14 +230,14 @@ func (cp *combatPanel) updateAttackAnim(dt float64, lay ui.GameLayout) {
 			}
 			cp.attackAnim = nil
 			cp.pauseTimer = eventPause
-			return
+			return nil
 		}
 	}
 
 	board := cp.boardFor(a.srcIsPlayer)
 	if a.srcIdx >= len(board) {
 		cp.attackAnim = nil
-		return
+		return nil
 	}
 
 	switch a.phase {
@@ -233,40 +250,71 @@ func (cp *combatPanel) updateAttackAnim(dt float64, lay ui.GameLayout) {
 		board[a.srcIdx].offsetX = (a.targetX - a.startX) * t
 		board[a.srcIdx].offsetY = (a.targetY - a.startY) * t
 	}
+	return nil
 }
 
-func (cp *combatPanel) applyDamage(ev api.CombatEvent) {
+func (cp *combatPanel) applyDamage(ev game.DamageEvent) error {
 	idx, isPlayer := cp.findMinion(ev.TargetID)
 	if idx < 0 {
-		return
+		return fmt.Errorf("minion %d not found", ev.TargetID)
 	}
 	board := cp.boardFor(isPlayer)
 	board[idx].card.Health -= ev.Amount
 	board[idx].flash = damageIndicatorTime
 	board[idx].dmgText = "-" + strconv.Itoa(ev.Amount)
+	return nil
 }
 
-func (cp *combatPanel) removeKeyword(ev api.CombatEvent) {
+func (cp *combatPanel) removeKeyword(ev game.RemoveKeywordEvent) error {
 	idx, isPlayer := cp.findMinion(ev.TargetID)
 	if idx < 0 {
-		return
+		return fmt.Errorf("minion %d not found", ev.TargetID)
 	}
 	board := cp.boardFor(isPlayer)
 	board[idx].card.Keywords.Remove(ev.Keyword)
+	return nil
 }
 
-func (cp *combatPanel) markDying(ev api.CombatEvent) {
+func (cp *combatPanel) markDying(ev game.DeathEvent) error {
 	idx, isPlayer := cp.findMinion(ev.TargetID)
 	if idx < 0 {
-		return
+		return fmt.Errorf("minion %d not found", ev.TargetID)
 	}
 
 	board := cp.boardFor(isPlayer)
 	if ev.DeathReason == game.DeathReasonPoison {
 		board[idx].poisonDeath = true
-		return
+		return nil
 	}
 	board[idx].dying = true
+	return nil
+}
+
+func (cp *combatPanel) rebornMinion(ev game.RebornEvent) error {
+	t := cp.cr.Cards.ByTemplateID(ev.TemplateID)
+	if t == nil {
+		return fmt.Errorf("unknown template %q", ev.TemplateID)
+	}
+
+	kw := t.Keywords()
+	kw.Remove(game.KeywordReborn)
+
+	card := api.Card{
+		TemplateID: ev.TemplateID,
+		Attack:     t.Attack(),
+		Health:     1,
+		Tribe:      t.Tribe(),
+		Keywords:   kw,
+		CombatID:   ev.TargetID,
+	}
+
+	m := animMinion{card: card, opacity: 1.0}
+	if ev.OwnerID == cp.playerID {
+		cp.playerBoard = append(cp.playerBoard, m)
+	} else {
+		cp.opponentBoard = append(cp.opponentBoard, m)
+	}
+	return nil
 }
 
 // startPoisonIndicators transitions poison-killed minions from damage display
@@ -285,27 +333,53 @@ func (cp *combatPanel) startPoisonIndicators() {
 	start(cp.opponentBoard)
 }
 
-func (cp *combatPanel) consumeHitEvents() {
+func unmarshalApply[T any](payload json.RawMessage, apply func(T) error) error {
+	var e T
+	if err := json.Unmarshal(payload, &e); err != nil {
+		return err
+	}
+	return apply(e)
+}
+
+func (cp *combatPanel) processEvents() error {
 	for cp.eventIndex < len(cp.events) {
 		ev := cp.events[cp.eventIndex]
+		var err error
 		switch ev.Type {
 		case game.CombatEventDamage:
-			cp.applyDamage(ev)
-			cp.eventIndex++
+			err = unmarshalApply(ev.Payload, cp.applyDamage)
 		case game.CombatEventRemoveKeyword:
-			cp.removeKeyword(ev)
-			cp.eventIndex++
+			err = unmarshalApply(ev.Payload, cp.removeKeyword)
 		case game.CombatEventDeath:
-			cp.markDying(ev)
-			cp.eventIndex++
+			err = unmarshalApply(ev.Payload, cp.markDying)
+		case game.CombatEventReborn:
+			err = unmarshalApply(ev.Payload, cp.rebornMinion)
 		default:
-			return
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("process combat event type %d: %w", ev.Type, err)
+		}
+		cp.eventIndex++
+	}
+	return nil
+}
+
+func (cp *combatPanel) tickFlashTimers(elapsed float64) {
+	for i := range cp.playerBoard {
+		if cp.playerBoard[i].flash > 0 {
+			cp.playerBoard[i].flash -= elapsed
+		}
+	}
+	for i := range cp.opponentBoard {
+		if cp.opponentBoard[i].flash > 0 {
+			cp.opponentBoard[i].flash -= elapsed
 		}
 	}
 }
 
-func (cp *combatPanel) updateDeathFades(dt float64) {
-	fade := dt / deathFadeDuration
+func (cp *combatPanel) updateDeathFades(elapsed float64) {
+	fade := elapsed / deathFadeDuration
 	cp.playerBoard = fadeAndRemove(cp.playerBoard, fade)
 	cp.opponentBoard = fadeAndRemove(cp.opponentBoard, fade)
 }

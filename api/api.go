@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/ysomad/gigabg/game"
@@ -120,7 +121,7 @@ type GameState struct {
 	Hand          []Card         `json:"hand,omitempty"`
 	Board         []Card         `json:"board,omitempty"`
 	Discovers     []Card         `json:"discovers,omitempty"`
-	CombatResults []CombatResult `json:"combat_results"`
+	CombatResults []CombatResult `json:"combat_results,omitempty"`
 	OpponentID    string         `json:"opponent_id"`              // combat phase only
 	CombatBoard   []Card         `json:"combat_board,omitempty"`   // combat phase only
 	OpponentBoard []Card         `json:"opponent_board,omitempty"` // combat phase only
@@ -140,46 +141,39 @@ type Opponent struct {
 	ID            string         `json:"id"`
 	HP            int            `json:"hp"`
 	ShopTier      game.Tier      `json:"shop_tier"`
-	CombatResults []CombatResult `json:"combat_results"`
-	MajorityTribe game.Tribe     `json:"majority_tribe"`
-	MajorityCount int            `json:"majority_count"`
+	CombatResults []CombatResult `json:"combat_results,omitempty"`
+	MajorityTribe game.Tribe     `json:"majority_tribe,omitempty"`
+	MajorityCount int            `json:"majority_count,omitempty"`
 }
 
 type Card struct {
 	TemplateID string        `json:"template_id"`
+	Tribe      game.Tribe    `json:"tribe"`
 	Attack     int           `json:"attack"`
 	Health     int           `json:"health"`
-	Cost       int           `json:"cost,omitempty"`
 	IsGolden   bool          `json:"is_golden"`
-	Tribe      game.Tribe    `json:"tribe"`
+	Cost       int           `json:"cost,omitempty"`
 	Keywords   game.Keywords `json:"keywords,omitempty"`
 	CombatID   int           `json:"combat_id,omitempty"` // set only in combat context
 }
 
+// CombatEvent is the JSON envelope: type discriminator + raw payload.
 type CombatEvent struct {
-	Type        game.CombatEventType `json:"type"`
-	SourceID    int                  `json:"source_id"`
-	TargetID    int                  `json:"target_id"`
-	Amount      int                  `json:"amount"`
-	Keyword     game.Keyword         `json:"keyword,omitempty"`
-	DeathReason game.DeathReason     `json:"death_reason,omitempty"`
-	OwnerID     string               `json:"owner_id,omitempty"`
+	Type    game.CombatEventType `json:"type"`
+	Payload json.RawMessage      `json:"payload"`
 }
 
-func NewCombatEvents(events []game.CombatEvent) []CombatEvent {
+// NewCombatEvents encodes game events to JSON envelopes.
+func NewCombatEvents(events []game.CombatEvent) ([]CombatEvent, error) {
 	res := make([]CombatEvent, len(events))
 	for i, ev := range events {
-		res[i] = CombatEvent{
-			Type:        ev.Type,
-			SourceID:    ev.SourceID,
-			TargetID:    ev.TargetID,
-			Amount:      ev.Amount,
-			Keyword:     ev.Keyword,
-			DeathReason: ev.DeathReason,
-			OwnerID:     ev.OwnerID,
+		raw, err := json.Marshal(ev)
+		if err != nil {
+			return nil, fmt.Errorf("event %d: %w", ev.EventType(), err)
 		}
+		res[i] = CombatEvent{Type: ev.EventType(), Payload: raw}
 	}
-	return res
+	return res, nil
 }
 
 type CombatResult struct {
@@ -328,9 +322,9 @@ type PlayerPlacement struct {
 type GameResult struct {
 	WinnerID   string            `json:"winner_id"`
 	Placements []PlayerPlacement `json:"placements"`
-	Duration   int64             `json:"duration"`
-	StartedAt  int64             `json:"started_at"`
-	FinishedAt int64             `json:"finished_at"`
+	Duration   time.Duration     `json:"duration"`
+	StartedAt  time.Time         `json:"started_at"`
+	FinishedAt time.Time         `json:"finished_at"`
 }
 
 func NewGameResult(r *game.GameResult) *GameResult {
@@ -349,8 +343,8 @@ func NewGameResult(r *game.GameResult) *GameResult {
 	return &GameResult{
 		WinnerID:   r.WinnerID,
 		Placements: placements,
-		Duration:   int64(r.Duration.Seconds()),
-		StartedAt:  r.StartedAt.Unix(),
-		FinishedAt: r.FinishedAt.Unix(),
+		Duration:   r.Duration,
+		StartedAt:  r.StartedAt,
+		FinishedAt: r.FinishedAt,
 	}
 }

@@ -113,8 +113,8 @@ func (s *Server) gameLoop() {
 					"turn", l.Turn(),
 					"phase", l.Phase().String(),
 				)
+				s.sendCombatLogs(lobbyID, l)
 				s.broadcastState(lobbyID, l)
-				s.sendCombatAnimations(lobbyID, l)
 
 				if l.State() == lobby.StateFinished {
 					if err := s.store.DeleteLobby(lobbyID); err != nil {
@@ -415,8 +415,8 @@ func (s *Server) handleAction(
 	s.sendPlayerState(client, l, p)
 }
 
-func (s *Server) sendCombatAnimations(lobbyID string, l *lobby.Lobby) {
-	anims := l.CombatAnimations()
+func (s *Server) sendCombatLogs(lobbyID string, l *lobby.Lobby) {
+	anims := l.CombatLogs()
 	if len(anims) == 0 {
 		return
 	}
@@ -425,12 +425,20 @@ func (s *Server) sendCombatAnimations(lobbyID string, l *lobby.Lobby) {
 	defer s.mu.RUnlock()
 
 	clients := s.clients[lobbyID]
+
 	for _, anim := range anims {
 		for _, c := range clients {
 			if c.playerID != anim.Player1ID && c.playerID != anim.Player2ID {
 				continue
 			}
-			s.sendMessage(c, &api.ServerMessage{CombatEvents: api.NewCombatEvents(anim.Events)})
+
+			events, err := api.NewCombatEvents(anim.Events)
+			if err != nil {
+				slog.Error("failed to marshal combat events", "player", c.playerID, "err", err)
+				continue
+			}
+
+			s.sendMessage(c, &api.ServerMessage{CombatEvents: events})
 		}
 	}
 }
@@ -474,7 +482,7 @@ func (s *Server) sendPlayerState(client *ClientConn, l *lobby.Lobby, p *game.Pla
 	switch l.Phase() {
 	case game.PhaseRecruit:
 		state.OpponentID = l.NextOpponentID(client.playerID)
-	case game.PhaseCombat:
+	case game.PhaseCombat, game.PhaseFinished:
 		if pair, ok := l.CombatPairing(client.playerID); ok {
 			state.OpponentID = pair.OpponentID
 			state.CombatBoard = api.CombatCards(pair.PlayerBoard)

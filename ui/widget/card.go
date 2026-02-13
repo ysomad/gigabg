@@ -523,7 +523,7 @@ func (r *CardRenderer) drawTierBadge(screen *ebiten.Image, tier int, baseX, base
 	cy := float32(baseY*s + oy)
 	radius := float32(baseR * s)
 
-	starR := radius * 0.30
+	starR := radius * 0.38
 
 	// Fixed shield size for all tiers.
 	shieldW := radius * 1.3

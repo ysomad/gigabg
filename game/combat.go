@@ -134,16 +134,14 @@ func (c *Combat) attack(src, dst *Minion) {
 	// Stealth is lost when the minion attacks.
 	if src.HasKeyword(KeywordStealth) {
 		src.RemoveKeyword(KeywordStealth)
-		c.emit(CombatEvent{
-			Type:     CombatEventRemoveKeyword,
+		c.emit(RemoveKeywordEvent{
 			TargetID: src.combatID,
 			Keyword:  KeywordStealth,
 			OwnerID:  c.attacker.player.ID(),
 		})
 	}
 
-	c.emit(CombatEvent{
-		Type:     CombatEventAttack,
+	c.emit(AttackEvent{
 		SourceID: src.combatID,
 		TargetID: dst.combatID,
 		OwnerID:  c.attacker.player.ID(),
@@ -208,8 +206,7 @@ func (c *Combat) applyPoison(src, dst *Minion, hit bool, ownerID string) {
 
 	if isVenomous {
 		src.RemoveKeyword(KeywordVenomous)
-		c.emit(CombatEvent{
-			Type:     CombatEventRemoveKeyword,
+		c.emit(RemoveKeywordEvent{
 			TargetID: src.combatID,
 			Keyword:  KeywordVenomous,
 			OwnerID:  ownerID,
@@ -226,8 +223,7 @@ func (c *Combat) dealDamage(src, dst *Minion, amount int, ownerID string) bool {
 
 	if dst.HasKeyword(KeywordDivineShield) {
 		dst.RemoveKeyword(KeywordDivineShield)
-		c.emit(CombatEvent{
-			Type:     CombatEventRemoveKeyword,
+		c.emit(RemoveKeywordEvent{
 			SourceID: src.combatID,
 			TargetID: dst.combatID,
 			Keyword:  KeywordDivineShield,
@@ -237,8 +233,7 @@ func (c *Combat) dealDamage(src, dst *Minion, amount int, ownerID string) bool {
 	}
 
 	dst.TakeDamage(amount)
-	c.emit(CombatEvent{
-		Type:     CombatEventDamage,
+	c.emit(DamageEvent{
 		SourceID: src.combatID,
 		TargetID: dst.combatID,
 		Amount:   amount,
@@ -247,8 +242,11 @@ func (c *Combat) dealDamage(src, dst *Minion, amount int, ownerID string) bool {
 	return true
 }
 
-// removeDeadWithEvents removes dead minions and emits death events.
+// removeDeadWithEvents removes dead minions, emits death events,
+// and handles Reborn (spawns fresh template minion with 1 HP at end of board).
 func (c *Combat) removeDeadWithEvents(side *combatSide) {
+	var reborns []*Minion
+
 	for i := 0; i < side.board.Len(); i++ {
 		m := side.board.MinionAt(i)
 		if m.IsAlive() {
@@ -258,18 +256,37 @@ func (c *Combat) removeDeadWithEvents(side *combatSide) {
 		if _, ok := c.poisonKilled[m.combatID]; ok {
 			reason = DeathReasonPoison
 		}
-		c.emit(CombatEvent{
-			Type:        CombatEventDeath,
+		c.emit(DeathEvent{
 			TargetID:    m.combatID,
 			DeathReason: reason,
 			OwnerID:     side.player.ID(),
 		})
+
+		if m.HasKeyword(KeywordReborn) {
+			reborn := NewMinion(m.Template())
+			reborn.health = 1
+			reborn.RemoveKeyword(KeywordReborn)
+			reborn.combatID = c.nextCombatID
+			c.nextCombatID++
+			reborns = append(reborns, reborn)
+		}
+
 		side.board.RemoveMinion(i)
 		if side.nextAttacker > i {
 			side.nextAttacker--
 		}
 		i--
 	}
+
+	for _, reborn := range reborns {
+		side.board.PlaceMinion(reborn, side.board.Len())
+		c.emit(RebornEvent{
+			TargetID:   reborn.combatID,
+			OwnerID:    side.player.ID(),
+			TemplateID: reborn.TemplateID(),
+		})
+	}
+
 	if n := side.board.Len(); n > 0 {
 		side.nextAttacker %= n
 	} else {
@@ -287,9 +304,9 @@ func (c *Combat) Boards() (p1Board, p2Board Board) {
 	return c.player1Board, c.player2Board
 }
 
-// Animation returns the combat animation data for client replay.
-func (c *Combat) Animation() CombatAnimation {
-	return CombatAnimation{
+// Log returns the combat log for client replay.
+func (c *Combat) Log() CombatLog {
+	return CombatLog{
 		Player1ID: c.player1ID,
 		Player2ID: c.player2ID,
 		Events:    slices.Clone(c.events),

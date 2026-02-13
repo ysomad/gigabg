@@ -60,22 +60,26 @@ func newCombatPairing(opponentID string, pb, ob game.Board) CombatPairing {
 }
 
 type Lobby struct {
-	id                string
-	state             State
-	maxPlayers        int
-	players           []*game.Player
-	pool              *game.CardPool
-	turn              int
-	phase             game.Phase
-	phaseEndsAt    time.Time                       // when current phase ends
-	combatLogs        map[string][]game.CombatResult // playerID -> last N results
-	combatAnimations  []game.CombatAnimation         // ephemeral, cleared after send
-	combatPairings    map[string]CombatPairing       // playerID -> pairing, combat phase only
-	nextPairings      map[string]string              // playerID -> next opponentID, recruit phase only
-	majorityTribes    map[string]game.TribeSnapshot  // playerID -> snapshot from last combat
-	startedAt         time.Time
-	eliminated        int              // number of eliminated players
-	gameResult        *game.GameResult // set when game finishes
+	id         string
+	state      State
+	maxPlayers int
+	players    []*game.Player
+	pool       *game.CardPool
+	turn       int
+
+	phase       game.Phase
+	phaseEndsAt time.Time // when current phase ends
+
+	combatResults  map[string][]game.CombatResult // playerID -> last N results
+	combatLogs     []game.CombatLog               // ephemeral, cleared after send
+	combatPairings map[string]CombatPairing       // playerID -> pairing, combat phase only
+	nextPairings   map[string]string              // playerID -> next opponentID, recruit phase only
+
+	majorityTribes map[string]game.TribeSnapshot // playerID -> snapshot from last combat
+
+	startedAt  time.Time
+	eliminated int              // number of eliminated players
+	gameResult *game.GameResult // set when game finishes
 }
 
 func New(cards game.CardCatalog, maxPlayers int) (*Lobby, error) {
@@ -86,8 +90,8 @@ func New(cards game.CardCatalog, maxPlayers int) (*Lobby, error) {
 		id:         strconv.Itoa(rand.IntN(100_000_000)),
 		state:      StateWaiting,
 		maxPlayers: maxPlayers,
-		players: make([]*game.Player, 0, maxPlayers),
-		pool:    game.NewCardPool(cards, maxPlayers),
+		players:    make([]*game.Player, 0, maxPlayers),
+		pool:       game.NewCardPool(cards, maxPlayers),
 	}, nil
 }
 
@@ -217,7 +221,7 @@ func (l *Lobby) startCombat() {
 
 // isCombatTrivial returns true if no combat animation had any events (no real fights).
 func (l *Lobby) isCombatTrivial() bool {
-	for _, anim := range l.combatAnimations {
+	for _, anim := range l.combatLogs {
 		if len(anim.Events) > 0 {
 			return false
 		}
@@ -230,11 +234,11 @@ func (l *Lobby) runCombat() {
 		return
 	}
 
-	if l.combatLogs == nil {
-		l.combatLogs = make(map[string][]game.CombatResult, len(l.players))
+	if l.combatResults == nil {
+		l.combatResults = make(map[string][]game.CombatResult, len(l.players))
 	}
 
-	l.combatAnimations = l.combatAnimations[:0]
+	l.combatLogs = l.combatLogs[:0]
 	l.combatPairings = make(map[string]CombatPairing, len(l.players))
 
 	// Use pre-computed pairings from recruit phase.
@@ -331,7 +335,7 @@ func (l *Lobby) resolvePairing(p1, p2 *game.Player) {
 
 	l.appendCombatResult(p1.ID(), r1)
 	l.appendCombatResult(p2.ID(), r2)
-	l.combatAnimations = append(l.combatAnimations, combat.Animation())
+	l.combatLogs = append(l.combatLogs, combat.Log())
 }
 
 func (l *Lobby) snapshotTribe(p *game.Player) {
@@ -343,16 +347,14 @@ func (l *Lobby) snapshotTribe(p *game.Player) {
 }
 
 // MajorityTribes returns the snapshot of majority tribes from last combat.
-func (l *Lobby) MajorityTribes() map[string]game.TribeSnapshot {
-	return l.majorityTribes
-}
+func (l *Lobby) MajorityTribes() map[string]game.TribeSnapshot { return l.majorityTribes }
 
 func (l *Lobby) appendCombatResult(playerID string, result game.CombatResult) {
-	logs := append(l.combatLogs[playerID], result) //nolint:gocritic // intentional new slice
+	logs := append(l.combatResults[playerID], result) //nolint:gocritic // intentional new slice
 	if len(logs) > maxCombatLogs {
 		logs = logs[len(logs)-maxCombatLogs:]
 	}
-	l.combatLogs[playerID] = logs
+	l.combatResults[playerID] = logs
 }
 
 // resolveDiscovers auto-picks a random discover option for players who
@@ -376,7 +378,7 @@ func (l *Lobby) AdvancePhase() bool {
 	}
 
 	switch l.phase {
-	case game.PhaseWaiting:
+	case game.PhaseWaiting, game.PhaseFinished:
 		return false
 	case game.PhaseRecruit:
 		l.startCombat()
@@ -389,19 +391,13 @@ func (l *Lobby) AdvancePhase() bool {
 }
 
 // State returns the current lobby state.
-func (l *Lobby) State() State {
-	return l.state
-}
+func (l *Lobby) State() State { return l.state }
 
 // PlayerCount returns the number of players in the lobby.
-func (l *Lobby) PlayerCount() int {
-	return len(l.players)
-}
+func (l *Lobby) PlayerCount() int { return len(l.players) }
 
 // Players returns all players in the lobby.
-func (l *Lobby) Players() []*game.Player {
-	return l.players
-}
+func (l *Lobby) Players() []*game.Player { return l.players }
 
 // Player returns the player with the given ID.
 func (l *Lobby) Player(id string) *game.Player {
@@ -414,35 +410,25 @@ func (l *Lobby) Player(id string) *game.Player {
 }
 
 // Turn returns the current turn number.
-func (l *Lobby) Turn() int {
-	return l.turn
-}
+func (l *Lobby) Turn() int { return l.turn }
 
 // Phase returns the current game phase.
-func (l *Lobby) Phase() game.Phase {
-	return l.phase
-}
+func (l *Lobby) Phase() game.Phase { return l.phase }
 
 // PhaseEndsAt returns when the current phase ends.
-func (l *Lobby) PhaseEndsAt() time.Time {
-	return l.phaseEndsAt
-}
+func (l *Lobby) PhaseEndsAt() time.Time { return l.phaseEndsAt }
 
 // CombatResults returns combat results for the given player (last 3).
-func (l *Lobby) CombatResults(playerID string) []game.CombatResult {
-	return l.combatLogs[playerID]
-}
+func (l *Lobby) CombatResults(playerID string) []game.CombatResult { return l.combatResults[playerID] }
 
 // AllCombatResults returns combat results for all players.
-func (l *Lobby) AllCombatResults() map[string][]game.CombatResult {
-	return l.combatLogs
-}
+func (l *Lobby) AllCombatResults() map[string][]game.CombatResult { return l.combatResults }
 
-// CombatAnimations returns pending combat animations and clears them.
-func (l *Lobby) CombatAnimations() []game.CombatAnimation {
-	anims := l.combatAnimations
-	l.combatAnimations = nil
-	return anims
+// CombatLogs returns pending combat logs and clears them.
+func (l *Lobby) CombatLogs() []game.CombatLog {
+	logs := l.combatLogs
+	l.combatLogs = nil
+	return logs
 }
 
 // CombatPairing returns the combat pairing for the given player (combat phase only).
@@ -452,11 +438,7 @@ func (l *Lobby) CombatPairing(playerID string) (CombatPairing, bool) {
 }
 
 // GameResult returns the game result, or nil if the game hasn't finished.
-func (l *Lobby) GameResult() *game.GameResult {
-	return l.gameResult
-}
+func (l *Lobby) GameResult() *game.GameResult { return l.gameResult }
 
 // Pool returns the card pool.
-func (l *Lobby) Pool() *game.CardPool {
-	return l.pool
-}
+func (l *Lobby) Pool() *game.CardPool { return l.pool }

@@ -377,8 +377,8 @@ func (c *GameClient) CombatEvents() []api.CombatEvent {
 	return c.combatEvents
 }
 
-// ClearCombatAnimation discards the pending combat animation.
-func (c *GameClient) ClearCombatAnimation() {
+// ClearCombatLog discards the pending combat log.
+func (c *GameClient) ClearCombatLog() {
 	c.mu.Lock()
 	c.combatEvents = nil
 	c.mu.Unlock()

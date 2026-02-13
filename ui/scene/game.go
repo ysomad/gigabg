@@ -87,31 +87,19 @@ func (g *Game) Update() error {
 		g.sidebar.Update(g.lay.Sidebar, nil, g.client.DrainOpponentUpdates(), dt)
 	}
 
-	// Phase transition toasts.
-	if g.lastPhase == game.PhaseRecruit && phase == game.PhaseCombat {
-		g.phaseToast.Show("COMBAT")
-		g.recruit.SyncOrders()
-	}
-	if g.lastPhase == game.PhaseCombat && phase == game.PhaseRecruit && g.combat == nil {
-		g.phaseToast.Show("RECRUIT")
-	}
-	if phase == game.PhaseFinished && g.lastPhase != game.PhaseFinished {
-		g.phaseToast.Show("GAME OVER")
+	if phase != g.lastPhase {
+		g.onPhaseTransition(g.lastPhase, phase)
 	}
 	g.lastPhase = phase
 
 	g.phaseToast.Update(dt)
-
-	if phase == game.PhaseFinished {
-		g.backBtn.Update()
-		return nil
-	}
 
 	// Start combat animation if events arrived and toast is done.
 	if combatEvents := g.client.CombatEvents(); combatEvents != nil && g.combat == nil && !g.phaseToast.Active() {
 		state := g.client.State()
 		g.combat = newCombatPanel(
 			g.client.Turn(),
+			g.client.PlayerID(),
 			state.CombatBoard,
 			state.OpponentBoard,
 			combatEvents,
@@ -119,15 +107,28 @@ func (g *Game) Update() error {
 			g.font,
 			g.boldFont,
 		)
-		g.client.ClearCombatAnimation()
+		g.client.ClearCombatLog()
 	}
 
 	// Combat animation blocks all input.
 	if g.combat != nil {
-		if g.combat.Update(dt, g.lay) {
-			g.combat = nil
-			g.phaseToast.Show("RECRUIT")
+		done, err := g.combat.Update(dt, g.lay)
+		if err != nil {
+			return fmt.Errorf("combat update: %w", err)
 		}
+		if done {
+			g.combat = nil
+			if phase == game.PhaseFinished {
+				g.phaseToast.Show("GAME OVER")
+			} else {
+				g.phaseToast.Show("RECRUIT")
+			}
+		}
+		return nil
+	}
+
+	if phase == game.PhaseFinished {
+		g.backBtn.Update()
 		return nil
 	}
 
@@ -158,9 +159,13 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	case game.PhaseCombat:
 		g.drawCombat(screen)
 	case game.PhaseFinished:
-		g.drawGameResult(screen)
-		g.phaseToast.Draw(screen, g.toastRect())
-		return
+		if g.hasPendingCombat() {
+			g.drawCombat(screen)
+		} else {
+			g.drawGameResult(screen)
+			g.phaseToast.Draw(screen, g.toastRect())
+			return
+		}
 	}
 
 	playerID := g.client.PlayerID()
@@ -329,8 +334,8 @@ func (g *Game) drawGameResult(screen *ebiten.Image) {
 	}
 
 	if result.Duration > 0 {
-		minutes := result.Duration / 60
-		seconds := result.Duration % 60
+		minutes := int(result.Duration.Minutes())
+		seconds := int(result.Duration.Seconds()) % 60
 		durationText := fmt.Sprintf("Duration: %dm %ds", minutes, seconds)
 		ui.DrawText(screen, g.font, durationText,
 			w*0.38, h*0.85, color.RGBA{150, 150, 170, 255})
@@ -353,4 +358,24 @@ func (g *Game) timeRemaining() time.Duration {
 		return 0
 	}
 	return remaining
+}
+
+// hasPendingCombat returns true if a combat animation is playing or combat events are waiting.
+func (g *Game) hasPendingCombat() bool {
+	return g.combat != nil || g.client.CombatEvents() != nil
+}
+
+func (g *Game) onPhaseTransition(from, to game.Phase) {
+	switch {
+	case from == game.PhaseRecruit:
+		// Recruit → Combat or Recruit → Finished (game ended during combat).
+		g.phaseToast.Show("COMBAT")
+		g.recruit.SyncOrders()
+	case to == game.PhaseRecruit && g.combat == nil:
+		g.phaseToast.Show("RECRUIT")
+	case from == game.PhaseCombat && to == game.PhaseFinished:
+		if !g.hasPendingCombat() {
+			g.phaseToast.Show("GAME OVER")
+		}
+	}
 }
