@@ -22,6 +22,7 @@ const (
 	attackMoveDuration  = 0.8
 	attackBackDuration  = 0.8
 	damageIndicatorTime = 1.5
+	poisonIndicatorTime = 0.8
 	deathFadeDuration   = 0.4
 	eventPause          = 0.5
 )
@@ -34,13 +35,14 @@ const (
 )
 
 type animMinion struct {
-	card    api.Card
-	offsetX float64
-	offsetY float64
-	flash   float64 // remaining damage indicator time
-	dmgText string
-	opacity float64 // 1.0 = visible, fades to 0 on death
-	dying   bool
+	card        api.Card
+	offsetX     float64
+	offsetY     float64
+	flash       float64 // remaining damage indicator time
+	dmgText     string
+	opacity     float64 // 1.0 = visible, fades to 0 on death
+	dying       bool
+	poisonDeath bool // died from poison/venom; show indicator after damage fades
 }
 
 type attackAnimation struct {
@@ -126,6 +128,8 @@ func (cp *combatPanel) Update(dt float64) bool {
 			cp.opponentBoard[i].flash -= dt
 		}
 	}
+
+	cp.startPoisonIndicators()
 
 	if cp.attackAnim != nil {
 		cp.updateAttackAnim(dt)
@@ -260,12 +264,27 @@ func (cp *combatPanel) markDying(ev game.CombatEvent) {
 	}
 
 	board := cp.boardFor(isPlayer)
-	board[idx].dying = true
-
 	if ev.DeathReason == game.DeathReasonPoison {
-		board[idx].flash = damageIndicatorTime
-		board[idx].dmgText = "💀"
+		board[idx].poisonDeath = true
+		return
 	}
+	board[idx].dying = true
+}
+
+// startPoisonIndicators transitions poison-killed minions from damage display
+// to the skull indicator once their damage flash expires.
+func (cp *combatPanel) startPoisonIndicators() {
+	start := func(board []animMinion) {
+		for i := range board {
+			if board[i].poisonDeath && !board[i].dying && board[i].flash <= 0 {
+				board[i].flash = poisonIndicatorTime
+				board[i].dmgText = ""
+				board[i].dying = true
+			}
+		}
+	}
+	start(cp.playerBoard)
+	start(cp.opponentBoard)
 }
 
 func (cp *combatPanel) consumeHitEvents() {
@@ -386,7 +405,7 @@ func (cp *combatPanel) drawBoard(screen *ebiten.Image, zone ui.Rect, board []ani
 		r.Y += m.offsetY
 
 		// Shake on damage (base-space units).
-		if m.flash > 0 {
+		if m.flash > 0 && !m.poisonDeath {
 			t := m.flash / damageIndicatorTime
 			intensity := t * 4.0
 			r.X += math.Sin(m.flash*30) * intensity
@@ -398,9 +417,12 @@ func (cp *combatPanel) drawBoard(screen *ebiten.Image, zone ui.Rect, board []ani
 
 		cp.cr.DrawMinion(screen, m.card, r, alpha, flashPct)
 
-		// Damage splat.
-		if m.flash > 0 && m.dmgText != "" {
-			cp.drawDamageSplat(screen, m, r, alpha)
+		if m.flash > 0 {
+			if m.poisonDeath && m.dying {
+				cp.drawPoisonSplat(screen, m, r, alpha)
+			} else if m.dmgText != "" {
+				cp.drawDamageSplat(screen, m, r, alpha)
+			}
 		}
 	}
 }
@@ -412,7 +434,13 @@ func (cp *combatPanel) drawDamageSplat(screen *ebiten.Image, m animMinion, r ui.
 	s := ui.ActiveRes.Scale()
 	sf := float32(s)
 
-	t := m.flash / damageIndicatorTime // 1.0 → 0.0
+	duration := damageIndicatorTime
+	splatBg := color.RGBA{140, 100, 0, 0} // gold
+	if m.poisonDeath && m.dying {
+		duration = poisonIndicatorTime
+		splatBg = color.RGBA{30, 120, 40, 0} // green
+	}
+	t := m.flash / duration // 1.0 → 0.0
 
 	// Pop-in: starts large, settles to 1.0.
 	splatScale := float32(1.0 + 0.15*(1.0-ui.EaseOut(1.0-t)))
@@ -427,7 +455,8 @@ func (cp *combatPanel) drawDamageSplat(screen *ebiten.Image, m animMinion, r ui.
 	}
 
 	// Damage background circle.
-	vector.FillCircle(screen, cx, cy, 22*sf*splatScale, color.RGBA{140, 100, 0, a}, true)
+	splatBg.A = a
+	vector.FillCircle(screen, cx, cy, 22*sf*splatScale, splatBg, true)
 
 	// Bold white damage text.
 	op := &text.DrawOptions{}
@@ -437,4 +466,75 @@ func (cp *combatPanel) drawDamageSplat(screen *ebiten.Image, m animMinion, r ui.
 	op.PrimaryAlign = text.AlignCenter
 	op.SecondaryAlign = text.AlignCenter
 	text.Draw(screen, m.dmgText, cp.boldFont, op)
+}
+
+// drawPoisonSplat draws a green circle with a vector skull for poison/venom kills.
+func (cp *combatPanel) drawPoisonSplat(screen *ebiten.Image, m animMinion, r ui.Rect, alpha uint8) {
+	sr := r.Screen()
+	cx := float32(sr.X + sr.W/2)
+	cy := float32(sr.Y + sr.H/2)
+	s := ui.ActiveRes.Scale()
+	sf := float32(s)
+
+	t := m.flash / poisonIndicatorTime // 1.0 → 0.0
+
+	// Pop-in: starts large, settles to 1.0.
+	scale := float32(1.0 + 0.15*(1.0-ui.EaseOut(1.0-t)))
+
+	// Float up over lifetime.
+	cy -= float32((1.0 - t) * 12.0 * s)
+
+	// Fade out in last 30%.
+	a := alpha
+	if t < 0.3 {
+		a = uint8(float64(alpha) * (t / 0.3))
+	}
+
+	// Green background circle.
+	bgR := 22 * sf * scale
+	bg := color.RGBA{30, 120, 40, a}
+	vector.FillCircle(screen, cx, cy, bgR, bg, true)
+
+	// Skull: cranium + jaw in bone-white, eye/nose sockets in bg color.
+	bone := color.RGBA{230, 220, 200, a}
+
+	// Cranium (upper ellipse).
+	crX := bgR * 0.48
+	crY := bgR * 0.52
+	crCY := cy - bgR*0.08
+	ui.FillEllipse(screen, cx, crCY, crX, crY, bone)
+
+	// Jaw (smaller ellipse below cranium).
+	jrX := crX * 0.68
+	jrY := crY * 0.32
+	ui.FillEllipse(screen, cx, crCY+crY*0.7, jrX, jrY, bone)
+
+	// Eye sockets.
+	eyeR := crX * 0.22
+	eyeOff := crX * 0.38
+	eyeY := crCY - crY*0.08
+	vector.FillCircle(screen, cx-eyeOff, eyeY, eyeR, bg, true)
+	vector.FillCircle(screen, cx+eyeOff, eyeY, eyeR, bg, true)
+
+	// Nose (small inverted triangle).
+	noseY := crCY + crY*0.22
+	noseH := crY * 0.18
+	noseW := crX * 0.14
+	var nose vector.Path
+	nose.MoveTo(cx, noseY+noseH)
+	nose.LineTo(cx-noseW, noseY)
+	nose.LineTo(cx+noseW, noseY)
+	nose.Close()
+	noseOp := &vector.DrawPathOptions{AntiAlias: true}
+	noseOp.ColorScale.ScaleWithColor(bg)
+	vector.FillPath(screen, &nose, nil, noseOp)
+
+	// Teeth (vertical dark slits in jaw area).
+	teethY := crCY + crY*0.42
+	teethH := crY * 0.28
+	toothW := sf * 1.0
+	for _, off := range []float32{-0.22, 0, 0.22} {
+		tx := cx + crX*off
+		vector.FillRect(screen, tx-toothW*0.5, teethY, toothW, teethH, bg, false)
+	}
 }
