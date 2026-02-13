@@ -21,7 +21,7 @@ import (
 const (
 	attackMoveDuration  = 0.8
 	attackBackDuration  = 0.8
-	damageIndicatorTime = 0.8
+	damageIndicatorTime = 1.5
 	deathFadeDuration   = 0.4
 	eventPause          = 0.5
 )
@@ -424,18 +424,8 @@ func (cp *combatPanel) drawDamageSplat(screen *ebiten.Image, m animMinion, r ui.
 		a = uint8(float64(alpha) * (t / 0.3))
 	}
 
-	// Outer splash: spiky star burst.
-	outerR := 18 * sf * splatScale
-	vector.FillCircle(screen, cx, cy, outerR, color.RGBA{200, 150, 0, a}, false)
-	for j := range 8 {
-		angle := float64(j)*math.Pi*2/8 + math.Pi/8
-		spX := cx + float32(math.Cos(angle))*14*sf*splatScale
-		spY := cy + float32(math.Sin(angle))*14*sf*splatScale
-		vector.FillCircle(screen, spX, spY, 6*sf*splatScale, color.RGBA{230, 180, 0, a}, false)
-	}
-
-	// Inner core.
-	vector.FillCircle(screen, cx, cy, 13*sf*splatScale, color.RGBA{255, 220, 50, a}, false)
+	// Damage background circle.
+	vector.FillCircle(screen, cx, cy, 22*sf*splatScale, color.RGBA{140, 100, 0, a}, true)
 
 	// Bold white damage text.
 	op := &text.DrawOptions{}

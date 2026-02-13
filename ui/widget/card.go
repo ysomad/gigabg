@@ -250,16 +250,16 @@ func (r *CardRenderer) drawEllipseBase(
 		r.drawWindfury(screen, cx, cy, ry, s, alpha, true)
 	}
 
-	if keywords.Has(game.KeywordDivineShield) {
-		r.drawDivineShield(screen, cx, cy, rx, ry, s, alpha)
-	}
-
 	if keywords.Has(game.KeywordPoisonous) {
 		r.drawPoisonous(screen, cx, cy+ry*0.95, s, alpha)
 	}
 
 	if keywords.Has(game.KeywordVenomous) {
 		r.drawVenomous(screen, cx, cy+ry*0.95, s, alpha)
+	}
+
+	if keywords.Has(game.KeywordDivineShield) {
+		r.drawDivineShield(screen, cx, cy, rx, ry, s, alpha)
 	}
 }
 
@@ -464,6 +464,7 @@ func (r *CardRenderer) drawAttackBadge(screen *ebiten.Image, attack int, baseX, 
 	sr := float32(baseR * s)
 
 	vector.FillCircle(screen, sx, sy, sr, color.RGBA{180, 140, 10, alpha}, true)
+	vector.StrokeCircle(screen, sx, sy, sr, float32(2*s), color.RGBA{80, 80, 100, alpha}, true)
 
 	op := &text.DrawOptions{}
 	op.GeoM.Translate(float64(sx), float64(sy))
@@ -484,6 +485,7 @@ func (r *CardRenderer) drawHealthBadge(screen *ebiten.Image, health int, baseX, 
 	sr := float32(baseR * s)
 
 	vector.FillCircle(screen, sx, sy, sr, color.RGBA{160, 20, 20, alpha}, true)
+	vector.StrokeCircle(screen, sx, sy, sr, float32(2*s), color.RGBA{80, 80, 100, alpha}, true)
 
 	op := &text.DrawOptions{}
 	op.GeoM.Translate(float64(sx), float64(sy))
