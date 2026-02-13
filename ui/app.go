@@ -6,6 +6,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/examples/resources/fonts"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
+	"golang.org/x/image/font/gofont/gobold"
 )
 
 const baseFontSize = 14
@@ -18,10 +19,12 @@ type Overlay interface {
 
 // App is the root ebiten.Game that owns the SceneManager and font.
 type App struct {
-	sm         SceneManager
-	overlay    Overlay
-	fontSource *text.GoTextFaceSource
-	font       *text.GoTextFace
+	sm             SceneManager
+	overlay        Overlay
+	fontSource     *text.GoTextFaceSource
+	boldFontSource *text.GoTextFaceSource
+	font           *text.GoTextFace
+	boldFont       *text.GoTextFace
 }
 
 func NewApp() (*App, error) {
@@ -29,18 +32,24 @@ func NewApp() (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	font := &text.GoTextFace{
-		Source: src,
-		Size:   baseFontSize * ActiveRes.Scale(),
+	boldSrc, err := text.NewGoTextFaceSource(bytes.NewReader(gobold.TTF))
+	if err != nil {
+		return nil, err
 	}
+	sz := baseFontSize * ActiveRes.Scale()
 	return &App{
-		fontSource: src,
-		font:       font,
+		fontSource:     src,
+		boldFontSource: boldSrc,
+		font:           &text.GoTextFace{Source: src, Size: sz},
+		boldFont:       &text.GoTextFace{Source: boldSrc, Size: sz},
 	}, nil
 }
 
 // Font returns the shared font face. Size is updated each frame.
 func (a *App) Font() *text.GoTextFace { return a.font }
+
+// BoldFont returns the shared bold font face. Size is updated each frame.
+func (a *App) BoldFont() *text.GoTextFace { return a.boldFont }
 
 // SwitchScene transitions to a new scene.
 func (a *App) SwitchScene(s Scene) { a.sm.Switch(s) }
@@ -53,6 +62,7 @@ func (a *App) HideOverlay() { a.overlay = nil }
 
 func (a *App) Update() error {
 	a.font.Size = baseFontSize * ActiveRes.Scale()
+	a.boldFont.Size = baseFontSize * ActiveRes.Scale()
 	if a.overlay != nil {
 		a.overlay.Update()
 		return nil

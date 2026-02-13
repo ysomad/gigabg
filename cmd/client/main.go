@@ -76,7 +76,7 @@ func main() {
 
 		slog.Info("joined game", "player", playerID, "lobby", lobbyID)
 		app.HideOverlay()
-		app.SwitchScene(scene.NewGame(gc, cards, app.Font(), func() {
+		app.SwitchScene(scene.NewGame(gc, cards, app.Font(), app.BoldFont(), func() {
 			if err := gc.Close(); err != nil {
 				slog.Error("close game client", "error", err)
 			}

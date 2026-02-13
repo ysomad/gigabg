@@ -18,9 +18,10 @@ import (
 
 // Game orchestrates phase transitions and delegates to phase-specific handlers.
 type Game struct {
-	client *client.GameClient
-	cr     *widget.CardRenderer
-	font   *text.GoTextFace
+	client   *client.GameClient
+	cr       *widget.CardRenderer
+	font     *text.GoTextFace
+	boldFont *text.GoTextFace
 
 	recruit      *recruitPhase
 	combat       *combatPanel
@@ -31,17 +32,18 @@ type Game struct {
 	onBackToMenu func()
 }
 
-func NewGame(c *client.GameClient, cs *catalog.Catalog, font *text.GoTextFace, onBackToMenu func()) *Game {
-	cr := &widget.CardRenderer{Cards: cs, Font: font}
+func NewGame(c *client.GameClient, cs *catalog.Catalog, font, boldFont *text.GoTextFace, onBackToMenu func()) *Game {
+	cr := &widget.CardRenderer{Cards: cs, Font: font, BoldFont: boldFont}
 	w := float64(ui.BaseWidth)
 	h := float64(ui.BaseHeight)
 	btnW := w * 0.15
 	btnH := h * 0.06
 
 	g := &Game{
-		client: c,
-		cr:     cr,
-		font:   font,
+		client:   c,
+		cr:       cr,
+		font:     font,
+		boldFont: boldFont,
 		recruit: &recruitPhase{
 			client: c,
 			cr:     cr,
@@ -113,6 +115,7 @@ func (g *Game) Update() error {
 			combatEvents,
 			g.cr.Cards,
 			g.font,
+			g.boldFont,
 		)
 		g.client.ClearCombatAnimation()
 	}

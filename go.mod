@@ -7,6 +7,7 @@ require (
 	github.com/hajimehoshi/ebiten/v2 v2.9.8
 	github.com/stretchr/testify v1.11.1
 	golang.design/x/clipboard v0.7.1
+	golang.org/x/image v0.31.0
 )
 
 require (
@@ -19,7 +20,6 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	golang.org/x/exp/shiny v0.0.0-20250606033433-dcc06ee1d476 // indirect
-	golang.org/x/image v0.31.0 // indirect
 	golang.org/x/mobile v0.0.0-20250606033058-a2a15c67f36f // indirect
 	golang.org/x/sync v0.17.0 // indirect
 	golang.org/x/sys v0.36.0 // indirect

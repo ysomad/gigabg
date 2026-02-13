@@ -39,7 +39,7 @@ func FillEllipse(screen *ebiten.Image, cx, cy, rx, ry float32, clr color.Color) 
 	path.CubicTo(cx-rx, cy-ry*k, cx-rx*k, cy-ry, cx, cy-ry)
 	path.Close()
 
-	op := &vector.DrawPathOptions{}
+	op := &vector.DrawPathOptions{AntiAlias: true}
 	op.ColorScale.ScaleWithColor(clr)
 	vector.FillPath(screen, &path, nil, op)
 }
@@ -56,7 +56,7 @@ func StrokeEllipse(screen *ebiten.Image, cx, cy, rx, ry, strokeWidth float32, cl
 	path.CubicTo(cx-rx, cy-ry*k, cx-rx*k, cy-ry, cx, cy-ry)
 	path.Close()
 
-	op := &vector.DrawPathOptions{}
+	op := &vector.DrawPathOptions{AntiAlias: true}
 	op.ColorScale.ScaleWithColor(clr)
 	vector.StrokePath(screen, &path, &vector.StrokeOptions{Width: strokeWidth}, op)
 }

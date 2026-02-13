@@ -4,6 +4,7 @@ import (
 	"image/color"
 	"log/slog"
 	"math"
+	"strconv"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
@@ -59,9 +60,10 @@ type attackAnimation struct {
 // combatPanel replays combat events as visual animations using GameLayout zones.
 // Opponent board renders in the Shop zone, player board in the Board zone.
 type combatPanel struct {
-	cr   *widget.CardRenderer
-	font *text.GoTextFace
-	turn int
+	cr       *widget.CardRenderer
+	font     *text.GoTextFace
+	boldFont *text.GoTextFace
+	turn     int
 
 	playerBoard   []animMinion
 	opponentBoard []animMinion
@@ -79,15 +81,16 @@ func newCombatPanel(
 	playerBoard, opponentBoard []api.Card,
 	events []game.CombatEvent,
 	c *catalog.Catalog,
-	font *text.GoTextFace,
+	font, boldFont *text.GoTextFace,
 ) *combatPanel {
 	slog.Info("combat panel created",
 		"player_board", len(playerBoard),
 		"opponent_board", len(opponentBoard),
 		"events", len(events))
 	return &combatPanel{
-		cr:            &widget.CardRenderer{Cards: c, Font: font},
+		cr:            &widget.CardRenderer{Cards: c, Font: font, BoldFont: boldFont},
 		font:          font,
+		boldFont:      boldFont,
 		turn:          turn,
 		playerBoard:   buildAnimBoard(playerBoard),
 		opponentBoard: buildAnimBoard(opponentBoard),
@@ -235,6 +238,8 @@ func (cp *combatPanel) applyDamage(ev game.CombatEvent) {
 	}
 	board := cp.boardFor(isPlayer)
 	board[idx].card.Health -= ev.Amount
+	board[idx].flash = damageIndicatorTime
+	board[idx].dmgText = "-" + strconv.Itoa(ev.Amount)
 }
 
 func (cp *combatPanel) removeKeyword(ev game.CombatEvent) {
@@ -403,34 +408,41 @@ func (cp *combatPanel) drawDamageSplat(screen *ebiten.Image, m animMinion, r ui.
 	cx := float32(sr.X + sr.W/2)
 	cy := float32(sr.Y + sr.H/2)
 	s := ui.ActiveRes.Scale()
+	sf := float32(s)
 
-	t := m.flash / damageIndicatorTime
-	splatScale := 0.85 + 0.15*ui.EaseOut(t)
+	t := m.flash / damageIndicatorTime // 1.0 → 0.0
 
-	// Outer glow.
-	outerR := float32(28 * s * splatScale)
-	vector.FillCircle(screen, cx, cy, outerR, color.RGBA{200, 120, 0, alpha}, false)
+	// Pop-in: starts large, settles to 1.0.
+	splatScale := float32(1.0 + 0.15*(1.0-ui.EaseOut(1.0-t)))
 
-	// Spiky rays.
+	// Float up over lifetime.
+	cy -= float32((1.0 - t) * 12.0 * s)
+
+	// Fade out in last 30%.
+	a := alpha
+	if t < 0.3 {
+		a = uint8(float64(alpha) * (t / 0.3))
+	}
+
+	// Outer splash: spiky star burst.
+	outerR := 18 * sf * splatScale
+	vector.FillCircle(screen, cx, cy, outerR, color.RGBA{200, 150, 0, a}, false)
 	for j := range 8 {
-		angle := float64(j) * math.Pi * 2 / 8
-		rx := cx + float32(math.Cos(angle)*22*s*splatScale)
-		ry := cy + float32(math.Sin(angle)*22*s*splatScale)
-		vector.FillCircle(screen, rx, ry, float32(8*s*splatScale), color.RGBA{255, 180, 0, alpha}, false)
+		angle := float64(j)*math.Pi*2/8 + math.Pi/8
+		spX := cx + float32(math.Cos(angle))*14*sf*splatScale
+		spY := cy + float32(math.Sin(angle))*14*sf*splatScale
+		vector.FillCircle(screen, spX, spY, 6*sf*splatScale, color.RGBA{230, 180, 0, a}, false)
 	}
 
 	// Inner core.
-	innerR := float32(20 * s * splatScale)
-	vector.FillCircle(screen, cx, cy, innerR, color.RGBA{255, 220, 50, alpha}, false)
+	vector.FillCircle(screen, cx, cy, 13*sf*splatScale, color.RGBA{255, 220, 50, a}, false)
 
-	// Damage text.
-	textScale := 2.2 * splatScale
-	charW := 7 * s * textScale
-	textW := charW * float64(len(m.dmgText))
-	textH := 10 * s * textScale
+	// Bold white damage text.
 	op := &text.DrawOptions{}
-	op.GeoM.Scale(textScale, textScale)
-	op.GeoM.Translate(float64(cx)-textW/2, float64(cy)-textH/2)
-	op.ColorScale.ScaleWithColor(color.RGBA{180, 20, 0, alpha})
-	text.Draw(screen, m.dmgText, cp.font, op)
+	op.GeoM.Scale(1.8, 1.8)
+	op.GeoM.Translate(float64(cx), float64(cy))
+	op.ColorScale.ScaleWithColor(color.RGBA{255, 255, 255, a})
+	op.PrimaryAlign = text.AlignCenter
+	op.SecondaryAlign = text.AlignCenter
+	text.Draw(screen, m.dmgText, cp.boldFont, op)
 }
