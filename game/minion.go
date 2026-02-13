@@ -1,6 +1,9 @@
 package game
 
-import "slices"
+import (
+	"iter"
+	"slices"
+)
 
 type Tribe uint8
 
@@ -125,9 +128,9 @@ func (m *Minion) RemoveEffect(t Trigger) {
 	}
 }
 
-// EffectsByTrigger returns all effect payloads for the given trigger.
-func (m *Minion) EffectsByTrigger(t Trigger) []Effect {
-	return EffectsByTrigger(m.effects, t)
+// EffectsByTrigger yields effect payloads matching any of the given triggers.
+func (m *Minion) EffectsByTrigger(triggers ...Trigger) iter.Seq[Effect] {
+	return EffectsByTrigger(m.effects, triggers...)
 }
 
 // MergeGolden combines two copies into a golden minion.
@@ -135,7 +138,7 @@ func (m *Minion) EffectsByTrigger(t Trigger) []Effect {
 func (m *Minion) MergeGolden(other *Minion) *Minion {
 	effects := m.template.GoldenEffects()
 	effects = append(effects, TriggeredEffect{
-		Trigger: TriggerBattlecry,
+		Trigger: TriggerGolden,
 		Effect:  &AddCard{TemplateID: TripleRewardID},
 	})
 	return &Minion{

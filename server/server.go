@@ -290,7 +290,7 @@ func (s *Server) handleMessage(ctx context.Context, client *ClientConn, msg *api
 			if err != nil {
 				return err
 			}
-			return p.PlaceMinion(payload.HandIndex, payload.BoardPosition, l.Pool())
+			return p.PlayMinion(payload.HandIndex, payload.BoardPosition, l.Pool())
 		})
 
 	case api.ActionRemoveMinion:

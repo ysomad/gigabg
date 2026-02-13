@@ -1,5 +1,7 @@
 package game
 
+import "iter"
+
 // Effect is a triggered ability's behavior.
 // Concrete types: BuffStats, GiveKeyword, SummonMinion, DiscoverCard, MakeGolden.
 type Effect interface {
@@ -67,15 +69,23 @@ type TriggeredEffect struct {
 	Threshold int // only for TriggerAvenge
 }
 
-// EffectsByTrigger returns all effect payloads matching the trigger, in order.
-func EffectsByTrigger(effects []TriggeredEffect, t Trigger) []Effect {
-	var result []Effect
-	for _, te := range effects {
-		if te.Trigger == t && te.Effect != nil {
-			result = append(result, te.Effect)
+// EffectsByTrigger yields effect payloads matching any of the given triggers, in order.
+func EffectsByTrigger(effects []TriggeredEffect, triggers ...Trigger) iter.Seq[Effect] {
+	return func(yield func(Effect) bool) {
+		for _, te := range effects {
+			if te.Effect == nil {
+				continue
+			}
+			for _, t := range triggers {
+				if te.Trigger == t {
+					if !yield(te.Effect) {
+						return
+					}
+					break
+				}
+			}
 		}
 	}
-	return result
 }
 
 // MakeGoldenEffects returns a copy with all effect payloads upgraded for golden cards.

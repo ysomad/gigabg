@@ -12,9 +12,10 @@ type Shop struct {
 	discount int
 }
 
-func (s Shop) Cards() []Card  { return slices.Clone(s.cards) }
-func (s Shop) Tier() Tier     { return s.tier }
-func (s Shop) IsFrozen() bool { return s.frozen }
+func (s Shop) Cards() []Card      { return slices.Clone(s.cards) }
+func (s Shop) Tier() Tier         { return s.tier }
+func (s Shop) IsFrozen() bool     { return s.frozen }
+func (s Shop) HasCardAt(i int) bool { return i >= 0 && i < len(s.cards) }
 
 // Size returns how many cards to show based on shop tier.
 func (s Shop) Size() int {
@@ -63,7 +64,7 @@ func (s *Shop) StartTurn(pool *CardPool) {
 // BuyCard removes a card from the shop at the given index and returns it.
 func (s *Shop) BuyCard(index int) (Card, error) { //nolint:ireturn // domain interface
 	if index < 0 || index >= len(s.cards) {
-		return nil, ErrInvalidIndex
+		return nil, ErrInvalidShopIndex
 	}
 
 	card := s.cards[index]
@@ -92,7 +93,7 @@ func (s *Shop) Freeze() {
 // Reorder reorders the shop cards based on the given indices.
 func (s *Shop) Reorder(order []int) error {
 	if len(order) != len(s.cards) {
-		return ErrInvalidIndex
+		return ErrInvalidReorder
 	}
 
 	reordered := make([]Card, len(s.cards))
@@ -100,10 +101,10 @@ func (s *Shop) Reorder(order []int) error {
 
 	for i, idx := range order {
 		if idx < 0 || idx >= len(s.cards) {
-			return ErrInvalidIndex
+			return ErrInvalidReorder
 		}
 		if _, ok := used[idx]; ok {
-			return ErrInvalidIndex
+			return ErrInvalidReorder
 		}
 		reordered[i] = s.cards[idx]
 		used[idx] = struct{}{}

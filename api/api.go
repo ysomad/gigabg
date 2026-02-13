@@ -151,7 +151,7 @@ type Card struct {
 	Tribe      game.Tribe    `json:"tribe"`
 	Attack     int           `json:"attack"`
 	Health     int           `json:"health"`
-	IsGolden   bool          `json:"is_golden"`
+	IsGolden   bool          `json:"is_golden,omitempty"`
 	Cost       int           `json:"cost,omitempty"`
 	Keywords   game.Keywords `json:"keywords,omitempty"`
 	CombatID   int           `json:"combat_id,omitempty"` // set only in combat context

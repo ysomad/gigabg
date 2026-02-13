@@ -1,6 +1,7 @@
 package game
 
 import (
+	"fmt"
 	"math/rand/v2"
 	"slices"
 
@@ -8,14 +9,19 @@ import (
 )
 
 const (
-	ErrNotEnoughGold   errors.Error = "not enough gold"
-	ErrBoardFull       errors.Error = "board is full"
-	ErrHandFull        errors.Error = "hand is full"
-	ErrInvalidIndex    errors.Error = "invalid index"
-	ErrMaxTier         errors.Error = "already at max tier"
-	ErrNotASpell       errors.Error = "card is not a spell"
-	ErrDiscoverPending errors.Error = "discover already pending"
-	ErrNoDiscover      errors.Error = "no discover options"
+	ErrNotEnoughGold        errors.Error = "not enough gold"
+	ErrBoardFull            errors.Error = "board is full"
+	ErrHandFull             errors.Error = "hand is full"
+	ErrInvalidHandIndex     errors.Error = "invalid hand index"
+	ErrInvalidBoardIndex    errors.Error = "invalid board index"
+	ErrInvalidShopIndex     errors.Error = "invalid shop index"
+	ErrInvalidDiscoverIndex errors.Error = "invalid discover index"
+	ErrInvalidReorder       errors.Error = "invalid reorder"
+	ErrMaxTier              errors.Error = "already at max tier"
+	ErrNotAMinion           errors.Error = "card is not a minion"
+	ErrNotASpell            errors.Error = "card is not a spell"
+	ErrDiscoverPending      errors.Error = "discover already pending"
+	ErrNoDiscover           errors.Error = "no discover options"
 )
 
 type Player struct {
@@ -87,29 +93,34 @@ func (p *Player) TakeDamage(damage int) bool {
 }
 
 // BuyCard buys a card from the shop and adds it to hand.
-func (p *Player) BuyCard(shopIndex int) error {
-	if shopIndex < 0 || shopIndex >= len(p.shop.cards) {
-		return ErrInvalidIndex
+func (p *Player) BuyCard(shopIdx int) error {
+	if !p.shop.HasCardAt(shopIdx) {
+		return ErrInvalidShopIndex
 	}
 	if p.hand.IsFull() {
 		return ErrHandFull
 	}
 
-	cost := p.shop.cards[shopIndex].Template().Cost()
+	cost := p.shop.cards[shopIdx].Template().Cost()
 	if p.gold < cost {
 		return ErrNotEnoughGold
 	}
 
-	card, _ := p.shop.BuyCard(shopIndex)
+	card, err := p.shop.BuyCard(shopIdx)
+	if err != nil {
+		return fmt.Errorf("shop: %w", err)
+	}
+
 	p.hand.Add(card)
 	p.gold -= cost
+
 	return nil
 }
 
 // SellMinion sells a minion from the board for gold and returns it to the pool.
 func (p *Player) SellMinion(boardIndex int, pool *CardPool) error {
-	if boardIndex < 0 || boardIndex >= p.board.Len() {
-		return ErrInvalidIndex
+	if !p.board.HasMinionAt(boardIndex) {
+		return ErrInvalidBoardIndex
 	}
 
 	minion := p.board.RemoveMinion(boardIndex)
@@ -119,36 +130,52 @@ func (p *Player) SellMinion(boardIndex int, pool *CardPool) error {
 	if p.gold > maxGold {
 		p.gold = maxGold
 	}
+
 	return nil
 }
 
-// PlaceMinion moves a minion from hand to board and executes its Battlecry effects.
-func (p *Player) PlaceMinion(handIndex, boardPosition int, pool *CardPool) error {
-	if handIndex < 0 || handIndex >= p.hand.Len() {
-		return ErrInvalidIndex
+// CanPlayCard checks if the card at handIdx can be played and returns an error if not.
+func (p *Player) CanPlayCard(handIdx int) error {
+	if !p.hand.HasCardAt(handIdx) {
+		return ErrInvalidHandIndex
 	}
-	if p.board.IsFull() {
+	card := p.hand.CardAt(handIdx)
+	if card.IsMinion() && p.board.IsFull() {
 		return ErrBoardFull
 	}
+	if card.IsSpell() && p.HasDiscovers() {
+		return ErrDiscoverPending
+	}
+	return nil
+}
 
-	card := p.hand.CardAt(handIndex)
-	minion, ok := card.(*Minion)
-	if !ok {
-		return ErrInvalidIndex
+// PlayMinion moves a minion from hand to board and executes its Battlecry effects.
+func (p *Player) PlayMinion(handIdx, boardIdx int, pool *CardPool) error {
+	if err := p.CanPlayCard(handIdx); err != nil {
+		return err
+	}
+	if !p.board.CanPlaceAt(boardIdx) {
+		return ErrInvalidBoardIndex
 	}
 
-	p.hand.Remove(handIndex)
-	p.board.PlaceMinion(minion, boardPosition)
+	minion, ok := p.hand.CardAt(handIdx).(*Minion)
+	if !ok {
+		return ErrNotAMinion
+	}
 
-	for _, e := range minion.EffectsByTrigger(TriggerBattlecry) {
-		e.Apply(EffectContext{
-			Source:    minion,
-			Board:     &p.board,
-			Hand:      &p.hand,
-			Shop:      &p.shop,
-			Pool:      pool,
-			Discovers: &p.discovers,
-		})
+	p.hand.RemoveCard(handIdx)
+	p.board.PlaceMinion(minion, boardIdx)
+
+	ctx := EffectContext{
+		Source:    minion,
+		Board:     &p.board,
+		Hand:      &p.hand,
+		Shop:      &p.shop,
+		Pool:      pool,
+		Discovers: &p.discovers,
+	}
+	for e := range minion.EffectsByTrigger(TriggerBattlecry, TriggerGolden) {
+		e.Apply(ctx)
 	}
 
 	return nil
@@ -156,8 +183,8 @@ func (p *Player) PlaceMinion(handIndex, boardPosition int, pool *CardPool) error
 
 // RemoveMinion moves a minion from board to hand.
 func (p *Player) RemoveMinion(boardIndex int) error {
-	if boardIndex < 0 || boardIndex >= p.board.Len() {
-		return ErrInvalidIndex
+	if !p.board.HasMinionAt(boardIndex) {
+		return ErrInvalidBoardIndex
 	}
 	if p.hand.IsFull() {
 		return ErrHandFull
@@ -262,21 +289,17 @@ func (p *Player) CheckTriples() bool {
 }
 
 // PlaySpell plays a spell from hand.
-func (p *Player) PlaySpell(handIndex int, pool *CardPool) error {
-	if handIndex < 0 || handIndex >= p.hand.Len() {
-		return ErrInvalidIndex
+func (p *Player) PlaySpell(handIdx int, pool *CardPool) error {
+	if err := p.CanPlayCard(handIdx); err != nil {
+		return err
 	}
 
-	spell, ok := p.hand.CardAt(handIndex).(*Spell)
+	spell, ok := p.hand.CardAt(handIdx).(*Spell)
 	if !ok {
 		return ErrNotASpell
 	}
 
-	if p.discovers != nil {
-		return ErrDiscoverPending
-	}
-
-	p.hand.Remove(handIndex)
+	p.hand.RemoveCard(handIdx)
 
 	ctx := EffectContext{
 		Board:     &p.board,
@@ -286,7 +309,7 @@ func (p *Player) PlaySpell(handIndex int, pool *CardPool) error {
 		Discovers: &p.discovers,
 	}
 
-	for _, e := range EffectsByTrigger(spell.Template().Effects(), TriggerSpell) {
+	for e := range EffectsByTrigger(spell.Template().Effects(), TriggerSpell) {
 		e.Apply(ctx)
 	}
 
@@ -300,7 +323,7 @@ func (p *Player) DiscoverPick(index int, pool *CardPool) error {
 		return ErrNoDiscover
 	}
 	if index < 0 || index >= len(p.discovers) {
-		return ErrInvalidIndex
+		return ErrInvalidDiscoverIndex
 	}
 	if p.hand.IsFull() {
 		return ErrHandFull

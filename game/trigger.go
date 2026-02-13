@@ -12,6 +12,7 @@ const (
 	TriggerStartOfTurn
 	TriggerEndOfTurn
 	TriggerSpell
+	TriggerGolden
 )
 
 func (t Trigger) String() string {
@@ -30,6 +31,8 @@ func (t Trigger) String() string {
 		return "End of Turn"
 	case TriggerSpell:
 		return "Spell"
+	case TriggerGolden:
+		return "Golden"
 	default:
 		return ""
 	}

@@ -30,9 +30,9 @@ func (b Board) MinionAt(i int) *Minion {
 }
 
 // IndexOf returns the index of the given minion, or -1 if not found.
-func (b Board) IndexOf(m *Minion) int {
-	for i, min := range b.minions {
-		if min == m {
+func (b Board) IndexOf(want *Minion) int {
+	for i, m := range b.minions {
+		if m == want {
 			return i
 		}
 	}
@@ -97,6 +97,16 @@ func (b Board) Clone() Board {
 		cloned[i] = m.Clone()
 	}
 	return Board{minions: cloned}
+}
+
+// HasMinionAt returns true if i points to an existing minion (0 to Len-1).
+func (b *Board) HasMinionAt(i int) bool {
+	return i >= 0 && i < len(b.minions)
+}
+
+// CanPlaceAt returns true if i is a valid placement position (0 to Len).
+func (b *Board) CanPlaceAt(i int) bool {
+	return i >= 0 && i <= len(b.minions)
 }
 
 // PlaceMinion inserts a minion at the given position, clamped to valid range.
@@ -198,7 +208,7 @@ func CalcMajorityTribe(tribes []Tribe) (Tribe, int) {
 // Reorder reorders the board based on the given index mapping.
 func (b *Board) Reorder(order []int) error {
 	if len(order) != len(b.minions) {
-		return ErrInvalidIndex
+		return ErrInvalidReorder
 	}
 
 	reordered := make([]*Minion, len(b.minions))
@@ -206,10 +216,10 @@ func (b *Board) Reorder(order []int) error {
 
 	for i, idx := range order {
 		if idx < 0 || idx >= len(b.minions) {
-			return ErrInvalidIndex
+			return ErrInvalidReorder
 		}
 		if _, ok := used[idx]; ok {
-			return ErrInvalidIndex
+			return ErrInvalidReorder
 		}
 		reordered[i] = b.minions[idx]
 		used[idx] = struct{}{}

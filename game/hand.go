@@ -11,16 +11,17 @@ func NewHand() Hand {
 	return Hand{cards: make([]Card, 0, maxHandSize)}
 }
 
-func (h *Hand) Len() int          { return len(h.cards) }
-func (h *Hand) IsFull() bool      { return len(h.cards) >= maxHandSize }
-func (h *Hand) CardAt(i int) Card { return h.cards[i] }
-func (h *Hand) Cards() []Card     { return slices.Clone(h.cards) }
+func (h *Hand) Len() int             { return len(h.cards) }
+func (h *Hand) IsFull() bool         { return len(h.cards) >= maxHandSize }
+func (h *Hand) HasCardAt(i int) bool { return i >= 0 && i < len(h.cards) }
+func (h *Hand) CardAt(i int) Card    { return h.cards[i] }
+func (h *Hand) Cards() []Card        { return slices.Clone(h.cards) }
 
 // Add appends a card to the hand. Does not check capacity.
 func (h *Hand) Add(c Card) { h.cards = append(h.cards, c) }
 
-// Remove removes the card at index i and returns it.
-func (h *Hand) Remove(i int) Card {
+// RemoveCard removes the card at index i and returns it.
+func (h *Hand) RemoveCard(i int) Card {
 	c := h.cards[i]
 	h.cards = append(h.cards[:i], h.cards[i+1:]...)
 	return c
