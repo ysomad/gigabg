@@ -36,9 +36,9 @@ func (t *Toast) Active() bool {
 }
 
 // Update ticks the toast timer.
-func (t *Toast) Update() {
+func (t *Toast) Update(dt float64) {
 	if t.timer > 0 {
-		t.timer -= 1.0 / 60.0
+		t.timer -= dt
 	}
 }
 
@@ -71,7 +71,11 @@ func (t *Toast) Draw(screen *ebiten.Image, rect ui.Rect) {
 		false,
 	)
 
-	ui.DrawText(screen, t.font, t.text, rect.X+rect.W*0.5-float64(len(t.text))*4, rect.Y+rect.H*0.3, color.White)
+	op := &text.DrawOptions{}
+	op.GeoM.Translate((rect.X+rect.W*0.5)*s+ui.ActiveRes.OffsetX(), (rect.Y+rect.H*0.3)*s+ui.ActiveRes.OffsetY())
+	op.ColorScale.ScaleWithColor(color.White)
+	op.PrimaryAlign = text.AlignCenter
+	text.Draw(screen, t.text, t.font, op)
 }
 
 // Popup is a generic modal overlay that displays a title, message, and an optional button.

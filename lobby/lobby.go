@@ -67,7 +67,7 @@ type Lobby struct {
 	pool              *game.CardPool
 	turn              int
 	phase             game.Phase
-	phaseEndTimestamp int64                          // unix seconds
+	phaseEndsAt    time.Time                       // when current phase ends
 	combatLogs        map[string][]game.CombatResult // playerID -> last N results
 	combatAnimations  []game.CombatAnimation         // ephemeral, cleared after send
 	combatPairings    map[string]CombatPairing       // playerID -> pairing, combat phase only
@@ -129,7 +129,7 @@ func (l *Lobby) start() {
 
 func (l *Lobby) startRecruit() {
 	l.phase = game.PhaseRecruit
-	l.phaseEndTimestamp = time.Now().Add(game.RecruitDuration).Unix()
+	l.phaseEndsAt = time.Now().Add(game.RecruitDuration)
 	l.computeNextPairings()
 
 	for _, p := range l.players {
@@ -205,13 +205,13 @@ func (l *Lobby) NextOpponentID(playerID string) string {
 
 func (l *Lobby) startCombat() {
 	l.phase = game.PhaseCombat
-	l.phaseEndTimestamp = time.Now().Add(game.CombatDuration).Unix()
+	l.phaseEndsAt = time.Now().Add(game.CombatDuration)
 	l.resolveDiscovers()
 	l.runCombat()
 
 	// Skip combat timer if no pairing had minions on both sides.
 	if l.isCombatTrivial() {
-		l.phaseEndTimestamp = time.Now().Unix()
+		l.phaseEndsAt = time.Now()
 	}
 }
 
@@ -371,8 +371,7 @@ func (l *Lobby) AdvancePhase() bool {
 		return false
 	}
 
-	now := time.Now().Unix()
-	if now < l.phaseEndTimestamp {
+	if time.Now().Before(l.phaseEndsAt) {
 		return false
 	}
 
@@ -424,9 +423,9 @@ func (l *Lobby) Phase() game.Phase {
 	return l.phase
 }
 
-// PhaseEndTimestamp returns when the current phase ends (unix seconds).
-func (l *Lobby) PhaseEndTimestamp() int64 {
-	return l.phaseEndTimestamp
+// PhaseEndsAt returns when the current phase ends.
+func (l *Lobby) PhaseEndsAt() time.Time {
+	return l.phaseEndsAt
 }
 
 // CombatResults returns combat results for the given player (last 3).

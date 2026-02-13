@@ -4,13 +4,13 @@ package game
 type CombatEventType uint8
 
 const (
-	CombatEventAttack  CombatEventType = iota + 1 // minion initiates attack
-	CombatEventDamage                             // damage dealt to a minion
-	CombatEventDeath                              // minion dies and is removed
-	CombatEventBuff                               // future: stat buff applied
-	CombatEventRemoveKeyword                      // keyword removed from minion
-	CombatEventSummon                             // future: minion summoned
-	CombatEventTrigger                            // future: triggered ability fires
+	CombatEventAttack        CombatEventType = iota + 1 // minion initiates attack
+	CombatEventDamage                                   // damage dealt to a minion
+	CombatEventDeath                                    // minion dies and is removed
+	CombatEventBuff                                     // future: stat buff applied
+	CombatEventRemoveKeyword                            // keyword removed from minion
+	CombatEventSummon                                   // future: minion summoned
+	CombatEventTrigger                                  // future: triggered ability fires
 )
 
 // DeathReason indicates why a minion died.

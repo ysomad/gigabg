@@ -12,6 +12,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 
 	"github.com/ysomad/gigabg/client"
+	"github.com/ysomad/gigabg/config"
 	"github.com/ysomad/gigabg/game/catalog"
 	"github.com/ysomad/gigabg/ui"
 	"github.com/ysomad/gigabg/ui/scene"
@@ -19,12 +20,23 @@ import (
 )
 
 func main() {
-	serverAddr := flag.String("addr", "localhost:8080", "game server address")
-	devLobby := flag.String("dev-lobby", "", "dev lobby ID to auto-join with a random player name")
-	debug := flag.Bool("debug", false, "enable debug overlay on start")
+	configPath := flag.String("config", "", "path to client config TOML file")
 	flag.Parse()
 
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})))
+
+	if *configPath == "" {
+		slog.Error("config flag is required")
+		os.Exit(1)
+	}
+
+	cfg, err := config.LoadClient(*configPath)
+	if err != nil {
+		slog.Error("load config", "error", err)
+		os.Exit(1)
+	}
+
+	slog.Info("config loaded", "path", *configPath)
 
 	cards, err := catalog.New()
 	if err != nil {
@@ -37,9 +49,9 @@ func main() {
 		slog.Error("init app failed", "error", err)
 		return
 	}
-	app.SetDebug(*debug)
+	app.SetDebug(cfg.Dev.Debug)
 
-	httpClient := client.New(*serverAddr)
+	httpClient := client.New(cfg.Server.Addr, cfg.Server.Proxy)
 
 	w := float64(ui.BaseWidth)
 	h := float64(ui.BaseHeight)
@@ -56,7 +68,7 @@ func main() {
 		p.SetMessage("Connecting to server...")
 		slog.Info("connecting", "player", playerID, "lobby", lobbyID)
 
-		gc, err := client.NewGameClient(ctx, *serverAddr, playerID, lobbyID)
+		gc, err := client.NewGameClient(ctx, cfg.Server.Addr, playerID, lobbyID, cfg.Server.Proxy)
 		if err != nil {
 			slog.Error("connection failed", "error", err)
 			p.SetTitle("Error")
@@ -127,11 +139,11 @@ func main() {
 	}
 	showMenu()
 
-	if *devLobby != "" {
+	if cfg.Dev.Lobby != "" {
 		adj := []string{"swift", "brave", "wild", "calm", "bold", "keen", "warm", "cool", "fair", "wise"}
 		noun := []string{"fox", "bear", "wolf", "hawk", "deer", "lynx", "owl", "elk", "ram", "jay"}
 		name := fmt.Sprintf("%s-%s", adj[rand.IntN(len(adj))], noun[rand.IntN(len(noun))])
-		onJoin(name, *devLobby)
+		onJoin(name, cfg.Dev.Lobby)
 	}
 
 	ebiten.SetWindowSize(ui.BaseWidth, ui.BaseHeight)

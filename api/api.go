@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/ysomad/gigabg/game"
 )
@@ -51,7 +52,7 @@ func (a Action) String() string {
 // ClientMessage represents message which client must send to a server.
 type ClientMessage struct {
 	Action  Action          `json:"action"`
-	Payload json.RawMessage `json:"payload"`
+	Payload json.RawMessage `json:"payload,omitempty"`
 }
 
 type BuyCard struct {
@@ -96,10 +97,10 @@ type CreateLobbyResp struct {
 
 // ServerMessage represents message which server must send to a client.
 type ServerMessage struct {
-	State          *GameState         `json:"state"`
-	Error          *Error             `json:"error,omitempty"`
-	CombatEvents   []game.CombatEvent `json:"combat_events,omitempty"`
-	OpponentUpdate *OpponentUpdate    `json:"opponent_update,omitempty"`
+	State          *GameState      `json:"state,omitempty"`
+	Error          *Error          `json:"error,omitempty"`
+	CombatEvents   []CombatEvent   `json:"combat_events,omitempty"`
+	OpponentUpdate *OpponentUpdate `json:"opponent_update,omitempty"`
 }
 
 // OpponentUpdate is a lightweight notification about an opponent's tier change.
@@ -109,21 +110,21 @@ type OpponentUpdate struct {
 }
 
 type GameState struct {
-	Player            Player              `json:"player"`
-	Opponents         []Opponent          `json:"opponents"`
-	Turn              int                 `json:"turn"`
-	Phase             game.Phase          `json:"phase"`
-	PhaseEndTimestamp int64               `json:"phase_end_timestamp"`
-	Shop              []Card              `json:"shop"`
-	IsShopFrozen      bool                `json:"shop_frozen"`
-	Hand              []Card              `json:"hand"`
-	Board             []Card              `json:"board"`
-	Discovers         []Card              `json:"discovers"`
-	CombatResults     []game.CombatResult `json:"combat_results"`
-	OpponentID        string              `json:"opponent_id"`    // combat phase only
-	CombatBoard       []Card              `json:"combat_board"`   // combat phase only
-	OpponentBoard     []Card              `json:"opponent_board"` // combat phase only
-	GameResult        *GameResult         `json:"game_result,omitempty"`
+	Player        Player         `json:"player"`
+	Opponents     []Opponent     `json:"opponents"`
+	Turn          int            `json:"turn"`
+	Phase         game.Phase     `json:"phase"`
+	PhaseEndsAt   time.Time      `json:"phase_ends_at"`
+	Shop          []Card         `json:"shop,omitempty"`
+	IsShopFrozen  bool           `json:"is_shop_frozen"`
+	Hand          []Card         `json:"hand,omitempty"`
+	Board         []Card         `json:"board,omitempty"`
+	Discovers     []Card         `json:"discovers,omitempty"`
+	CombatResults []CombatResult `json:"combat_results"`
+	OpponentID    string         `json:"opponent_id"`              // combat phase only
+	CombatBoard   []Card         `json:"combat_board,omitempty"`   // combat phase only
+	OpponentBoard []Card         `json:"opponent_board,omitempty"` // combat phase only
+	GameResult    *GameResult    `json:"game_result,omitempty"`
 }
 
 type Player struct {
@@ -136,27 +137,83 @@ type Player struct {
 }
 
 type Opponent struct {
-	ID            string              `json:"id"`
-	HP            int                 `json:"hp"`
-	ShopTier      game.Tier           `json:"shop_tier"`
-	CombatResults []game.CombatResult `json:"combat_results"`
-	MajorityTribe game.Tribe          `json:"majority_tribe"`
-	MajorityCount int                 `json:"majority_count"`
+	ID            string         `json:"id"`
+	HP            int            `json:"hp"`
+	ShopTier      game.Tier      `json:"shop_tier"`
+	CombatResults []CombatResult `json:"combat_results"`
+	MajorityTribe game.Tribe     `json:"majority_tribe"`
+	MajorityCount int            `json:"majority_count"`
 }
 
 type Card struct {
 	TemplateID string        `json:"template_id"`
 	Attack     int           `json:"attack"`
 	Health     int           `json:"health"`
-	Cost       int           `json:"cost"`
+	Cost       int           `json:"cost,omitempty"`
 	IsGolden   bool          `json:"is_golden"`
 	Tribe      game.Tribe    `json:"tribe"`
-	Keywords   game.Keywords `json:"keywords"`
-	CombatID   int           `json:"combat_id"` // set only in combat context
+	Keywords   game.Keywords `json:"keywords,omitempty"`
+	CombatID   int           `json:"combat_id,omitempty"` // set only in combat context
+}
+
+type CombatEvent struct {
+	Type        game.CombatEventType `json:"type"`
+	SourceID    int                  `json:"source_id"`
+	TargetID    int                  `json:"target_id"`
+	Amount      int                  `json:"amount"`
+	Keyword     game.Keyword         `json:"keyword,omitempty"`
+	DeathReason game.DeathReason     `json:"death_reason,omitempty"`
+	OwnerID     string               `json:"owner_id,omitempty"`
+}
+
+func NewCombatEvents(events []game.CombatEvent) []CombatEvent {
+	res := make([]CombatEvent, len(events))
+	for i, ev := range events {
+		res[i] = CombatEvent{
+			Type:        ev.Type,
+			SourceID:    ev.SourceID,
+			TargetID:    ev.TargetID,
+			Amount:      ev.Amount,
+			Keyword:     ev.Keyword,
+			DeathReason: ev.DeathReason,
+			OwnerID:     ev.OwnerID,
+		}
+	}
+	return res
+}
+
+type CombatResult struct {
+	OpponentID string `json:"opponent_id"`
+	WinnerID   string `json:"winner_id"`
+	Damage     int    `json:"damage"`
+}
+
+func NewCombatResult(cr game.CombatResult) CombatResult {
+	return CombatResult{
+		OpponentID: cr.OpponentID,
+		WinnerID:   cr.WinnerID,
+		Damage:     cr.Damage,
+	}
+}
+
+func NewCombatResults(results []game.CombatResult) []CombatResult {
+	res := make([]CombatResult, len(results))
+	for i, cr := range results {
+		res[i] = NewCombatResult(cr)
+	}
+	return res
+}
+
+func NewAllCombatResults(m map[string][]game.CombatResult) map[string][]CombatResult {
+	res := make(map[string][]CombatResult, len(m))
+	for k, v := range m {
+		res[k] = NewCombatResults(v)
+	}
+	return res
 }
 
 type Error struct {
-	Message string
+	Message string `json:"message"`
 }
 
 func NewPlayer(p *game.Player) Player {
@@ -173,7 +230,7 @@ func NewPlayer(p *game.Player) Player {
 func NewOpponents(
 	players []*game.Player,
 	excludeID string,
-	combatResults map[string][]game.CombatResult,
+	combatResults map[string][]CombatResult,
 	tribes map[string]game.TribeSnapshot,
 ) []Opponent {
 	res := make([]Opponent, 0, len(players)-1)

@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
+	"net/url"
 	"slices"
 	"sync"
 	"time"
@@ -21,7 +23,7 @@ type PlayerEntry struct {
 	ID            string
 	HP            int
 	ShopTier      game.Tier
-	CombatResults []game.CombatResult
+	CombatResults []api.CombatResult
 	MajorityTribe game.Tribe
 	MajorityCount int
 }
@@ -31,7 +33,7 @@ type GameClient struct {
 	conn *websocket.Conn
 
 	state           *api.GameState
-	combatEvents    []game.CombatEvent
+	combatEvents    []api.CombatEvent
 	opponentUpdates []api.OpponentUpdate
 	mu              sync.RWMutex
 
@@ -40,10 +42,19 @@ type GameClient struct {
 
 // NewGameClient dials the game server WebSocket and returns a GameClient.
 // addr is host:port (e.g. "localhost:8080").
-func NewGameClient(ctx context.Context, addr, playerID, lobbyID string) (*GameClient, error) {
+// If proxyURL is non-empty, the WebSocket connection is routed through the given HTTP proxy.
+func NewGameClient(ctx context.Context, addr, playerID, lobbyID, proxyURL string) (*GameClient, error) {
 	wsURL := fmt.Sprintf("ws://%s/ws?player=%s&lobby=%s", addr, playerID, lobbyID)
 
-	conn, resp, err := websocket.Dial(ctx, wsURL, nil)
+	var opts *websocket.DialOptions
+	if proxyURL != "" {
+		u, _ := url.Parse(proxyURL)
+		opts = &websocket.DialOptions{
+			HTTPClient: &http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(u)}},
+		}
+	}
+
+	conn, resp, err := websocket.Dial(ctx, wsURL, opts)
 	if resp != nil && resp.Body != nil {
 		_ = resp.Body.Close()
 	}
@@ -176,14 +187,14 @@ func (c *GameClient) Phase() game.Phase {
 	return c.state.Phase
 }
 
-// PhaseEndTimestamp returns when the current phase ends (unix seconds).
-func (c *GameClient) PhaseEndTimestamp() int64 {
+// PhaseEndsAt returns when the current phase ends.
+func (c *GameClient) PhaseEndsAt() time.Time {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	if c.state == nil {
-		return 0
+		return time.Time{}
 	}
-	return c.state.PhaseEndTimestamp
+	return c.state.PhaseEndsAt
 }
 
 // Shop returns the current shop cards.
@@ -360,7 +371,7 @@ func (c *GameClient) DrainOpponentUpdates() []api.OpponentUpdate {
 }
 
 // CombatEvents returns the pending combat events, or nil.
-func (c *GameClient) CombatEvents() []game.CombatEvent {
+func (c *GameClient) CombatEvents() []api.CombatEvent {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.combatEvents

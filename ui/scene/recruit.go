@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image/color"
 	"log/slog"
+	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
@@ -50,10 +51,9 @@ func (r *recruitPhase) syncSizes() {
 }
 
 // Update processes recruit-phase input.
-func (r *recruitPhase) Update() error {
+func (r *recruitPhase) Update(lay ui.GameLayout) error {
 	r.syncSizes()
 
-	lay := ui.CalcGameLayout()
 	mx, my := ebiten.CursorPosition()
 
 	r.hoverCard = nil
@@ -238,8 +238,7 @@ func (r *recruitPhase) handleDiscoverClick(lay ui.GameLayout, discover []api.Car
 }
 
 // Draw renders the recruit phase.
-func (r *recruitPhase) Draw(screen *ebiten.Image, font *text.GoTextFace, turn int, timeRemaining int64) {
-	lay := ui.CalcGameLayout()
+func (r *recruitPhase) Draw(screen *ebiten.Image, font *text.GoTextFace, lay ui.GameLayout, turn int, timeRemaining time.Duration) {
 
 	r.drawHeader(screen, font, lay, turn, timeRemaining)
 	r.drawPlayerStats(screen, font, lay)
@@ -269,14 +268,15 @@ func (r *recruitPhase) Draw(screen *ebiten.Image, font *text.GoTextFace, turn in
 }
 
 func (r *recruitPhase) drawHeader(
-	screen *ebiten.Image, font *text.GoTextFace, lay ui.GameLayout, turn int, timeRemaining int64,
+	screen *ebiten.Image, font *text.GoTextFace, lay ui.GameLayout, turn int, timeRemaining time.Duration,
 ) {
 	header := fmt.Sprintf("Turn %d", turn)
 	ui.DrawText(screen, font, header,
 		lay.Header.X+lay.Header.W*0.04, lay.Header.H*0.5,
 		color.RGBA{200, 200, 200, 255})
 
-	timer := fmt.Sprintf("%d:%02d", timeRemaining/60, timeRemaining%60)
+	secs := int(timeRemaining.Seconds())
+	timer := fmt.Sprintf("%d:%02d", secs/60, secs%60)
 	ui.DrawText(screen, font, timer,
 		lay.Header.X+lay.Header.W*0.9, lay.Header.H*0.5,
 		color.RGBA{255, 255, 255, 255})

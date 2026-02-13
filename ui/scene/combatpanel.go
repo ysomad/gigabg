@@ -23,7 +23,7 @@ const (
 	attackBackDuration  = 0.8
 	damageIndicatorTime = 1.5
 	poisonIndicatorTime = 0.8
-	deathFadeDuration = 0.4
+	deathFadeDuration   = 0.4
 	eventPause          = 0.5
 )
 
@@ -70,7 +70,7 @@ type combatPanel struct {
 	playerBoard   []animMinion
 	opponentBoard []animMinion
 
-	events     []game.CombatEvent
+	events     []api.CombatEvent
 	eventIndex int
 	pauseTimer float64
 
@@ -81,7 +81,7 @@ type combatPanel struct {
 func newCombatPanel(
 	turn int,
 	playerBoard, opponentBoard []api.Card,
-	events []game.CombatEvent,
+	events []api.CombatEvent,
 	c *catalog.Catalog,
 	font, boldFont *text.GoTextFace,
 ) *combatPanel {
@@ -109,7 +109,7 @@ func buildAnimBoard(cards []api.Card) []animMinion {
 }
 
 // Update advances animation state. Returns true when all animations are done.
-func (cp *combatPanel) Update(dt float64) bool {
+func (cp *combatPanel) Update(dt float64, lay ui.GameLayout) bool {
 	cp.cr.Tick++
 
 	if cp.done {
@@ -132,7 +132,7 @@ func (cp *combatPanel) Update(dt float64) bool {
 	cp.startPoisonIndicators()
 
 	if cp.attackAnim != nil {
-		cp.updateAttackAnim(dt)
+		cp.updateAttackAnim(dt, lay)
 		return false
 	}
 
@@ -145,7 +145,7 @@ func (cp *combatPanel) Update(dt float64) bool {
 		ev := cp.events[cp.eventIndex]
 		cp.eventIndex++
 		if ev.Type == game.CombatEventAttack {
-			cp.startAttack(ev)
+			cp.startAttack(ev, lay)
 			return false
 		}
 	}
@@ -157,14 +157,13 @@ func (cp *combatPanel) Update(dt float64) bool {
 	return false
 }
 
-func (cp *combatPanel) startAttack(ev game.CombatEvent) {
+func (cp *combatPanel) startAttack(ev api.CombatEvent, lay ui.GameLayout) {
 	srcIdx, srcIsPlayer := cp.findMinion(ev.SourceID)
 	dstIdx, dstIsPlayer := cp.findMinion(ev.TargetID)
 	if srcIdx < 0 || dstIdx < 0 {
 		return
 	}
 
-	lay := ui.CalcGameLayout()
 	srcX, srcY := cp.minionPos(lay, srcIdx, srcIsPlayer)
 	dstX, dstY := cp.minionPos(lay, dstIdx, dstIsPlayer)
 
@@ -182,7 +181,7 @@ func (cp *combatPanel) startAttack(ev game.CombatEvent) {
 	}
 }
 
-func (cp *combatPanel) updateAttackAnim(dt float64) {
+func (cp *combatPanel) updateAttackAnim(dt float64, lay ui.GameLayout) {
 	a := cp.attackAnim
 
 	switch a.phase {
@@ -198,7 +197,6 @@ func (cp *combatPanel) updateAttackAnim(dt float64) {
 				return
 			}
 
-			lay := ui.CalcGameLayout()
 			a.srcIdx = srcIdx
 			a.srcIsPlayer = srcIsPlayer
 			a.startX, a.startY = cp.minionPos(lay, srcIdx, srcIsPlayer)
@@ -237,7 +235,7 @@ func (cp *combatPanel) updateAttackAnim(dt float64) {
 	}
 }
 
-func (cp *combatPanel) applyDamage(ev game.CombatEvent) {
+func (cp *combatPanel) applyDamage(ev api.CombatEvent) {
 	idx, isPlayer := cp.findMinion(ev.TargetID)
 	if idx < 0 {
 		return
@@ -248,7 +246,7 @@ func (cp *combatPanel) applyDamage(ev game.CombatEvent) {
 	board[idx].dmgText = "-" + strconv.Itoa(ev.Amount)
 }
 
-func (cp *combatPanel) removeKeyword(ev game.CombatEvent) {
+func (cp *combatPanel) removeKeyword(ev api.CombatEvent) {
 	idx, isPlayer := cp.findMinion(ev.TargetID)
 	if idx < 0 {
 		return
@@ -257,7 +255,7 @@ func (cp *combatPanel) removeKeyword(ev game.CombatEvent) {
 	board[idx].card.Keywords.Remove(ev.Keyword)
 }
 
-func (cp *combatPanel) markDying(ev game.CombatEvent) {
+func (cp *combatPanel) markDying(ev api.CombatEvent) {
 	idx, isPlayer := cp.findMinion(ev.TargetID)
 	if idx < 0 {
 		return

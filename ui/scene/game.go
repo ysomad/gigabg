@@ -30,6 +30,7 @@ type Game struct {
 	lastPhase    game.Phase
 	backBtn      *widget.Button
 	onBackToMenu func()
+	lay          ui.GameLayout
 }
 
 func NewGame(c *client.GameClient, cs *catalog.Catalog, font, boldFont *text.GoTextFace, onBackToMenu func()) *Game {
@@ -75,14 +76,15 @@ func (g *Game) OnExit()  {}
 
 func (g *Game) Update() error {
 	g.cr.Tick++
+	g.lay = ui.CalcGameLayout()
+	dt := 1.0 / float64(ebiten.TPS())
 	phase := g.client.Phase()
 
 	// Keep sidebar snapshot fresh during recruit, but freeze it during combat animation and toasts.
-	sidebarRect := ui.CalcGameLayout().Sidebar
 	if phase == game.PhaseRecruit && !g.phaseToast.Active() && g.combat == nil {
-		g.sidebar.Update(sidebarRect, g.client.PlayerList(), g.client.DrainOpponentUpdates())
+		g.sidebar.Update(g.lay.Sidebar, g.client.PlayerList(), g.client.DrainOpponentUpdates(), dt)
 	} else {
-		g.sidebar.Update(sidebarRect, nil, g.client.DrainOpponentUpdates())
+		g.sidebar.Update(g.lay.Sidebar, nil, g.client.DrainOpponentUpdates(), dt)
 	}
 
 	// Phase transition toasts.
@@ -98,7 +100,7 @@ func (g *Game) Update() error {
 	}
 	g.lastPhase = phase
 
-	g.phaseToast.Update()
+	g.phaseToast.Update(dt)
 
 	if phase == game.PhaseFinished {
 		g.backBtn.Update()
@@ -122,8 +124,7 @@ func (g *Game) Update() error {
 
 	// Combat animation blocks all input.
 	if g.combat != nil {
-		const dt = 1.0 / 60.0
-		if g.combat.Update(dt) {
+		if g.combat.Update(dt, g.lay) {
 			g.combat = nil
 			g.phaseToast.Show("RECRUIT")
 		}
@@ -131,7 +132,7 @@ func (g *Game) Update() error {
 	}
 
 	if phase == game.PhaseRecruit {
-		return g.recruit.Update()
+		return g.recruit.Update(g.lay)
 	}
 
 	return nil
@@ -152,7 +153,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		if g.combat != nil {
 			g.drawCombat(screen)
 		} else {
-			g.recruit.Draw(screen, g.font, g.client.Turn(), g.timeRemaining())
+			g.recruit.Draw(screen, g.font, g.lay, g.client.Turn(), g.timeRemaining())
 		}
 	case game.PhaseCombat:
 		g.drawCombat(screen)
@@ -162,14 +163,13 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		return
 	}
 
-	lay := ui.CalcGameLayout()
 	playerID := g.client.PlayerID()
 	state := g.client.State()
 	var opponentID string
 	if state != nil {
 		opponentID = state.OpponentID
 	}
-	g.sidebar.Draw(screen, lay.Sidebar, playerID, opponentID)
+	g.sidebar.Draw(screen, g.lay.Sidebar, playerID, opponentID)
 	g.phaseToast.Draw(screen, g.toastRect())
 }
 
@@ -180,8 +180,6 @@ func (g *Game) drawConnecting(screen *ebiten.Image) {
 }
 
 func (g *Game) drawWaiting(screen *ebiten.Image) {
-	lay := ui.CalcGameLayout()
-
 	playerCount := len(g.client.Opponents()) + 1
 	header := fmt.Sprintf(
 		"You are Player %s | Waiting for players... %d/%d",
@@ -193,12 +191,12 @@ func (g *Game) drawWaiting(screen *ebiten.Image) {
 		screen,
 		g.font,
 		header,
-		lay.Header.X+lay.Header.W*0.04,
-		lay.Header.H*0.5,
+		g.lay.Header.X+g.lay.Header.W*0.04,
+		g.lay.Header.H*0.5,
 		color.RGBA{200, 200, 200, 255},
 	)
 
-	lineRect := lay.Header.Screen()
+	lineRect := g.lay.Header.Screen()
 	lineY := float32(lineRect.Bottom())
 	vector.StrokeLine(
 		screen,
@@ -214,7 +212,7 @@ func (g *Game) drawWaiting(screen *ebiten.Image) {
 
 // drawCombat renders the combat phase using GameLayout zones.
 func (g *Game) drawCombat(screen *ebiten.Image) {
-	lay := ui.CalcGameLayout()
+	lay := g.lay
 
 	// Header.
 	header := fmt.Sprintf("Turn %d", g.client.Turn())
@@ -349,10 +347,8 @@ func (g *Game) toastRect() ui.Rect {
 	return ui.Rect{X: w/2 - boxW/2, Y: h/2 - boxH/2, W: boxW, H: boxH}
 }
 
-func (g *Game) timeRemaining() int64 {
-	endTime := g.client.PhaseEndTimestamp()
-	now := time.Now().Unix()
-	remaining := endTime - now
+func (g *Game) timeRemaining() time.Duration {
+	remaining := time.Until(g.client.PhaseEndsAt())
 	if remaining < 0 {
 		return 0
 	}

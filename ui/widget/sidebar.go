@@ -42,7 +42,7 @@ func (s *Sidebar) players() []client.PlayerEntry {
 }
 
 // Update processes tier-fade animations, opponent updates, and hover detection.
-func (s *Sidebar) Update(rect ui.Rect, players []client.PlayerEntry, updates []api.OpponentUpdate) {
+func (s *Sidebar) Update(rect ui.Rect, players []client.PlayerEntry, updates []api.OpponentUpdate, dt float64) {
 	if players != nil {
 		s.snap = players
 	}
@@ -52,7 +52,7 @@ func (s *Sidebar) Update(rect ui.Rect, players []client.PlayerEntry, updates []a
 	}
 
 	for id, f := range s.tierFades {
-		f.timer -= 1.0 / 60.0
+		f.timer -= dt
 		if f.timer <= 0 {
 			delete(s.tierFades, id)
 		} else {

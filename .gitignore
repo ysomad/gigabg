@@ -6,3 +6,4 @@ coverage.out
 coverage.html
 web/
 *.env
+*-local.toml

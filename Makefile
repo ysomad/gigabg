@@ -4,6 +4,7 @@ export
 export GOOSE_DRIVER=postgres
 export GOOSE_DBSTRING=${PG_URL}
 
+CLIENT_CONFIG ?= config/client-local.toml
 DEV_LOBBY ?= 1
 
 .PHONY: run
@@ -24,11 +25,11 @@ server:
 
 .PHONY: client
 client:
-	go run ./cmd/client
+	go run ./cmd/client -config $(CLIENT_CONFIG)
 
 .PHONY: clients
 clients:
-	go run ./cmd/client -dev-lobby $(DEV_LOBBY) -debug & go run ./cmd/client -dev-lobby $(DEV_LOBBY) -debug
+	go run ./cmd/client -config $(CLIENT_CONFIG) & go run ./cmd/client -config $(CLIENT_CONFIG)
 
 .PHONY: wasm
 wasm:

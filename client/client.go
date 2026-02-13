@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httputil"
+	"net/url"
 	"strings"
 	"time"
 
@@ -21,9 +22,15 @@ type Client struct {
 }
 
 // New creates a client for the given server address (host:port).
-func New(addr string) *Client {
+// If proxyURL is non-empty, all requests are routed through the given HTTP proxy.
+func New(addr, proxyURL string) *Client {
+	c := &http.Client{Timeout: 10 * time.Second}
+	if proxyURL != "" {
+		u, _ := url.Parse(proxyURL)
+		c.Transport = &http.Transport{Proxy: http.ProxyURL(u)}
+	}
 	return &Client{
-		client: &http.Client{Timeout: 10 * time.Second},
+		client: c,
 		addr:   addr,
 	}
 }

@@ -430,7 +430,7 @@ func (s *Server) sendCombatAnimations(lobbyID string, l *lobby.Lobby) {
 			if c.playerID != anim.Player1ID && c.playerID != anim.Player2ID {
 				continue
 			}
-			s.sendMessage(c, &api.ServerMessage{CombatEvents: anim.Events})
+			s.sendMessage(c, &api.ServerMessage{CombatEvents: api.NewCombatEvents(anim.Events)})
 		}
 	}
 }
@@ -451,15 +451,15 @@ func (s *Server) broadcastState(lobbyID string, l *lobby.Lobby) {
 func (s *Server) sendPlayerState(client *ClientConn, l *lobby.Lobby, p *game.Player) {
 	state := &api.GameState{
 		Player:            api.NewPlayer(p),
-		Opponents:         api.NewOpponents(l.Players(), client.playerID, l.AllCombatResults(), l.MajorityTribes()),
+		Opponents:         api.NewOpponents(l.Players(), client.playerID, api.NewAllCombatResults(l.AllCombatResults()), l.MajorityTribes()),
 		Turn:              l.Turn(),
 		Phase:             l.Phase(),
-		PhaseEndTimestamp: l.PhaseEndTimestamp(),
+		PhaseEndsAt:    l.PhaseEndsAt(),
 		Shop:              api.NewCards(p.Shop().Cards()),
 		IsShopFrozen:      p.Shop().IsFrozen(),
 		Hand:              api.NewCards(p.Hand()),
 		Board:             api.NewCardsFromMinions(p.Board().Minions()),
-		CombatResults:     l.CombatResults(client.playerID),
+		CombatResults:     api.NewCombatResults(l.CombatResults(client.playerID)),
 	}
 
 	if p.HasDiscover() {
