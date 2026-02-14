@@ -1,11 +1,14 @@
 package game
 
-import "iter"
+import (
+	"errors"
+	"iter"
+)
 
 // Effect is a triggered ability's behavior.
 // Concrete types: BuffStats, GiveKeyword, SummonMinion, DiscoverCard, MakeGolden.
 type Effect interface {
-	Apply(ctx EffectContext)
+	Apply(ctx EffectContext) error
 	golden() Effect
 }
 
@@ -125,8 +128,8 @@ type BuffStats struct {
 	Persistent bool // true = permanent buff, false = combat only
 }
 
-func (e *BuffStats) Apply(ctx EffectContext) {
-	panic("BuffStats.Apply not implemented")
+func (e *BuffStats) Apply(ctx EffectContext) error {
+	return errors.New("BuffStats.Apply not implemented")
 }
 
 func (e *BuffStats) golden() Effect {
@@ -144,8 +147,8 @@ type GiveKeyword struct {
 	Keyword Keyword
 }
 
-func (e *GiveKeyword) Apply(ctx EffectContext) {
-	panic("GiveKeyword.Apply not implemented")
+func (e *GiveKeyword) Apply(ctx EffectContext) error {
+	return errors.New("GiveKeyword.Apply not implemented")
 }
 
 func (e *GiveKeyword) golden() Effect {
@@ -160,8 +163,8 @@ type SummonMinion struct {
 	TemplateID string
 }
 
-func (e *SummonMinion) Apply(ctx EffectContext) {
-	panic("SummonMinion.Apply not implemented")
+func (e *SummonMinion) Apply(ctx EffectContext) error {
+	return errors.New("SummonMinion.Apply not implemented")
 }
 
 func (e *SummonMinion) golden() Effect {
@@ -175,12 +178,13 @@ type DiscoverCard struct {
 	Kind       CardKind // filter by card kind (0 = any)
 }
 
-func (e *DiscoverCard) Apply(ctx EffectContext) {
+func (e *DiscoverCard) Apply(ctx EffectContext) error {
 	if ctx.Shop == nil || ctx.Pool == nil || ctx.Discovers == nil {
-		return
+		return nil
 	}
 	tier := min(ctx.Shop.Tier()+Tier(e.TierOffset), Tier6)
 	*ctx.Discovers = ctx.Pool.RollDiscover(tier, e.Tribe, e.Kind)
+	return nil
 }
 
 func (e *DiscoverCard) golden() Effect { return e }
@@ -188,8 +192,8 @@ func (e *DiscoverCard) golden() Effect { return e }
 // MakeGolden makes the target minion golden.
 type MakeGolden struct{}
 
-func (e *MakeGolden) Apply(ctx EffectContext) {
-	panic("MakeGolden.Apply not implemented")
+func (e *MakeGolden) Apply(ctx EffectContext) error {
+	return errors.New("MakeGolden.Apply not implemented")
 }
 
 func (e *MakeGolden) golden() Effect { return e }
@@ -200,8 +204,8 @@ type DealDamage struct {
 	Amount int
 }
 
-func (e *DealDamage) Apply(ctx EffectContext) {
-	panic("DealDamage.Apply not implemented")
+func (e *DealDamage) Apply(ctx EffectContext) error {
+	return errors.New("DealDamage.Apply not implemented")
 }
 
 func (e *DealDamage) golden() Effect {
@@ -216,8 +220,8 @@ type DestroyMinion struct {
 	Target Target
 }
 
-func (e *DestroyMinion) Apply(ctx EffectContext) {
-	panic("DestroyMinion.Apply not implemented")
+func (e *DestroyMinion) Apply(ctx EffectContext) error {
+	return errors.New("DestroyMinion.Apply not implemented")
 }
 
 func (e *DestroyMinion) golden() Effect {
@@ -231,15 +235,16 @@ type AddCard struct {
 	TemplateID string
 }
 
-func (e *AddCard) Apply(ctx EffectContext) {
+func (e *AddCard) Apply(ctx EffectContext) error {
 	if e.TemplateID == "" {
-		return
+		return errors.New("empty template id")
 	}
 
 	tmpl := ctx.Pool.ByTemplateID(e.TemplateID)
 	if tmpl != nil && !ctx.Hand.IsFull() {
 		ctx.Hand.Add(NewCard(tmpl))
 	}
+	return nil
 }
 
 func (e *AddCard) golden() Effect { return e }

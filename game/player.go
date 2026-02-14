@@ -204,7 +204,9 @@ func (p *Player) PlayMinion(handIdx, boardIdx int, pool *CardPool) error {
 
 	ctx := newEffectContext(p, pool).WithSource(minion)
 	for e := range minion.EffectsByTrigger(TriggerBattlecry, TriggerGolden) {
-		e.Apply(ctx)
+		if err := e.Apply(ctx); err != nil {
+			return fmt.Errorf("%T: %w", e, err)
+		}
 	}
 
 	return nil
@@ -340,7 +342,9 @@ func (p *Player) PlaySpell(handIdx int, pool *CardPool) error {
 	p.hand.RemoveCard(handIdx)
 
 	for e := range EffectsByTrigger(spell.Template().Effects(), TriggerSpell) {
-		e.Apply(newEffectContext(p, pool))
+		if err := e.Apply(newEffectContext(p, pool)); err != nil {
+			return fmt.Errorf("%T: %w", e, err)
+		}
 	}
 
 	return nil
