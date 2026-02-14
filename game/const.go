@@ -24,7 +24,7 @@ const (
 	initialGold     = 99 // each player has at game start
 	maxGold         = 99 // each player may have during the game by upgrading MaxGold each turn without spells
 	minionSellValue = 1
-	shopRefreshCost = 1
+	ShopRefreshCost = 1
 )
 
 const discoverCount = 3

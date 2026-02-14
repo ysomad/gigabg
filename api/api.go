@@ -20,7 +20,7 @@ const (
 	ActionFreezeShop
 	ActionPlaySpell
 	ActionDiscoverPick
-	ActionSyncBoards
+	ActionReorderCards
 )
 
 func (a Action) String() string {
@@ -43,8 +43,8 @@ func (a Action) String() string {
 		return "play_spell"
 	case ActionDiscoverPick:
 		return "discover_pick"
-	case ActionSyncBoards:
-		return "sync_boards"
+	case ActionReorderCards:
+		return "reorder_cards"
 	default:
 		return "unknown"
 	}
@@ -73,9 +73,9 @@ type RemoveMinion struct {
 	BoardIndex int `json:"board_index"`
 }
 
-type SyncBoards struct {
-	BoardOrder []int `json:"board_order"`
-	ShopOrder  []int `json:"shop_order"`
+type ReorderCards struct {
+	BoardOrder []int `json:"board_order,omitempty"`
+	ShopOrder  []int `json:"shop_order,omitempty"`
 }
 
 type PlaySpell struct {
@@ -117,7 +117,7 @@ type GameState struct {
 	Phase         game.Phase     `json:"phase"`
 	PhaseEndsAt   time.Time      `json:"phase_ends_at"`
 	Shop          []Card         `json:"shop,omitempty"`
-	IsShopFrozen  bool           `json:"is_shop_frozen"`
+	IsShopFrozen  bool           `json:"is_shop_frozen,omitempty"`
 	Hand          []Card         `json:"hand,omitempty"`
 	Board         []Card         `json:"board,omitempty"`
 	Discovers     []Card         `json:"discovers,omitempty"`
@@ -135,6 +135,7 @@ type Player struct {
 	MaxGold     int       `json:"max_gold"`
 	ShopTier    game.Tier `json:"shop_tier"`
 	UpgradeCost int       `json:"upgrade_cost"`
+	RefreshCost int       `json:"refresh_cost"`
 }
 
 type Opponent struct {
@@ -218,6 +219,7 @@ func NewPlayer(p *game.Player) Player {
 		MaxGold:     p.MaxGold(),
 		ShopTier:    p.Shop().Tier(),
 		UpgradeCost: p.Shop().UpgradeCost(),
+		RefreshCost: p.Shop().RefreshCost(),
 	}
 }
 

@@ -3,19 +3,21 @@ package game
 import "slices"
 
 // Shop tier upgrade costs (index = current tier).
-var _upgradeCosts = [6]int{0, 5, 7, 8, 11, 11} // tier 1->2 costs 5, etc.
+var upgradeCosts = [6]int{0, 5, 7, 8, 11, 11} // tier 1->2 costs 5, etc.
 
 type Shop struct {
-	cards    []Card
-	tier     Tier
-	frozen   bool
-	discount int
+	cards       []Card
+	tier        Tier
+	frozen      bool
+	discount    int
+	refreshCost int
 }
 
-func (s Shop) Cards() []Card      { return slices.Clone(s.cards) }
-func (s Shop) Tier() Tier         { return s.tier }
-func (s Shop) IsFrozen() bool     { return s.frozen }
+func (s Shop) Cards() []Card        { return slices.Clone(s.cards) }
+func (s Shop) Tier() Tier           { return s.tier }
+func (s Shop) IsFrozen() bool       { return s.frozen }
 func (s Shop) HasCardAt(i int) bool { return i >= 0 && i < len(s.cards) }
+func (s Shop) RefreshCost() int     { return s.refreshCost }
 
 // Size returns how many cards to show based on shop tier.
 func (s Shop) Size() int {
@@ -40,7 +42,7 @@ func (s Shop) UpgradeCost() int {
 	if s.tier >= Tier6 {
 		return 0
 	}
-	cost := _upgradeCosts[s.tier] - s.discount
+	cost := upgradeCosts[s.tier] - s.discount
 	if cost < 0 {
 		return 0
 	}

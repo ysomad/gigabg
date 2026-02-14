@@ -2,17 +2,9 @@ package catalog
 
 import "github.com/ysomad/gigabg/game"
 
-// spells returns all spell card templates.
+// spells returns pool spell card templates.
 func spells() map[string]*template {
 	return map[string]*template{
-		game.TripleRewardID: {
-			kind:        game.CardKindSpell,
-			name:        "Triple Reward",
-			description: "Discover a minion from a higher tavern tier.",
-			effects: []game.TriggeredEffect{
-				{Trigger: game.TriggerSpell, Effect: &game.DiscoverCard{TierOffset: 1}},
-			},
-		},
 		"bolster": {
 			kind:        game.CardKindSpell,
 			name:        "Bolster",
@@ -34,6 +26,20 @@ func spells() map[string]*template {
 			cost:        4,
 			effects: []game.TriggeredEffect{
 				{Trigger: game.TriggerSpell, Effect: &game.MakeGolden{}},
+			},
+		},
+	}
+}
+
+// spellTokens returns non-pool spell tokens created by gameplay effects.
+func spellTokens() map[string]*template {
+	return map[string]*template{
+		game.TripleRewardID: {
+			kind:        game.CardKindSpell,
+			name:        "Triple Reward",
+			description: "Discover a minion from a higher tavern tier.",
+			effects: []game.TriggeredEffect{
+				{Trigger: game.TriggerSpell, Effect: &game.DiscoverCard{TierOffset: 1}},
 			},
 		},
 	}

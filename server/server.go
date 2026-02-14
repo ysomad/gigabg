@@ -334,10 +334,10 @@ func (s *Server) handleMessage(ctx context.Context, client *ClientConn, msg *api
 			return nil
 		})
 
-	case api.ActionSyncBoards:
+	case api.ActionReorderCards:
 		slog.Info(msg.Action.String(), "player", client.playerID, "lobby", client.lobbyID)
 		s.handleAction(ctx, client, msg.Action, func(l *lobby.Lobby, p *game.Player) error {
-			payload, err := decodePayload[api.SyncBoards](msg)
+			payload, err := decodePayload[api.ReorderCards](msg)
 			if err != nil {
 				return err
 			}

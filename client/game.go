@@ -333,9 +333,9 @@ func (c *GameClient) FreezeShop() error {
 	return c.send(api.ActionFreezeShop, nil)
 }
 
-// SyncBoards sends board order and shop order to the server.
-func (c *GameClient) SyncBoards(boardOrder, shopOrder []int) error {
-	return c.send(api.ActionSyncBoards, api.SyncBoards{
+// ReorderCards sends board and shop card order to the server.
+func (c *GameClient) ReorderCards(boardOrder, shopOrder []int) error {
+	return c.send(api.ActionReorderCards, api.ReorderCards{
 		BoardOrder: boardOrder,
 		ShopOrder:  shopOrder,
 	})

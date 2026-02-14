@@ -42,7 +42,7 @@ func NewPlayer(id string) *Player {
 		hp:      initialHP,
 		gold:    initialGold,
 		maxGold: maxGold,
-		shop:    Shop{tier: 1},
+		shop:    Shop{tier: Tier1, refreshCost: ShopRefreshCost},
 		board:   NewBoard(maxBoardSize),
 		hand:    NewHand(),
 	}
@@ -213,11 +213,11 @@ func (p *Player) UpgradeShop() error {
 
 // RefreshShop refreshes the shop for gold, returning old cards to pool.
 func (p *Player) RefreshShop(pool *CardPool) error {
-	if p.gold < shopRefreshCost {
+	if p.gold < p.shop.refreshCost {
 		return ErrNotEnoughGold
 	}
 
-	p.gold -= shopRefreshCost
+	p.gold -= p.shop.refreshCost
 	p.shop.Refresh(pool)
 	return nil
 }

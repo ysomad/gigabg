@@ -2,16 +2,9 @@ package catalog
 
 import "github.com/ysomad/gigabg/game"
 
-// undeads returns all undeads tribe card templates.
+// undeads returns pool undead tribe card templates.
 func undeads() map[string]*template {
 	return map[string]*template{
-		// Tier 1
-		"skeleton": {
-			name:   "Skeleton",
-			tier:   game.Tier1,
-			attack: 1,
-			health: 1,
-		},
 		// Tier 2
 		"risen_guard": {
 			name:     "Risen Guard",
@@ -65,6 +58,18 @@ func undeads() map[string]*template {
 					Persistent: true,
 				}},
 			},
+		},
+	}
+}
+
+// undeadTokens returns non-pool undead tokens created by gameplay effects.
+func undeadTokens() map[string]*template {
+	return map[string]*template{
+		"skeleton": {
+			name:   "Skeleton",
+			tier:   game.Tier1,
+			attack: 1,
+			health: 1,
 		},
 	}
 }

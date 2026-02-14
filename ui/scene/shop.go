@@ -162,7 +162,11 @@ func (s *shopPanel) drawButtons(screen *ebiten.Image, font *text.GoTextFace, lay
 		screen, float32(sr.X), float32(sr.Y), float32(sr.W), float32(sr.H),
 		sw, color.RGBA{100, 100, 140, 255}, false,
 	)
-	ui.DrawText(screen, font, "Refresh (1g)",
+	refreshCost := game.ShopRefreshCost
+	if p := s.client.Player(); p != nil {
+		refreshCost = p.RefreshCost
+	}
+	ui.DrawText(screen, font, fmt.Sprintf("Refresh (%dg)", refreshCost),
 		refresh.X+refresh.W*0.08, refresh.Y+refresh.H*0.25,
 		color.RGBA{200, 200, 255, 255})
 

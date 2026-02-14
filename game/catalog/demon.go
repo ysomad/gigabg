@@ -2,16 +2,9 @@ package catalog
 
 import "github.com/ysomad/gigabg/game"
 
-// demons returns all demons tribe card templates.
+// demons returns pool demons tribe card templates.
 func demons() map[string]*template {
 	return map[string]*template{
-		// Tier 1
-		"imp": {
-			name:   "Imp",
-			tier:   game.Tier1,
-			attack: 1,
-			health: 1,
-		},
 		// Tier 2
 		"imprisoner": {
 			name:        "Imprisoner",
@@ -60,6 +53,25 @@ func demons() map[string]*template {
 			attack:   10,
 			health:   10,
 			keywords: game.NewKeywords(game.KeywordWindfury),
+		},
+	}
+}
+
+// demonTokens returns non-pool demon tokens created by gameplay effects.
+func demonTokens() map[string]*template {
+	return map[string]*template{
+		"imp": {
+			name:   "Imp",
+			tier:   game.Tier1,
+			attack: 1,
+			health: 1,
+		},
+		"voidwalker": {
+			name:     "Voidwalker",
+			tier:     game.Tier1,
+			attack:   1,
+			health:   3,
+			keywords: game.NewKeywords(game.KeywordTaunt),
 		},
 	}
 }

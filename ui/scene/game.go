@@ -370,7 +370,7 @@ func (g *Game) onPhaseTransition(from, to game.Phase) {
 	case from == game.PhaseRecruit:
 		// Recruit → Combat or Recruit → Finished (game ended during combat).
 		g.phaseToast.Show("COMBAT")
-		g.recruit.SyncOrders()
+		g.recruit.ReorderCards()
 	case to == game.PhaseRecruit && g.combat == nil:
 		g.phaseToast.Show("RECRUIT")
 	case from == game.PhaseCombat && to == game.PhaseFinished:

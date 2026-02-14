@@ -31,10 +31,10 @@ type recruitPhase struct {
 	boardOrder []int
 }
 
-// SyncOrders sends the local board/shop order to the server.
-func (r *recruitPhase) SyncOrders() {
-	if err := r.client.SyncBoards(r.boardOrder, r.shop.order); err != nil {
-		slog.Error("sync boards", "error", err)
+// ReorderCards sends the local board/shop order to the server.
+func (r *recruitPhase) ReorderCards() {
+	if err := r.client.ReorderCards(r.boardOrder, r.shop.order); err != nil {
+		slog.Error("reorder cards", "error", err)
 	}
 }
 

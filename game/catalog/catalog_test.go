@@ -17,64 +17,80 @@ func testSpell(t *testing.T, id string, tier game.Tier, cost int) *template {
 	return &template{_id: id, name: id, kind: game.CardKindSpell, tier: tier, cost: cost}
 }
 
-func Test_newCatalog_empty(t *testing.T) {
+func TestCatalog_ByTemplateID(t *testing.T) {
 	t.Parallel()
 
-	c := newCatalog(map[string]game.CardTemplate{})
+	t1Beast := testMinion(t, "t1_beast", game.Tier1, game.TribeBeast)
+	token := testMinion(t, "token", game.Tier1, game.TribeDemon)
 
-	assert.Empty(t, c.templates)
-	assert.Empty(t, c.byKind)
-	assert.Empty(t, c.byTribe)
-	assert.Empty(t, c.byTier)
-	assert.Empty(t, c.byKindTierTribe)
+	c := &Catalog{
+		all:             map[string]game.CardTemplate{"t1_beast": t1Beast, "token": token},
+		byKind:          make(map[game.CardKind][]game.CardTemplate),
+		byTribe:         make(map[game.Tribe][]game.CardTemplate),
+		byTier:          make(map[game.Tier][]game.CardTemplate),
+		byKindTierTribe: make(map[game.CardKind]map[game.Tier]map[game.Tribe][]game.CardTemplate),
+	}
+	c.index(t1Beast)
+
+	tests := []struct {
+		name string
+		id   string
+		want game.CardTemplate
+	}{
+		{"shop card", "t1_beast", t1Beast},
+		{"token card", "token", token},
+		{"nonexistent", "missing", nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, c.ByTemplateID(tt.id))
+		})
+	}
 }
 
-func Test_newCatalog(t *testing.T) {
+func TestCatalog_ByKindTierTribe(t *testing.T) {
 	t.Parallel()
 
 	t1Beast := testMinion(t, "t1_beast", game.Tier1, game.TribeBeast)
 	t1Demon := testMinion(t, "t1_demon", game.Tier1, game.TribeDemon)
 	t2Beast := testMinion(t, "t2_beast", game.Tier2, game.TribeBeast)
 	t1Spell := testSpell(t, "t1_spell", game.Tier1, 1)
+	token := testMinion(t, "token", game.Tier1, game.TribeDemon)
 
-	templates := map[string]game.CardTemplate{
-		"t1_beast": t1Beast,
-		"t1_demon": t1Demon,
-		"t2_beast": t2Beast,
-		"t1_spell": t1Spell,
+	c := &Catalog{
+		all:             make(map[string]game.CardTemplate),
+		byKind:          make(map[game.CardKind][]game.CardTemplate),
+		byTribe:         make(map[game.Tribe][]game.CardTemplate),
+		byTier:          make(map[game.Tier][]game.CardTemplate),
+		byKindTierTribe: make(map[game.CardKind]map[game.Tier]map[game.Tribe][]game.CardTemplate),
 	}
 
-	c := newCatalog(templates)
+	for _, tmpl := range []game.CardTemplate{t1Beast, t1Demon, t2Beast, t1Spell} {
+		c.all[tmpl.ID()] = tmpl
+		c.index(tmpl)
+	}
+	c.all["token"] = token // token: not indexed
 
-	// templates indexed by ID
-	assert.Equal(t, game.CardTemplate(t1Beast), c.ByTemplateID("t1_beast"))
-	assert.Equal(t, game.CardTemplate(t1Demon), c.ByTemplateID("t1_demon"))
-	assert.Equal(t, game.CardTemplate(t2Beast), c.ByTemplateID("t2_beast"))
-	assert.Equal(t, game.CardTemplate(t1Spell), c.ByTemplateID("t1_spell"))
-	assert.Nil(t, c.ByTemplateID("nonexistent"))
+	tests := []struct {
+		name  string
+		kind  game.CardKind
+		tier  game.Tier
+		tribe game.Tribe
+		want  []game.CardTemplate
+	}{
+		{"exact match", game.CardKindMinion, game.Tier1, game.TribeBeast, []game.CardTemplate{t1Beast}},
+		{"tribe zero returns all tribes", game.CardKindMinion, game.Tier1, 0, []game.CardTemplate{t1Beast, t1Demon}},
+		{"tier2 beast", game.CardKindMinion, game.Tier2, game.TribeBeast, []game.CardTemplate{t2Beast}},
+		{"spell tier1", game.CardKindSpell, game.Tier1, 0, []game.CardTemplate{t1Spell}},
+		{"no matches", game.CardKindMinion, game.Tier6, game.TribeBeast, nil},
+		{"token excluded from index", game.CardKindMinion, game.Tier1, game.TribeDemon, []game.CardTemplate{t1Demon}},
+	}
 
-	// by kind
-	assert.ElementsMatch(t, []game.CardTemplate{t1Beast, t1Demon, t2Beast}, c.ByKind(game.CardKindMinion))
-	assert.ElementsMatch(t, []game.CardTemplate{t1Spell}, c.ByKind(game.CardKindSpell))
-
-	// by tribe
-	assert.ElementsMatch(t, []game.CardTemplate{t1Beast, t2Beast}, c.ByTribe(game.TribeBeast))
-	assert.ElementsMatch(t, []game.CardTemplate{t1Demon}, c.ByTribe(game.TribeDemon))
-
-	// by tier
-	assert.ElementsMatch(t, []game.CardTemplate{t1Beast, t1Demon, t1Spell}, c.ByTier(game.Tier1))
-	assert.ElementsMatch(t, []game.CardTemplate{t2Beast}, c.ByTier(game.Tier2))
-
-	// by kind+tier+tribe (exact)
-	assert.ElementsMatch(t, []game.CardTemplate{t1Beast}, c.ByKindTierTribe(game.CardKindMinion, game.Tier1, game.TribeBeast))
-	assert.ElementsMatch(t, []game.CardTemplate{t1Demon}, c.ByKindTierTribe(game.CardKindMinion, game.Tier1, game.TribeDemon))
-	assert.ElementsMatch(t, []game.CardTemplate{t2Beast}, c.ByKindTierTribe(game.CardKindMinion, game.Tier2, game.TribeBeast))
-	assert.ElementsMatch(t, []game.CardTemplate{t1Spell}, c.ByKindTierTribe(game.CardKindSpell, game.Tier1, 0))
-
-	// by kind+tier, tribe=0 means all tribes
-	assert.ElementsMatch(t, []game.CardTemplate{t1Beast, t1Demon}, c.ByKindTierTribe(game.CardKindMinion, game.Tier1, 0))
-	assert.ElementsMatch(t, []game.CardTemplate{t2Beast}, c.ByKindTierTribe(game.CardKindMinion, game.Tier2, 0))
-
-	// no matches
-	assert.Empty(t, c.ByKindTierTribe(game.CardKindMinion, game.Tier6, game.TribeBeast))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := c.ByKindTierTribe(tt.kind, tt.tier, tt.tribe)
+			assert.ElementsMatch(t, tt.want, got)
+		})
+	}
 }
