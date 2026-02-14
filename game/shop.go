@@ -87,8 +87,8 @@ func (s *Shop) Upgrade() {
 	s.discount = 0
 }
 
-// Freeze toggles the shop freeze state.
-func (s *Shop) Freeze() {
+// ToggleFreeze toggles the shop freeze state.
+func (s *Shop) ToggleFreeze() {
 	s.frozen = !s.frozen
 }
 

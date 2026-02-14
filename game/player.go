@@ -263,7 +263,7 @@ func (p *Player) RefreshShop(pool *CardPool) error {
 }
 
 // FreezeShop toggles the shop freeze state.
-func (p *Player) FreezeShop() { p.shop.Freeze() }
+func (p *Player) FreezeShop() { p.shop.ToggleFreeze() }
 
 // CheckTriples scans hand + board for 3 non-golden copies of the same minion.
 // If found, removes all 3, merges first 2 into a golden minion in hand.
