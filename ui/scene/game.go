@@ -327,8 +327,8 @@ func (g *Game) drawGameResult(screen *ebiten.Image) {
 		}
 
 		line := fmt.Sprintf("#%d  %s", p.Placement, p.PlayerID)
-		if p.MajorityTribe != game.TribeNeutral && p.MajorityTribe != game.TribeMixed {
-			line += fmt.Sprintf("  (%s x%d)", p.MajorityTribe, p.MajorityCount)
+		if p.TopTribe != game.TribeNeutral && p.TopTribe != game.TribeMixed {
+			line += fmt.Sprintf("  (%s x%d)", p.TopTribe, p.TopTribeCount)
 		}
 		ui.DrawText(screen, g.font, line, w*0.35, y, clr)
 	}

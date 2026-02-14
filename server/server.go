@@ -463,7 +463,7 @@ func (s *Server) sendPlayerState(client *ClientConn, l *lobby.Lobby, p *game.Pla
 			l.Players(),
 			client.playerID,
 			api.NewAllCombatResults(l.AllCombatResults()),
-			l.MajorityTribes(),
+			l.TopTribes(),
 		),
 		Turn:          l.Turn(),
 		Phase:         l.Phase(),

@@ -137,21 +137,21 @@ type TribeSnapshot struct {
 	Count int
 }
 
-// MajorityTribe returns the most common non-neutral tribe on the board and its count.
+// TopTribe returns the most common non-neutral tribe on the board and its count.
 // Returns (TribeNeutral, 0) if no non-neutral tribe has >= 2 minions.
-func (b Board) MajorityTribe() (Tribe, int) {
+func (b Board) TopTribe() (Tribe, int) {
 	tribes := make([]Tribe, len(b.minions))
 	for i, m := range b.minions {
 		tribes[i] = m.Tribe()
 	}
-	return CalcMajorityTribe(tribes)
+	return CalcTopTribe(tribes)
 }
 
-// CalcMajorityTribe returns the dominant tribe and its count.
+// CalcTopTribe returns the dominant tribe and its count.
 // All-tribe minions are added to the majority count after it is determined.
 // Returns TribeMixed when multiple tribes exist but none dominates.
 // Returns TribeNeutral when no countable tribes are present.
-func CalcMajorityTribe(tribes []Tribe) (Tribe, int) {
+func CalcTopTribe(tribes []Tribe) (Tribe, int) {
 	var allCount int
 
 	counts := make(map[Tribe]int)

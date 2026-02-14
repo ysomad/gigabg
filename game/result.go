@@ -6,8 +6,8 @@ import "time"
 type PlayerPlacement struct {
 	PlayerID      string
 	Placement     int
-	MajorityTribe Tribe
-	MajorityCount int
+	TopTribe Tribe
+	TopTribeCount int
 }
 
 // GameResult holds the outcome of a completed game.

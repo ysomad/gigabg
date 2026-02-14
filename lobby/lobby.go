@@ -286,8 +286,8 @@ func (l *Lobby) checkFinished() {
 		placements[i] = game.PlayerPlacement{
 			PlayerID:      p.ID(),
 			Placement:     p.Placement(),
-			MajorityTribe: snap.Tribe,
-			MajorityCount: snap.Count,
+			TopTribe: snap.Tribe,
+			TopTribeCount: snap.Count,
 		}
 	}
 	slices.SortFunc(placements, func(a, b game.PlayerPlacement) int {
@@ -342,12 +342,12 @@ func (l *Lobby) snapshotTribe(p *game.Player) {
 	if l.majorityTribes == nil {
 		l.majorityTribes = make(map[string]game.TribeSnapshot, len(l.players))
 	}
-	tribe, count := p.Board().MajorityTribe()
+	tribe, count := p.Board().TopTribe()
 	l.majorityTribes[p.ID()] = game.TribeSnapshot{Tribe: tribe, Count: count}
 }
 
-// MajorityTribes returns the snapshot of majority tribes from last combat.
-func (l *Lobby) MajorityTribes() map[string]game.TribeSnapshot { return l.majorityTribes }
+// TopTribes returns the snapshot of majority tribes from last combat.
+func (l *Lobby) TopTribes() map[string]game.TribeSnapshot { return l.majorityTribes }
 
 func (l *Lobby) appendCombatResult(playerID string, result game.CombatResult) {
 	logs := append(l.combatResults[playerID], result) //nolint:gocritic // intentional new slice

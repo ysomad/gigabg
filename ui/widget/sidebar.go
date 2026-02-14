@@ -133,12 +133,12 @@ func (s *Sidebar) drawList(screen *ebiten.Image, rect ui.Rect, playerID, opponen
 
 		// Line 2: Tier + tribe.
 		line2 := fmt.Sprintf("Tier %d", e.ShopTier)
-		switch e.MajorityTribe {
+		switch e.TopTribe {
 		case game.TribeNeutral:
 		case game.TribeMixed:
 			line2 += " | Mixed"
 		default:
-			line2 += fmt.Sprintf(" | %s x%d", e.MajorityTribe, e.MajorityCount)
+			line2 += fmt.Sprintf(" | %s x%d", e.TopTribe, e.TopTribeCount)
 		}
 		ui.DrawText(screen, s.font, line2, row.X+padX, row.Y+rowH*0.55, color.RGBA{160, 160, 180, 255})
 
@@ -203,12 +203,12 @@ func (s *Sidebar) drawTooltip(screen *ebiten.Image, rect ui.Rect) {
 	ui.DrawText(screen, s.font, e.ID, tip.X+padX, tip.Y+tip.H*0.08, color.RGBA{220, 220, 220, 255})
 
 	// Tribe info.
-	switch e.MajorityTribe {
+	switch e.TopTribe {
 	case game.TribeNeutral:
 	case game.TribeMixed:
 		ui.DrawText(screen, s.font, "Mixed", tip.X+padX, tip.Y+tip.H*0.22, color.RGBA{180, 180, 200, 255})
 	default:
-		tribeStr := fmt.Sprintf("%s x%d", e.MajorityTribe, e.MajorityCount)
+		tribeStr := fmt.Sprintf("%s x%d", e.TopTribe, e.TopTribeCount)
 		ui.DrawText(screen, s.font, tribeStr, tip.X+padX, tip.Y+tip.H*0.22, color.RGBA{180, 180, 200, 255})
 	}
 

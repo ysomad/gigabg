@@ -24,8 +24,8 @@ type PlayerEntry struct {
 	HP            int
 	ShopTier      game.Tier
 	CombatResults []api.CombatResult
-	MajorityTribe game.Tribe
-	MajorityCount int
+	TopTribe game.Tribe
+	TopTribeCount int
 }
 
 // GameClient connects to a game server via WebSocket.
@@ -269,15 +269,15 @@ func (c *GameClient) PlayerList() []PlayerEntry {
 	for i, card := range c.state.Board {
 		tribes[i] = card.Tribe
 	}
-	selfTribe, selfCount := game.CalcMajorityTribe(tribes)
+	selfTribe, selfCount := game.CalcTopTribe(tribes)
 	list := make([]PlayerEntry, 0, len(c.state.Opponents)+1)
 	list = append(list, PlayerEntry{
 		ID:            p.ID,
 		HP:            p.HP,
 		ShopTier:      p.ShopTier,
 		CombatResults: c.state.CombatResults,
-		MajorityTribe: selfTribe,
-		MajorityCount: selfCount,
+		TopTribe: selfTribe,
+		TopTribeCount: selfCount,
 	})
 	for _, o := range c.state.Opponents {
 		list = append(list, PlayerEntry{
@@ -285,8 +285,8 @@ func (c *GameClient) PlayerList() []PlayerEntry {
 			HP:            o.HP,
 			ShopTier:      o.ShopTier,
 			CombatResults: o.CombatResults,
-			MajorityTribe: o.MajorityTribe,
-			MajorityCount: o.MajorityCount,
+			TopTribe: o.TopTribe,
+			TopTribeCount: o.TopTribeCount,
 		})
 	}
 	slices.SortFunc(list, func(a, b PlayerEntry) int {

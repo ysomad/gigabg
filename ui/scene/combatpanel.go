@@ -26,6 +26,7 @@ const (
 	damageIndicatorTime = 1.5
 	poisonIndicatorTime = 0.8
 	deathFadeDuration   = 0.4
+	spawnFadeDuration   = 0.5
 	eventPause          = 0.5
 )
 
@@ -45,6 +46,7 @@ type animMinion struct {
 	opacity     float64 // 1.0 = visible, fades to 0 on death
 	dying       bool
 	poisonDeath bool // died from poison/venom; show indicator after damage fades
+	spawning    bool // true while fading in after reborn
 }
 
 type attackAnimation struct {
@@ -131,6 +133,7 @@ func (cp *combatPanel) Update(elapsed float64, lay ui.GameLayout) (bool, error) 
 
 	// Tick visual timers.
 	cp.updateDeathFades(elapsed)
+	cp.updateSpawnFades(elapsed)
 	cp.tickFlashTimers(elapsed)
 	cp.startPoisonIndicators()
 
@@ -164,7 +167,7 @@ func (cp *combatPanel) Update(elapsed float64, lay ui.GameLayout) (bool, error) 
 	}
 
 	// All events consumed; wait for remaining visuals to finish.
-	if !cp.hasActiveIndicator() && !cp.hasDying() {
+	if !cp.hasActiveIndicator() && !cp.hasDying() && !cp.hasSpawning() {
 		cp.done = true
 		return true, nil
 	}
@@ -308,7 +311,7 @@ func (cp *combatPanel) rebornMinion(ev game.RebornEvent) error {
 		CombatID:   ev.TargetID,
 	}
 
-	m := animMinion{card: card, opacity: 1.0}
+	m := animMinion{card: card, opacity: 0, spawning: true}
 	if ev.OwnerID == cp.playerID {
 		cp.playerBoard = append(cp.playerBoard, m)
 	} else {
@@ -382,6 +385,38 @@ func (cp *combatPanel) updateDeathFades(elapsed float64) {
 	fade := elapsed / deathFadeDuration
 	cp.playerBoard = fadeAndRemove(cp.playerBoard, fade)
 	cp.opponentBoard = fadeAndRemove(cp.opponentBoard, fade)
+}
+
+func (cp *combatPanel) updateSpawnFades(elapsed float64) {
+	fade := elapsed / spawnFadeDuration
+	spawnFade := func(board []animMinion) {
+		for i := range board {
+			if !board[i].spawning {
+				continue
+			}
+			board[i].opacity += fade
+			if board[i].opacity >= 1.0 {
+				board[i].opacity = 1.0
+				board[i].spawning = false
+			}
+		}
+	}
+	spawnFade(cp.playerBoard)
+	spawnFade(cp.opponentBoard)
+}
+
+func (cp *combatPanel) hasSpawning() bool {
+	for _, m := range cp.playerBoard {
+		if m.spawning {
+			return true
+		}
+	}
+	for _, m := range cp.opponentBoard {
+		if m.spawning {
+			return true
+		}
+	}
+	return false
 }
 
 func fadeAndRemove(board []animMinion, fade float64) []animMinion {

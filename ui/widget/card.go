@@ -194,6 +194,10 @@ func (r *CardRenderer) drawKeywordEffects(
 	rx := float32(sr.W / 2)
 	ry := float32(sr.H / 2)
 
+	if keywords.Has(game.KeywordReborn) {
+		r.drawReborn(screen, cx, cy, rx, ry, s, alpha)
+	}
+
 	if keywords.Has(game.KeywordPoisonous) {
 		r.drawPoisonous(screen, cx, cy+ry*0.95, s, alpha)
 	}
@@ -463,6 +467,101 @@ func (r *CardRenderer) drawVenomous(screen *ebiten.Image, cx, cy float32, s floa
 	strokeOp := &vector.DrawPathOptions{AntiAlias: true}
 	strokeOp.ColorScale.ScaleWithColor(withAlpha(bottleStroke, alpha))
 	vector.StrokePath(screen, &body, &vector.StrokeOptions{Width: float32(0.8 * s)}, strokeOp)
+}
+
+// drawReborn draws a punched-glass crack pattern inside the minion ellipse.
+// Cracks radiate from near the center outward to the ellipse edge with
+// irregular zigzag turns, like shattered glass from a central impact.
+func (r *CardRenderer) drawReborn(screen *ebiten.Image, cx, cy, rx, ry float32, s float64, alpha uint8) {
+	sf := float32(s)
+
+	// Faint blue glow over the minion interior (additive blend, see-through).
+	const k = 0.5522847498
+	var bg vector.Path
+	bg.MoveTo(cx, cy-ry)
+	bg.CubicTo(cx+rx*k, cy-ry, cx+rx, cy-ry*k, cx+rx, cy)
+	bg.CubicTo(cx+rx, cy+ry*k, cx+rx*k, cy+ry, cx, cy+ry)
+	bg.CubicTo(cx-rx*k, cy+ry, cx-rx, cy+ry*k, cx-rx, cy)
+	bg.CubicTo(cx-rx, cy-ry*k, cx-rx*k, cy-ry, cx, cy-ry)
+	bg.Close()
+	bgOp := &vector.DrawPathOptions{AntiAlias: true}
+	bgOp.ColorScale.ScaleWithColor(color.RGBA{8, 12, 30, alpha})
+	bgOp.Blend = ebiten.BlendLighter
+	vector.FillPath(screen, &bg, nil, bgOp)
+
+	// Each waypoint: frac = position along inner→outer (0=center, 1=edge),
+	// offset = tangent displacement (scaled by zigzagScale).
+	type waypoint struct {
+		frac   float32
+		offset float32
+	}
+	type crackDef struct {
+		angle float64
+		pts   []waypoint
+	}
+	cracks := []crackDef{
+		{-2.30, []waypoint{
+			{0.08, 0.20}, {0.22, -0.28}, {0.44, 0.14}, {0.58, -0.24}, {0.78, 0.18}, {0.93, -0.10},
+		}},
+		{-1.15, []waypoint{
+			{0.12, -0.26}, {0.35, 0.18}, {0.50, -0.12}, {0.72, 0.28}, {0.90, -0.22},
+		}},
+		{-0.22, []waypoint{
+			{0.06, 0.14}, {0.18, -0.30}, {0.32, 0.22}, {0.53, -0.16}, {0.65, 0.26},
+			{0.76, -0.20}, {0.88, 0.12}, {0.96, -0.08},
+		}},
+		{0.85, []waypoint{
+			{0.15, -0.22}, {0.42, 0.28}, {0.68, -0.18}, {0.88, 0.24},
+		}},
+		{1.48, []waypoint{
+			{0.10, 0.26}, {0.24, -0.14}, {0.40, 0.30}, {0.55, -0.22},
+			{0.70, 0.10}, {0.82, -0.28}, {0.94, 0.16},
+		}},
+		{2.63, []waypoint{
+			{0.18, -0.18}, {0.38, 0.26}, {0.62, -0.24}, {0.80, 0.14}, {0.92, -0.20},
+		}},
+		{3.70, []waypoint{
+			{0.07, 0.28}, {0.20, -0.16}, {0.36, 0.24}, {0.48, -0.28},
+			{0.62, 0.12}, {0.80, -0.22},
+		}},
+		{4.82, []waypoint{
+			{0.14, -0.24}, {0.30, 0.20}, {0.52, -0.30}, {0.74, 0.18},
+		}},
+	}
+
+	zigzagScale := rx * 0.25
+
+	for _, cl := range cracks {
+		cos := float32(math.Cos(cl.angle))
+		sin := float32(math.Sin(cl.angle))
+
+		outX := cx + rx*cos
+		outY := cy + ry*sin
+
+		dx := outX - cx
+		dy := outY - cy
+		tx := -sin
+		ty := cos
+
+		var path vector.Path
+		path.MoveTo(cx, cy)
+		for _, wp := range cl.pts {
+			// Taper zigzag to zero near the edge so the line meets the outline cleanly.
+			taper := 1 - wp.frac*wp.frac
+			off := zigzagScale * wp.offset * taper
+			px := cx + dx*wp.frac + tx*off
+			py := cy + dy*wp.frac + ty*off
+			path.LineTo(px, py)
+		}
+		path.LineTo(outX, outY)
+
+		pulse := 0.7 + 0.3*math.Sin(float64(r.Tick)*0.06+cl.angle*2)
+		lineA := uint8(float64(alpha) * pulse * 0.45)
+
+		lop := &vector.DrawPathOptions{AntiAlias: true}
+		lop.ColorScale.ScaleWithColor(color.RGBA{40, 90, 170, lineA})
+		vector.StrokePath(screen, &path, &vector.StrokeOptions{Width: sf * 0.7}, lop)
+	}
 }
 
 func withAlpha(c color.RGBA, alpha uint8) color.RGBA {

@@ -143,8 +143,8 @@ type Opponent struct {
 	HP            int            `json:"hp"`
 	ShopTier      game.Tier      `json:"shop_tier"`
 	CombatResults []CombatResult `json:"combat_results,omitempty"`
-	MajorityTribe game.Tribe     `json:"majority_tribe,omitempty"`
-	MajorityCount int            `json:"majority_count,omitempty"`
+	TopTribe      game.Tribe     `json:"top_tribe,omitempty"`
+	TopTribeCount int            `json:"top_tribe_count,omitempty"`
 }
 
 type Card struct {
@@ -240,8 +240,8 @@ func NewOpponents(
 			HP:            p.HP(),
 			ShopTier:      p.Shop().Tier(),
 			CombatResults: combatResults[p.ID()],
-			MajorityTribe: snap.Tribe,
-			MajorityCount: snap.Count,
+			TopTribe:      snap.Tribe,
+			TopTribeCount: snap.Count,
 		})
 	}
 	return res
@@ -317,8 +317,8 @@ func NewCardsFromMinions(minions []*game.Minion) []Card {
 type PlayerPlacement struct {
 	PlayerID      string     `json:"player_id"`
 	Placement     int        `json:"placement"`
-	MajorityTribe game.Tribe `json:"majority_tribe"`
-	MajorityCount int        `json:"majority_count"`
+	TopTribe      game.Tribe `json:"majority_tribe"`
+	TopTribeCount int        `json:"majority_count"`
 }
 
 type GameResult struct {
@@ -338,8 +338,8 @@ func NewGameResult(r *game.GameResult) *GameResult {
 		placements[i] = PlayerPlacement{
 			PlayerID:      p.PlayerID,
 			Placement:     p.Placement,
-			MajorityTribe: p.MajorityTribe,
-			MajorityCount: p.MajorityCount,
+			TopTribe:      p.TopTribe,
+			TopTribeCount: p.TopTribeCount,
 		}
 	}
 	return &GameResult{
