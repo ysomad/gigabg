@@ -16,5 +16,5 @@ type GameResult struct {
 	Placements []PlayerPlacement // sorted 1st → last
 	Duration   time.Duration
 	StartedAt  time.Time
-	FinishedAt time.Time
+	EndedAt    time.Time
 }

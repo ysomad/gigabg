@@ -4,6 +4,7 @@ import (
 	"context"
 	json "encoding/json/v2"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -342,17 +343,9 @@ func (s *Server) handleMessage(ctx context.Context, client *ClientConn, msg *api
 		})
 
 	case api.ActionReorderCards:
-		slog.Info(msg.Action.String(), "player", client.player, "lobby", client.lobbyID)
-		s.handleAction(ctx, client, msg.Action, func(l *lobby.Lobby, p *game.Player) error {
-			payload, err := decodePayload[api.ReorderCards](msg)
-			if err != nil {
-				return err
-			}
-			if err := p.ReorderBoard(payload.BoardOrder); err != nil {
-				return err
-			}
-			return p.ReorderShop(payload.ShopOrder)
-		})
+		if err := s.handleReorder(client, msg); err != nil {
+			s.sendError(client, err.Error())
+		}
 
 	}
 }
@@ -503,6 +496,28 @@ func (s *Server) sendPlayerState(client *ClientConn, l *lobby.Lobby, p *game.Pla
 	}
 
 	s.sendMessage(client, &api.ServerMessage{State: state})
+}
+
+func (s *Server) handleReorder(client *ClientConn, msg *api.ClientMessage) error {
+	l, err := s.store.Lobby(client.lobbyID)
+	if err != nil {
+		return fmt.Errorf("lobby: %w", err)
+	}
+	p := l.Player(client.player)
+	if p == nil {
+		return fmt.Errorf("player not found")
+	}
+	payload, err := decodePayload[api.ReorderCards](msg)
+	if err != nil {
+		return fmt.Errorf("decode: %w", err)
+	}
+	if err := p.ReorderBoard(payload.BoardOrder); err != nil {
+		return fmt.Errorf("board: %w", err)
+	}
+	if err := p.ReorderShop(payload.ShopOrder); err != nil {
+		return fmt.Errorf("shop: %w", err)
+	}
+	return nil
 }
 
 func (s *Server) handleUpgradeShop(ctx context.Context, client *ClientConn, action api.Action) {

@@ -304,7 +304,7 @@ func (l *Lobby) checkFinished() {
 		Placements: placements,
 		Duration:   now.Sub(l.startedAt),
 		StartedAt:  l.startedAt,
-		FinishedAt: now,
+		EndedAt:    now,
 	}
 }
 

@@ -1,8 +1,8 @@
 package api
 
 import (
-	json "encoding/json/v2"
 	"encoding/json/jsontext"
+	json "encoding/json/v2"
 	"fmt"
 	"time"
 
@@ -46,7 +46,7 @@ func (a Action) String() string {
 		return "discover_pick"
 	case ActionReorderCards:
 		return "reorder_cards"
-default:
+	default:
 		return "unknown"
 	}
 }
@@ -131,12 +131,12 @@ type GameState struct {
 
 type Player struct {
 	ID          game.PlayerID `json:"id"`
-	HP          int       `json:"hp"`
-	Gold        int       `json:"gold"`
-	MaxGold     int       `json:"max_gold"`
-	ShopTier    game.Tier `json:"shop_tier"`
-	UpgradeCost int       `json:"upgrade_cost"`
-	RefreshCost int       `json:"refresh_cost"`
+	HP          int           `json:"hp"`
+	Gold        int           `json:"gold"`
+	MaxGold     int           `json:"max_gold"`
+	ShopTier    game.Tier     `json:"shop_tier"`
+	UpgradeCost int           `json:"upgrade_cost"`
+	RefreshCost int           `json:"refresh_cost"`
 }
 
 type Opponent struct {
@@ -327,7 +327,7 @@ type GameResult struct {
 	Placements []PlayerPlacement `json:"placements"`
 	Duration   time.Duration     `json:"duration,format:nano"`
 	StartedAt  time.Time         `json:"started_at,format:unix"`
-	FinishedAt time.Time         `json:"finished_at,format:unix"`
+	EndedAt    time.Time         `json:"ended_at,format:unix"`
 }
 
 func NewGameResult(r *game.GameResult) *GameResult {
@@ -348,6 +348,6 @@ func NewGameResult(r *game.GameResult) *GameResult {
 		Placements: placements,
 		Duration:   r.Duration,
 		StartedAt:  r.StartedAt,
-		FinishedAt: r.FinishedAt,
+		EndedAt:    r.EndedAt,
 	}
 }
