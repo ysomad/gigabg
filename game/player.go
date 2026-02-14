@@ -149,13 +149,21 @@ func (p *Player) CanPlayCard(handIdx int) error {
 	return nil
 }
 
-// PlayMinion moves a minion from hand to board and executes its Battlecry effects.
-func (p *Player) PlayMinion(handIdx, boardIdx int, pool *CardPool) error {
-	if err := p.CanPlayCard(handIdx); err != nil {
-		return err
+func newEffectContext(p *Player, pool *CardPool) EffectContext {
+	return EffectContext{
+		Board:     &p.board,
+		Hand:      &p.hand,
+		Shop:      &p.shop,
+		Pool:      pool,
+		Discovers: &p.discovers,
 	}
-	if !p.board.CanPlaceAt(boardIdx) {
-		return ErrInvalidBoardIndex
+}
+
+// PlayMinion moves a minion from hand to board and executes its Battlecry effects.
+// If the minion has Magnetic and is placed to the left of a Mech, it fuses onto that Mech instead.
+func (p *Player) PlayMinion(handIdx, boardIdx int, pool *CardPool) error {
+	if !p.hand.HasCardAt(handIdx) {
+		return ErrInvalidHandIndex
 	}
 
 	minion, ok := p.hand.CardAt(handIdx).(*Minion)
@@ -163,22 +171,40 @@ func (p *Player) PlayMinion(handIdx, boardIdx int, pool *CardPool) error {
 		return ErrNotAMinion
 	}
 
-	p.hand.RemoveCard(handIdx)
-	p.board.PlaceMinion(minion, boardIdx)
+	target := p.board.MinionAt(boardIdx)
+	magnetize := minion.CanMagnetizeTo(target)
 
-	ctx := EffectContext{
-		Source:    minion,
-		Board:     &p.board,
-		Hand:      &p.hand,
-		Shop:      &p.shop,
-		Pool:      pool,
-		Discovers: &p.discovers,
+	if !magnetize {
+		if p.board.IsFull() {
+			return ErrBoardFull
+		}
+		if !p.board.CanPlaceAt(boardIdx) {
+			return ErrInvalidBoardIndex
+		}
 	}
+
+	p.hand.RemoveCard(handIdx)
+
+	if magnetize {
+		mergeMinions(minion, target)
+	} else {
+		p.board.PlaceMinion(minion, boardIdx)
+	}
+
+	ctx := newEffectContext(p, pool).WithSource(minion)
 	for e := range minion.EffectsByTrigger(TriggerBattlecry, TriggerGolden) {
 		e.Apply(ctx)
 	}
 
 	return nil
+}
+
+// mergeMinions fuses source stats, keywords and effects onto target.
+func mergeMinions(source, target *Minion) {
+	target.attack += source.attack
+	target.health += source.health
+	target.keywords.Merge(source.keywords)
+	target.effects = append(target.effects, source.effects...)
 }
 
 // RemoveMinion moves a minion from board to hand.
@@ -301,16 +327,8 @@ func (p *Player) PlaySpell(handIdx int, pool *CardPool) error {
 
 	p.hand.RemoveCard(handIdx)
 
-	ctx := EffectContext{
-		Board:     &p.board,
-		Hand:      &p.hand,
-		Shop:      &p.shop,
-		Pool:      pool,
-		Discovers: &p.discovers,
-	}
-
 	for e := range EffectsByTrigger(spell.Template().Effects(), TriggerSpell) {
-		e.Apply(ctx)
+		e.Apply(newEffectContext(p, pool))
 	}
 
 	return nil

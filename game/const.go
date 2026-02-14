@@ -8,7 +8,7 @@ const (
 )
 
 const (
-	RecruitDuration = 20 * time.Second
+	RecruitDuration = 120 * time.Second
 	CombatDuration  = 5 * time.Second
 )
 
@@ -20,7 +20,7 @@ const (
 const (
 	MinionCost = 3
 
-	initialHP       = 10
+	initialHP       = 30
 	initialGold     = 99 // each player has at game start
 	maxGold         = 99 // each player may have during the game by upgrading MaxGold each turn without spells
 	minionSellValue = 1

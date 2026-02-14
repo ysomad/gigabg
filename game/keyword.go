@@ -120,3 +120,6 @@ func (k *Keywords) Add(kw Keyword) { *k |= 1 << (kw - 1) }
 
 // Remove clears a keyword.
 func (k *Keywords) Remove(kw Keyword) { *k &^= 1 << (kw - 1) }
+
+// Merge adds all keywords from other into k.
+func (k *Keywords) Merge(other Keywords) { *k |= other }

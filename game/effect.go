@@ -62,6 +62,20 @@ type EffectContext struct {
 	Discovers     *[]Card   // discover options output (set by DiscoverCard)
 }
 
+func (ctx EffectContext) WithSource(m *Minion) EffectContext {
+	if m != nil {
+		ctx.Source = m
+	}
+	return ctx
+}
+
+func (ctx EffectContext) WithOpponentBoard(b *Board) EffectContext {
+	if b != nil {
+		ctx.OpponentBoard = b
+	}
+	return ctx
+}
+
 // TriggeredEffect pairs a trigger timing with an effect payload.
 type TriggeredEffect struct {
 	Trigger   Trigger

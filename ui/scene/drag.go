@@ -21,6 +21,8 @@ func (d *dragState) Start(index int, fromBoard, fromShop bool, mx, my int) {
 	d.cursorY = my
 }
 
+func (d *dragState) fromHand() bool { return d.active && !d.fromBoard && !d.fromShop }
+
 func (d *dragState) Reset() {
 	d.active = false
 }

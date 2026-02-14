@@ -45,7 +45,7 @@ func (a Action) String() string {
 		return "discover_pick"
 	case ActionReorderCards:
 		return "reorder_cards"
-	default:
+default:
 		return "unknown"
 	}
 }

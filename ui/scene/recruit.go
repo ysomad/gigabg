@@ -258,6 +258,7 @@ func (r *recruitPhase) Draw(
 		lay.Board.X+lay.Board.W*0.04, lay.Board.Y+lay.Board.H*0.02,
 		color.RGBA{150, 150, 150, 255})
 	r.drawBoardCards(screen, lay)
+	r.drawMagnetizeHighlight(screen, lay)
 
 	ui.DrawText(screen, font, "HAND",
 		lay.Hand.X+lay.Hand.W*0.04, lay.Hand.Y+lay.Hand.H*0.02,
@@ -391,6 +392,37 @@ func (r *recruitPhase) drawHoverTooltip(screen *ebiten.Image, lay ui.GameLayout)
 		H: lay.CardH,
 	}
 	r.cr.DrawHandCard(screen, *r.hoverCard, tooltipRect)
+}
+
+func (r *recruitPhase) drawMagnetizeHighlight(screen *ebiten.Image, lay ui.GameLayout) {
+	if !r.drag.fromHand() {
+		return
+	}
+	hand := r.client.Hand()
+	if r.drag.index < 0 || r.drag.index >= len(hand) {
+		return
+	}
+	if !hand[r.drag.index].Keywords.Has(game.KeywordMagnetic) {
+		return
+	}
+
+	board := r.client.Board()
+	for i, serverIdx := range r.boardOrder {
+		if serverIdx < 0 || serverIdx >= len(board) {
+			continue
+		}
+		bc := board[serverIdx]
+		if bc.Tribe != game.TribeMech && bc.Tribe != game.TribeAll {
+			continue
+		}
+		rect := ui.CardRect(lay.Board, i, len(r.boardOrder), lay.CardW, lay.CardH, lay.Gap)
+		sr := rect.Screen()
+		lineX := float32(sr.X)
+		vector.StrokeLine(screen,
+			lineX, float32(sr.Y), lineX, float32(sr.Y+sr.H),
+			2*float32(ui.ActiveRes.Scale()),
+			color.RGBA{0, 150, 255, 200}, false)
+	}
 }
 
 func (r *recruitPhase) drawDiscoverOverlay(

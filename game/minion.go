@@ -100,6 +100,12 @@ func (m *Minion) CanAttack() bool { return m.health > 0 && m.attack > 0 }
 func (m *Minion) IsSpell() bool  { return false }
 func (m *Minion) IsMinion() bool { return true }
 func (m *Minion) IsGolden() bool { return m.golden }
+func (m *Minion) IsMech() bool   { return m.Tribe() == TribeMech || m.Tribe() == TribeAll }
+
+// CanMagnetizeTo reports whether this minion can magnetize onto target.
+func (m *Minion) CanMagnetizeTo(target *Minion) bool {
+	return m.HasKeyword(KeywordMagnetic) && target != nil && target.IsMech()
+}
 
 func (m *Minion) TakeDamage(amount int) { m.health -= amount }
 

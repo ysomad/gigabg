@@ -346,6 +346,7 @@ func (s *Server) handleMessage(ctx context.Context, client *ClientConn, msg *api
 			}
 			return p.ReorderShop(payload.ShopOrder)
 		})
+
 	}
 }
 

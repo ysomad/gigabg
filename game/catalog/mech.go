@@ -49,6 +49,36 @@ func mechs() map[string]*template {
 			keywords: game.NewKeywords(game.KeywordCleave),
 		},
 
+		// Magnetic
+		"magnetic_taunt": {
+			name:     "Magnetic Taunt",
+			tier:     game.Tier1,
+			attack:   1,
+			health:   2,
+			keywords: game.NewKeywords(game.KeywordMagnetic, game.KeywordTaunt),
+		},
+		"magnetic_shield": {
+			name:     "Magnetic Shield",
+			tier:     game.Tier1,
+			attack:   1,
+			health:   1,
+			keywords: game.NewKeywords(game.KeywordMagnetic, game.KeywordDivineShield),
+		},
+		"magnetic_windfury": {
+			name:     "Magnetic Windfury",
+			tier:     game.Tier2,
+			attack:   2,
+			health:   1,
+			keywords: game.NewKeywords(game.KeywordMagnetic, game.KeywordWindfury),
+		},
+		"magnetic_poison": {
+			name:     "Magnetic Poison",
+			tier:     game.Tier2,
+			attack:   1,
+			health:   1,
+			keywords: game.NewKeywords(game.KeywordMagnetic, game.KeywordPoisonous),
+		},
+
 		// Tier 6
 		"mekgineer_thermaplugg": {
 			name:     "Mekgineer Thermaplugg",

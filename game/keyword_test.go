@@ -246,3 +246,36 @@ func TestKeywords_Remove(t *testing.T) {
 		})
 	}
 }
+
+func TestKeywords_Merge(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		dst   Keywords
+		src   Keywords
+		want  []Keyword
+	}{
+		{name: "into empty", dst: NewKeywords(), src: NewKeywords(KeywordTaunt, KeywordReborn), want: []Keyword{KeywordTaunt, KeywordReborn}},
+		{name: "from empty", dst: NewKeywords(KeywordTaunt), src: NewKeywords(), want: []Keyword{KeywordTaunt}},
+		{name: "both empty", dst: NewKeywords(), src: NewKeywords(), want: nil},
+		{
+			name: "disjoint",
+			dst:  NewKeywords(KeywordTaunt),
+			src:  NewKeywords(KeywordReborn, KeywordMagnetic),
+			want: []Keyword{KeywordTaunt, KeywordReborn, KeywordMagnetic},
+		},
+		{
+			name: "overlap dedup",
+			dst:  NewKeywords(KeywordTaunt, KeywordDivineShield),
+			src:  NewKeywords(KeywordDivineShield, KeywordReborn),
+			want: []Keyword{KeywordTaunt, KeywordDivineShield, KeywordReborn},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.dst.Merge(tt.src)
+			assert.Equal(t, tt.want, tt.dst.All())
+		})
+	}
+}
