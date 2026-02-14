@@ -24,7 +24,7 @@ type CardRenderer struct {
 }
 
 func (r *CardRenderer) isSpell(c api.Card) bool {
-	t := r.Cards.ByTemplateID(c.TemplateID)
+	t := r.Cards.ByTemplateID(c.Template)
 	return t != nil && t.Kind() == game.CardKindSpell
 }
 
@@ -42,7 +42,7 @@ func (r *CardRenderer) drawHandMinion(screen *ebiten.Image, c api.Card, rect ui.
 	r.drawRectBase(screen, rect, color.RGBA{40, 40, 60, 255}, c.IsGolden, false, 255)
 
 	name, desc, tribe := r.cardInfo(c)
-	t := r.Cards.ByTemplateID(c.TemplateID)
+	t := r.Cards.ByTemplateID(c.Template)
 
 	// Name (top-left).
 	ui.DrawText(screen, r.Font, name, rect.X+rect.W*0.04, rect.Y+rect.H*0.04, color.White)
@@ -103,10 +103,10 @@ func (r *CardRenderer) DrawShopCard(screen *ebiten.Image, c api.Card, rect ui.Re
 func (r *CardRenderer) drawShopMinion(screen *ebiten.Image, c api.Card, rect ui.Rect) {
 	r.drawEllipseBase(screen, rect, color.RGBA{35, 40, 70, 255}, c.IsGolden, false, 255, c.Keywords)
 
-	t := r.Cards.ByTemplateID(c.TemplateID)
+	t := r.Cards.ByTemplateID(c.Template)
 
 	// Image placeholder (center).
-	ui.DrawText(screen, r.Font, c.TemplateID, rect.X+rect.W*0.15, rect.Y+rect.H*0.42, color.RGBA{100, 100, 120, 255})
+	ui.DrawText(screen, r.Font, c.Template, rect.X+rect.W*0.15, rect.Y+rect.H*0.42, color.RGBA{100, 100, 120, 255})
 
 	// Keywords (below placeholder).
 	r.drawKeywords(screen, c.Keywords, rect, 255)
@@ -123,7 +123,7 @@ func (r *CardRenderer) drawShopMinion(screen *ebiten.Image, c api.Card, rect ui.
 func (r *CardRenderer) drawShopSpell(screen *ebiten.Image, c api.Card, rect ui.Rect) {
 	r.drawEllipseBase(screen, rect, color.RGBA{70, 35, 100, 255}, c.IsGolden, true, 255, 0)
 
-	t := r.Cards.ByTemplateID(c.TemplateID)
+	t := r.Cards.ByTemplateID(c.Template)
 	name, _, _ := r.cardInfo(c)
 
 	// Name (top, centered).
@@ -157,7 +157,7 @@ func (r *CardRenderer) DrawMinion(screen *ebiten.Image, c api.Card, rect ui.Rect
 	r.drawEllipseBase(screen, rect, bg, c.IsGolden, false, alpha, c.Keywords)
 
 	// Image placeholder (center).
-	ui.DrawText(screen, r.Font, c.TemplateID, rect.X+rect.W*0.15, rect.Y+rect.H*0.42, color.RGBA{100, 100, 120, alpha})
+	ui.DrawText(screen, r.Font, c.Template, rect.X+rect.W*0.15, rect.Y+rect.H*0.42, color.RGBA{100, 100, 120, alpha})
 
 	// Keywords (below placeholder).
 	r.drawKeywords(screen, c.Keywords, rect, alpha)
@@ -507,22 +507,37 @@ func (r *CardRenderer) drawReborn(screen *ebiten.Image, cx, cy, rx, ry float32, 
 			{0.12, -0.26}, {0.35, 0.18}, {0.50, -0.12}, {0.72, 0.28}, {0.90, -0.22},
 		}},
 		{-0.22, []waypoint{
-			{0.06, 0.14}, {0.18, -0.30}, {0.32, 0.22}, {0.53, -0.16}, {0.65, 0.26},
-			{0.76, -0.20}, {0.88, 0.12}, {0.96, -0.08},
+			{0.06, 0.14},
+			{0.18, -0.30},
+			{0.32, 0.22},
+			{0.53, -0.16},
+			{0.65, 0.26},
+			{0.76, -0.20},
+			{0.88, 0.12},
+			{0.96, -0.08},
 		}},
 		{0.85, []waypoint{
 			{0.15, -0.22}, {0.42, 0.28}, {0.68, -0.18}, {0.88, 0.24},
 		}},
 		{1.48, []waypoint{
-			{0.10, 0.26}, {0.24, -0.14}, {0.40, 0.30}, {0.55, -0.22},
-			{0.70, 0.10}, {0.82, -0.28}, {0.94, 0.16},
+			{0.10, 0.26},
+			{0.24, -0.14},
+			{0.40, 0.30},
+			{0.55, -0.22},
+			{0.70, 0.10},
+			{0.82, -0.28},
+			{0.94, 0.16},
 		}},
 		{2.63, []waypoint{
 			{0.18, -0.18}, {0.38, 0.26}, {0.62, -0.24}, {0.80, 0.14}, {0.92, -0.20},
 		}},
 		{3.70, []waypoint{
-			{0.07, 0.28}, {0.20, -0.16}, {0.36, 0.24}, {0.48, -0.28},
-			{0.62, 0.12}, {0.80, -0.22},
+			{0.07, 0.28},
+			{0.20, -0.16},
+			{0.36, 0.24},
+			{0.48, -0.28},
+			{0.62, 0.12},
+			{0.80, -0.22},
 		}},
 		{4.82, []waypoint{
 			{0.14, -0.24}, {0.30, 0.20}, {0.52, -0.30}, {0.74, 0.18},
@@ -842,9 +857,9 @@ func (r *CardRenderer) drawTaunt(screen *ebiten.Image, cx, cy, rx, ry float32, s
 }
 
 func (r *CardRenderer) cardInfo(c api.Card) (string, string, string) {
-	name := c.TemplateID
+	name := c.Template
 	var desc, tribe string
-	if t := r.Cards.ByTemplateID(c.TemplateID); t != nil {
+	if t := r.Cards.ByTemplateID(c.Template); t != nil {
 		name = t.Name()
 		desc = t.Description()
 		tribe = t.Tribe().String()

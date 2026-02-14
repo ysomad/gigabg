@@ -1,12 +1,13 @@
 package scene
 
 import (
-	json "encoding/json/v2"
 	"encoding/json/jsontext"
+	json "encoding/json/v2"
 	"fmt"
 	"image/color"
 	"log/slog"
 	"math"
+	"slices"
 	"strconv"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -51,7 +52,7 @@ type animMinion struct {
 }
 
 type attackAnimation struct {
-	srcCombatID int
+	srcCombatID game.CombatID
 	srcIdx      int
 	srcIsPlayer bool
 	dstIdx      int
@@ -82,6 +83,10 @@ type combatPanel struct {
 
 	attackAnim *attackAnimation
 	done       bool
+
+	// Set by markDying so rebornMinion can insert at the same position.
+	lastDeathIdx      int
+	lastDeathIsPlayer bool
 }
 
 func newCombatPanel(
@@ -177,8 +182,8 @@ func (cp *combatPanel) Update(elapsed float64, lay ui.GameLayout) (bool, error) 
 }
 
 func (cp *combatPanel) startAttack(ev game.AttackEvent, lay ui.GameLayout) {
-	srcIdx, srcIsPlayer := cp.findMinion(ev.SourceID)
-	dstIdx, dstIsPlayer := cp.findMinion(ev.TargetID)
+	srcIdx, srcIsPlayer := cp.findMinion(ev.Source)
+	dstIdx, dstIsPlayer := cp.findMinion(ev.Target)
 	if srcIdx < 0 || dstIdx < 0 {
 		return
 	}
@@ -187,7 +192,7 @@ func (cp *combatPanel) startAttack(ev game.AttackEvent, lay ui.GameLayout) {
 	dstX, dstY := cp.minionPos(lay, dstIdx, dstIsPlayer)
 
 	cp.attackAnim = &attackAnimation{
-		srcCombatID: ev.SourceID,
+		srcCombatID: ev.Source,
 		srcIdx:      srcIdx,
 		srcIsPlayer: srcIsPlayer,
 		dstIdx:      dstIdx,
@@ -258,9 +263,9 @@ func (cp *combatPanel) updateAttackAnim(elapsed float64, lay ui.GameLayout) erro
 }
 
 func (cp *combatPanel) applyDamage(ev game.DamageEvent) error {
-	idx, isPlayer := cp.findMinion(ev.TargetID)
+	idx, isPlayer := cp.findMinion(ev.Target)
 	if idx < 0 {
-		return fmt.Errorf("minion %d not found", ev.TargetID)
+		return fmt.Errorf("minion %d not found", ev.Target)
 	}
 	board := cp.boardFor(isPlayer)
 	board[idx].card.Health -= ev.Amount
@@ -270,9 +275,9 @@ func (cp *combatPanel) applyDamage(ev game.DamageEvent) error {
 }
 
 func (cp *combatPanel) removeKeyword(ev game.RemoveKeywordEvent) error {
-	idx, isPlayer := cp.findMinion(ev.TargetID)
+	idx, isPlayer := cp.findMinion(ev.Target)
 	if idx < 0 {
-		return fmt.Errorf("minion %d not found", ev.TargetID)
+		return fmt.Errorf("minion %d not found", ev.Target)
 	}
 	board := cp.boardFor(isPlayer)
 	board[idx].card.Keywords.Remove(ev.Keyword)
@@ -280,10 +285,13 @@ func (cp *combatPanel) removeKeyword(ev game.RemoveKeywordEvent) error {
 }
 
 func (cp *combatPanel) markDying(ev game.DeathEvent) error {
-	idx, isPlayer := cp.findMinion(ev.TargetID)
+	idx, isPlayer := cp.findMinion(ev.Target)
 	if idx < 0 {
-		return fmt.Errorf("minion %d not found", ev.TargetID)
+		return fmt.Errorf("minion %d not found", ev.Target)
 	}
+
+	cp.lastDeathIdx = idx
+	cp.lastDeathIsPlayer = isPlayer
 
 	board := cp.boardFor(isPlayer)
 	if ev.DeathReason == game.DeathReasonPoison {
@@ -295,28 +303,29 @@ func (cp *combatPanel) markDying(ev game.DeathEvent) error {
 }
 
 func (cp *combatPanel) rebornMinion(ev game.RebornEvent) error {
-	t := cp.cr.Cards.ByTemplateID(ev.TemplateID)
+	t := cp.cr.Cards.ByTemplateID(ev.Template)
 	if t == nil {
-		return fmt.Errorf("unknown template %q", ev.TemplateID)
+		return fmt.Errorf("unknown template %q", ev.Template)
 	}
 
 	kw := t.Keywords()
 	kw.Remove(game.KeywordReborn)
 
 	card := api.Card{
-		TemplateID: ev.TemplateID,
-		Attack:     t.Attack(),
-		Health:     1,
-		Tribe:      t.Tribe(),
-		Keywords:   kw,
-		CombatID:   ev.TargetID,
+		Template: ev.Template,
+		Attack:   t.Attack(),
+		Health:   1,
+		Tribe:    t.Tribe(),
+		Keywords: kw,
+		CombatID: ev.Target,
 	}
 
 	m := animMinion{card: card, opacity: 0, spawning: true}
-	if ev.Owner == cp.player {
-		cp.playerBoard = append(cp.playerBoard, m)
+	pos := cp.lastDeathIdx + 1 // insert right after the dying minion
+	if cp.lastDeathIsPlayer {
+		cp.playerBoard = slices.Insert(cp.playerBoard, pos, m)
 	} else {
-		cp.opponentBoard = append(cp.opponentBoard, m)
+		cp.opponentBoard = slices.Insert(cp.opponentBoard, pos, m)
 	}
 	return nil
 }
@@ -463,7 +472,7 @@ func (cp *combatPanel) hasActiveIndicator() bool {
 	return false
 }
 
-func (cp *combatPanel) findMinion(combatID int) (idx int, isPlayer bool) {
+func (cp *combatPanel) findMinion(combatID game.CombatID) (idx int, isPlayer bool) {
 	for i, m := range cp.playerBoard {
 		if m.card.CombatID == combatID {
 			return i, true

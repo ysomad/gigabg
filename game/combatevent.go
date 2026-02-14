@@ -28,19 +28,19 @@ var (
 
 // AttackEvent is emitted when a minion initiates an attack.
 type AttackEvent struct {
-	SourceID int      `json:"source_id"`
-	TargetID int      `json:"target_id"`
-	Owner    PlayerID `json:"owner"`
+	Source CombatID `json:"source"`
+	Target CombatID `json:"target"`
+	Owner  PlayerID `json:"owner"`
 }
 
 func (AttackEvent) EventType() CombatEventType { return CombatEventAttack }
 
 // DamageEvent is emitted when damage is dealt to a minion.
 type DamageEvent struct {
-	SourceID int      `json:"source_id"`
-	TargetID int      `json:"target_id"`
-	Amount   int      `json:"amount"`
-	Owner    PlayerID `json:"owner"`
+	Source CombatID `json:"source"`
+	Target CombatID `json:"target"`
+	Amount int      `json:"amount"`
+	Owner  PlayerID `json:"owner"`
 }
 
 func (DamageEvent) EventType() CombatEventType { return CombatEventDamage }
@@ -55,7 +55,7 @@ const (
 
 // DeathEvent is emitted when a minion dies and is removed.
 type DeathEvent struct {
-	TargetID    int         `json:"target_id"`
+	Target      CombatID    `json:"target"`
 	DeathReason DeathReason `json:"death_reason"`
 	Owner       PlayerID    `json:"owner"`
 }
@@ -64,19 +64,19 @@ func (DeathEvent) EventType() CombatEventType { return CombatEventDeath }
 
 // RemoveKeywordEvent is emitted when a keyword is removed from a minion.
 type RemoveKeywordEvent struct {
-	SourceID int      `json:"source_id"`
-	TargetID int      `json:"target_id"`
-	Keyword  Keyword  `json:"keyword"`
-	Owner    PlayerID `json:"owner"`
+	Source  CombatID `json:"source"`
+	Target  CombatID `json:"target"`
+	Keyword Keyword  `json:"keyword"`
+	Owner   PlayerID `json:"owner"`
 }
 
 func (RemoveKeywordEvent) EventType() CombatEventType { return CombatEventRemoveKeyword }
 
 // RebornEvent is emitted when a minion respawns via Reborn (always 1 HP).
 type RebornEvent struct {
-	TargetID   int      `json:"target_id"`
-	Owner      PlayerID `json:"owner"`
-	TemplateID string   `json:"template_id"`
+	Target   CombatID `json:"target"`
+	Owner    PlayerID `json:"owner"`
+	Template string   `json:"template"`
 }
 
 func (RebornEvent) EventType() CombatEventType { return CombatEventReborn }

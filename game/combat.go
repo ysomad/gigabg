@@ -36,13 +36,13 @@ func (s *combatSide) nextLivingAttacker() *Minion {
 type Combat struct {
 	attacker     *combatSide
 	defender     *combatSide
-	nextCombatID int
+	nextCombatID CombatID
 	events       []CombatEvent
 	player1      PlayerID
 	player2      PlayerID
-	player1Board Board            // snapshot with combat IDs
-	player2Board Board            // snapshot with combat IDs
-	poisonKilled map[int]struct{} // combat IDs killed by poison/venom this attack
+	player1Board Board                 // snapshot with combat IDs
+	player2Board Board                 // snapshot with combat IDs
+	poisonKilled map[CombatID]struct{} // killed by poison/venom this attack
 }
 
 // NewCombat creates a combat with cloned boards.
@@ -135,19 +135,19 @@ func (c *Combat) attack(src, dst *Minion) {
 	if src.HasKeyword(KeywordStealth) {
 		src.RemoveKeyword(KeywordStealth)
 		c.emit(RemoveKeywordEvent{
-			TargetID: src.combatID,
+			Target: src.combatID,
 			Keyword:  KeywordStealth,
 			Owner:    c.attacker.player.ID(),
 		})
 	}
 
 	c.emit(AttackEvent{
-		SourceID: src.combatID,
-		TargetID: dst.combatID,
+		Source: src.combatID,
+		Target: dst.combatID,
 		Owner:    c.attacker.player.ID(),
 	})
 
-	c.poisonKilled = make(map[int]struct{})
+	c.poisonKilled = make(map[CombatID]struct{})
 	defender := c.defender.player.ID()
 
 	// Simultaneous damage exchange.
@@ -207,7 +207,7 @@ func (c *Combat) applyPoison(src, dst *Minion, hit bool, owner PlayerID) {
 	if isVenomous {
 		src.RemoveKeyword(KeywordVenomous)
 		c.emit(RemoveKeywordEvent{
-			TargetID: src.combatID,
+			Target: src.combatID,
 			Keyword:  KeywordVenomous,
 			Owner:    owner,
 		})
@@ -224,8 +224,8 @@ func (c *Combat) dealDamage(src, dst *Minion, amount int, owner PlayerID) bool {
 	if dst.HasKeyword(KeywordDivineShield) {
 		dst.RemoveKeyword(KeywordDivineShield)
 		c.emit(RemoveKeywordEvent{
-			SourceID: src.combatID,
-			TargetID: dst.combatID,
+			Source: src.combatID,
+			Target: dst.combatID,
 			Keyword:  KeywordDivineShield,
 			Owner:    owner,
 		})
@@ -234,8 +234,8 @@ func (c *Combat) dealDamage(src, dst *Minion, amount int, owner PlayerID) bool {
 
 	dst.TakeDamage(amount)
 	c.emit(DamageEvent{
-		SourceID: src.combatID,
-		TargetID: dst.combatID,
+		Source: src.combatID,
+		Target: dst.combatID,
 		Amount:   amount,
 		Owner:    owner,
 	})
@@ -243,10 +243,8 @@ func (c *Combat) dealDamage(src, dst *Minion, amount int, owner PlayerID) bool {
 }
 
 // removeDeadWithEvents removes dead minions, emits death events,
-// and handles Reborn (spawns fresh template minion with 1 HP at end of board).
+// and handles Reborn (spawns fresh template minion with 1 HP at the same position).
 func (c *Combat) removeDeadWithEvents(side *combatSide) {
-	var reborns []*Minion
-
 	for i := 0; i < side.board.Len(); i++ {
 		m := side.board.MinionAt(i)
 		if m.IsAlive() {
@@ -257,34 +255,37 @@ func (c *Combat) removeDeadWithEvents(side *combatSide) {
 			reason = DeathReasonPoison
 		}
 		c.emit(DeathEvent{
-			TargetID:    m.combatID,
+			Target:      m.combatID,
 			DeathReason: reason,
 			Owner:       side.player.ID(),
 		})
 
-		if m.HasKeyword(KeywordReborn) {
-			reborn := NewMinion(m.Template())
+		hasReborn := m.HasKeyword(KeywordReborn)
+		var reborn *Minion
+		if hasReborn {
+			reborn = NewMinion(m.Template())
 			reborn.health = 1
 			reborn.RemoveKeyword(KeywordReborn)
 			reborn.combatID = c.nextCombatID
 			c.nextCombatID++
-			reborns = append(reborns, reborn)
 		}
 
 		side.board.RemoveMinion(i)
-		if side.nextAttacker > i {
-			side.nextAttacker--
-		}
-		i--
-	}
 
-	for _, reborn := range reborns {
-		side.board.PlaceMinion(reborn, side.board.Len())
-		c.emit(RebornEvent{
-			TargetID:   reborn.combatID,
-			Owner:      side.player.ID(),
-			TemplateID: reborn.TemplateID(),
-		})
+		if hasReborn {
+			side.board.PlaceMinion(reborn, i)
+			c.emit(RebornEvent{
+				Target:   reborn.combatID,
+				Owner:    side.player.ID(),
+				Template: reborn.TemplateID(),
+			})
+			// Reborn replaced the dead minion in place, no index adjustment.
+		} else {
+			if side.nextAttacker > i {
+				side.nextAttacker--
+			}
+			i--
+		}
 	}
 
 	if n := side.board.Len(); n > 0 {

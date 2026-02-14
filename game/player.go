@@ -197,7 +197,7 @@ func (p *Player) PlayMinion(handIdx, boardIdx int, pool *CardPool) error {
 	p.hand.RemoveCard(handIdx)
 
 	if magnetize {
-		mergeMinions(minion, target)
+		magnitizeMinions(minion, target)
 	} else {
 		p.board.PlaceMinion(minion, boardIdx)
 	}
@@ -210,11 +210,12 @@ func (p *Player) PlayMinion(handIdx, boardIdx int, pool *CardPool) error {
 	return nil
 }
 
-// mergeMinions fuses source stats, keywords and effects onto target.
-func mergeMinions(source, target *Minion) {
+// magnitizeMinions fuses source stats, keywords and effects onto target.
+func magnitizeMinions(source, target *Minion) {
 	target.attack += source.attack
 	target.health += source.health
 	target.keywords.Merge(source.keywords)
+	target.keywords.Remove(KeywordMagnetic)
 	target.effects = append(target.effects, source.effects...)
 }
 

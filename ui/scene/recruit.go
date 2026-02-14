@@ -112,7 +112,7 @@ func (r *recruitPhase) handleStartDrag(lay ui.GameLayout, mx, my int) bool {
 		if !rect.Contains(mx, my) {
 			continue
 		}
-		if t := r.cr.Cards.ByTemplateID(c.TemplateID); t != nil && t.Kind() == game.CardKindSpell {
+		if t := r.cr.Cards.ByTemplateID(c.Template); t != nil && t.Kind() == game.CardKindSpell {
 			if err := r.client.PlaySpell(i); err != nil {
 				slog.Error("play spell", "error", err)
 			}

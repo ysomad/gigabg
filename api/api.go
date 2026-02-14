@@ -149,14 +149,14 @@ type Opponent struct {
 }
 
 type Card struct {
-	TemplateID string        `json:"template_id"`
-	Tribe      game.Tribe    `json:"tribe"`
-	Attack     int           `json:"attack"`
-	Health     int           `json:"health"`
-	IsGolden   bool          `json:"is_golden,omitzero"`
-	Cost       int           `json:"cost,omitzero"`
-	Keywords   game.Keywords `json:"keywords,omitzero"`
-	CombatID   int           `json:"combat_id,omitzero"` // set only in combat context
+	Template string        `json:"template"`
+	Tribe    game.Tribe    `json:"tribe"`
+	Attack   int           `json:"attack"`
+	Health   int           `json:"health"`
+	IsGolden bool          `json:"is_golden,omitzero"`
+	Cost     int           `json:"cost,omitzero"`
+	Keywords game.Keywords `json:"keywords,omitzero"`
+	CombatID game.CombatID `json:"combat_id,omitzero"` // set only in combat context
 }
 
 // CombatEvent is the JSON envelope: type discriminator + raw payload.
@@ -251,42 +251,42 @@ func NewOpponents(
 func NewCard(c game.Card) Card {
 	if m, ok := c.(*game.Minion); ok {
 		return Card{
-			TemplateID: m.TemplateID(),
-			Attack:     m.Attack(),
-			Health:     m.Health(),
-			Cost:       m.Cost(),
-			IsGolden:   m.IsGolden(),
-			Tribe:      m.Tribe(),
-			Keywords:   m.Keywords(),
+			Template: m.TemplateID(),
+			Attack:   m.Attack(),
+			Health:   m.Health(),
+			Cost:     m.Cost(),
+			IsGolden: m.IsGolden(),
+			Tribe:    m.Tribe(),
+			Keywords: m.Keywords(),
 		}
 	}
 	return Card{
-		TemplateID: c.Template().ID(),
-		Cost:       c.Template().Cost(),
+		Template: c.Template().ID(),
+		Cost:     c.Template().Cost(),
 	}
 }
 
 func NewCardFromMinion(m *game.Minion) Card {
 	return Card{
-		TemplateID: m.TemplateID(),
-		Attack:     m.Attack(),
-		Health:     m.Health(),
-		Cost:       m.Cost(),
-		IsGolden:   m.IsGolden(),
-		Tribe:      m.Tribe(),
-		Keywords:   m.Keywords(),
+		Template: m.TemplateID(),
+		Attack:   m.Attack(),
+		Health:   m.Health(),
+		Cost:     m.Cost(),
+		IsGolden: m.IsGolden(),
+		Tribe:    m.Tribe(),
+		Keywords: m.Keywords(),
 	}
 }
 
 func NewCombatCard(m *game.Minion) Card {
 	return Card{
-		TemplateID: m.TemplateID(),
-		Attack:     m.Attack(),
-		Health:     m.Health(),
-		IsGolden:   m.IsGolden(),
-		Tribe:      m.Tribe(),
-		Keywords:   m.Keywords(),
-		CombatID:   m.CombatID(),
+		Template: m.TemplateID(),
+		Attack:   m.Attack(),
+		Health:   m.Health(),
+		IsGolden: m.IsGolden(),
+		Tribe:    m.Tribe(),
+		Keywords: m.Keywords(),
+		CombatID: m.CombatID(),
 	}
 }
 

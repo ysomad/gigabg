@@ -58,6 +58,9 @@ func (t Tribe) String() string {
 
 var _ Card = (*Minion)(nil)
 
+// CombatID uniquely identifies a minion within a single combat. Zero means not assigned.
+type CombatID int
+
 // Minion is a runtime card instance with mutable state.
 type Minion struct {
 	template CardTemplate
@@ -67,7 +70,7 @@ type Minion struct {
 	golden   bool
 	keywords Keywords
 	effects  []TriggeredEffect
-	combatID int // unique within a single combat, 0 = not assigned
+	combatID CombatID
 }
 
 // NewMinion creates a minion from a card template.
@@ -89,10 +92,10 @@ func (m *Minion) Description() string    { return m.template.Description() }
 func (m *Minion) Tribe() Tribe           { return m.template.Tribe() }
 func (m *Minion) Tier() Tier             { return m.template.Tier() }
 
-func (m *Minion) CombatID() int { return m.combatID }
-func (m *Minion) Attack() int   { return m.attack }
-func (m *Minion) Health() int   { return m.health }
-func (m *Minion) Cost() int     { return m.cost }
+func (m *Minion) CombatID() CombatID { return m.combatID }
+func (m *Minion) Attack() int        { return m.attack }
+func (m *Minion) Health() int        { return m.health }
+func (m *Minion) Cost() int          { return m.cost }
 
 func (m *Minion) IsAlive() bool   { return m.health > 0 }
 func (m *Minion) CanAttack() bool { return m.health > 0 && m.attack > 0 }

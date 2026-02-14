@@ -43,7 +43,12 @@ type GameClient struct {
 // NewGameClient dials the game server WebSocket and returns a GameClient.
 // addr is host:port (e.g. "localhost:8080").
 // If proxyURL is non-empty, the WebSocket connection is routed through the given HTTP proxy.
-func NewGameClient(ctx context.Context, addr string, player game.PlayerID, lobbyID, proxyURL string) (*GameClient, error) {
+func NewGameClient(
+	ctx context.Context,
+	addr string,
+	player game.PlayerID,
+	lobbyID, proxyURL string,
+) (*GameClient, error) {
 	wsURL := fmt.Sprintf("ws://%s/ws?player=%d&lobby=%s", addr, player, lobbyID)
 
 	var opts *websocket.DialOptions
@@ -276,7 +281,7 @@ func (c *GameClient) PlayerList() []PlayerEntry {
 		HP:            p.HP,
 		ShopTier:      p.ShopTier,
 		CombatResults: c.state.CombatResults,
-		TopTribe: selfTribe,
+		TopTribe:      selfTribe,
 		TopTribeCount: selfCount,
 	})
 	for _, o := range c.state.Opponents {
@@ -285,7 +290,7 @@ func (c *GameClient) PlayerList() []PlayerEntry {
 			HP:            o.HP,
 			ShopTier:      o.ShopTier,
 			CombatResults: o.CombatResults,
-			TopTribe: o.TopTribe,
+			TopTribe:      o.TopTribe,
 			TopTribeCount: o.TopTribeCount,
 		})
 	}
