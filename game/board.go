@@ -131,78 +131,13 @@ func (b *Board) RemoveMinion(i int) *Minion {
 	return m
 }
 
-// TribeSnapshot holds a majority tribe and its count.
-type TribeSnapshot struct {
-	Tribe Tribe
-	Count int
-}
-
-// TopTribe returns the most common non-neutral tribe on the board and its count.
-// Returns (TribeNeutral, 0) if no non-neutral tribe has >= 2 minions.
-func (b Board) TopTribe() (Tribe, int) {
-	tribes := make([]Tribe, len(b.minions))
+// TopTribeOf returns the most common non-neutral tribe on the board and its count.
+func (b Board) TopTribeOf() (Tribe, int) {
+	tribes := make([]Tribes, len(b.minions))
 	for i, m := range b.minions {
-		tribes[i] = m.Tribe()
+		tribes[i] = m.Tribes()
 	}
 	return CalcTopTribe(tribes)
-}
-
-// CalcTopTribe returns the dominant tribe and its count.
-// All-tribe minions are added to the majority count after it is determined.
-// Returns TribeMixed when multiple tribes exist but none dominates.
-// Returns TribeNeutral when no countable tribes are present.
-func CalcTopTribe(tribes []Tribe) (Tribe, int) {
-	var allCount int
-
-	counts := make(map[Tribe]int)
-	for _, t := range tribes {
-		switch t {
-		case TribeNeutral:
-		case TribeAll:
-			allCount++
-		default:
-			counts[t]++
-		}
-	}
-
-	switch len(counts) {
-	case 0:
-		return TribeNeutral, 0
-	case 1:
-		for t, n := range counts {
-			return t, n + allCount
-		}
-	}
-
-	// 2+ tribes: find single dominant.
-	var (
-		best  Tribe
-		bestN int
-		tied  bool
-	)
-
-	for t, n := range counts {
-		switch {
-		case n > bestN:
-			best, bestN, tied = t, n, false
-		case n == bestN:
-			tied = true
-			if t > best {
-				best = t
-			}
-		}
-	}
-
-	if !tied {
-		return best, bestN + allCount
-	}
-
-	// Tied: All minions break the tie by boosting the highest tribe.
-	if allCount > 0 {
-		return best, bestN + allCount
-	}
-
-	return TribeMixed, len(counts)
 }
 
 // Reorder reorders the board based on the given index mapping.

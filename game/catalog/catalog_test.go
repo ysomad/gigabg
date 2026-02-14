@@ -7,9 +7,9 @@ import (
 	"github.com/ysomad/gigabg/game"
 )
 
-func testMinion(t *testing.T, id string, tier game.Tier, tribe game.Tribe) *template {
+func testMinion(t *testing.T, id string, tier game.Tier, tribes game.Tribes) *template {
 	t.Helper()
-	return &template{_id: id, name: id, kind: game.CardKindMinion, tier: tier, _tribe: tribe, health: 1}
+	return &template{_id: id, name: id, kind: game.CardKindMinion, tier: tier, _tribes: tribes, health: 1}
 }
 
 func testSpell(t *testing.T, id string, tier game.Tier, cost int) *template {
@@ -20,8 +20,8 @@ func testSpell(t *testing.T, id string, tier game.Tier, cost int) *template {
 func TestCatalog_ByTemplateID(t *testing.T) {
 	t.Parallel()
 
-	t1Beast := testMinion(t, "t1_beast", game.Tier1, game.TribeBeast)
-	token := testMinion(t, "token", game.Tier1, game.TribeDemon)
+	t1Beast := testMinion(t, "t1_beast", game.Tier1, game.NewTribes(game.TribeBeast))
+	token := testMinion(t, "token", game.Tier1, game.NewTribes(game.TribeDemon))
 
 	c := &Catalog{
 		all:             map[string]game.CardTemplate{"t1_beast": t1Beast, "token": token},
@@ -52,11 +52,11 @@ func TestCatalog_ByTemplateID(t *testing.T) {
 func TestCatalog_ByKindTierTribe(t *testing.T) {
 	t.Parallel()
 
-	t1Beast := testMinion(t, "t1_beast", game.Tier1, game.TribeBeast)
-	t1Demon := testMinion(t, "t1_demon", game.Tier1, game.TribeDemon)
-	t2Beast := testMinion(t, "t2_beast", game.Tier2, game.TribeBeast)
+	t1Beast := testMinion(t, "t1_beast", game.Tier1, game.NewTribes(game.TribeBeast))
+	t1Demon := testMinion(t, "t1_demon", game.Tier1, game.NewTribes(game.TribeDemon))
+	t2Beast := testMinion(t, "t2_beast", game.Tier2, game.NewTribes(game.TribeBeast))
 	t1Spell := testSpell(t, "t1_spell", game.Tier1, 1)
-	token := testMinion(t, "token", game.Tier1, game.TribeDemon)
+	token := testMinion(t, "token", game.Tier1, game.NewTribes(game.TribeDemon))
 
 	c := &Catalog{
 		all:             make(map[string]game.CardTemplate),

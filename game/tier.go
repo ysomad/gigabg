@@ -11,4 +11,6 @@ const (
 	Tier6 Tier = 6
 )
 
-func (t Tier) IsValid() bool { return t >= Tier1 && t <= Tier6 }
+func (t Tier) IsValid() bool {
+	return t >= Tier1 && t <= Tier6
+}

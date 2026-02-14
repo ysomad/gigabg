@@ -402,7 +402,8 @@ func (r *recruitPhase) drawMagnetizeHighlight(screen *ebiten.Image, lay ui.GameL
 	if r.drag.index < 0 || r.drag.index >= len(hand) {
 		return
 	}
-	if !hand[r.drag.index].Keywords.Has(game.KeywordMagnetic) {
+	dragged := hand[r.drag.index]
+	if !dragged.Keywords.Has(game.KeywordMagnetic) {
 		return
 	}
 
@@ -412,7 +413,7 @@ func (r *recruitPhase) drawMagnetizeHighlight(screen *ebiten.Image, lay ui.GameL
 			continue
 		}
 		bc := board[serverIdx]
-		if bc.Tribe != game.TribeMech && bc.Tribe != game.TribeAll {
+		if !bc.Tribes.HasAny(dragged.Tribes) {
 			continue
 		}
 		rect := ui.CardRect(lay.Board, i, len(r.boardOrder), lay.CardW, lay.CardH, lay.Gap)

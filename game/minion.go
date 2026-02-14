@@ -5,57 +5,6 @@ import (
 	"slices"
 )
 
-type Tribe uint8
-
-const (
-	TribeNeutral Tribe = iota + 1
-	TribeBeast
-	TribeDemon
-	TribeDragon
-	TribeElemental
-	TribeMech
-	TribeMurloc
-	TribeNaga
-	TribePirate
-	TribeQuilboar
-	TribeUndead
-	TribeAll
-	TribeMixed
-)
-
-func (t Tribe) String() string {
-	switch t {
-	case TribeNeutral:
-		return "Neutral"
-	case TribeBeast:
-		return "Beast"
-	case TribeDemon:
-		return "Demon"
-	case TribeDragon:
-		return "Dragon"
-	case TribeElemental:
-		return "Elemental"
-	case TribeMech:
-		return "Mech"
-	case TribeMurloc:
-		return "Murloc"
-	case TribeNaga:
-		return "Naga"
-	case TribePirate:
-		return "Pirate"
-	case TribeQuilboar:
-		return "Quilboar"
-	case TribeUndead:
-		return "Undead"
-	case TribeAll:
-		return "All"
-	case TribeMixed:
-		return "Mixed"
-	default:
-		return ""
-	}
-}
-
 var _ Card = (*Minion)(nil)
 
 // CombatID uniquely identifies a minion within a single combat. Zero means not assigned.
@@ -89,7 +38,7 @@ func (m *Minion) Template() CardTemplate { return m.template }
 func (m *Minion) TemplateID() string     { return m.template.ID() }
 func (m *Minion) Name() string           { return m.template.Name() }
 func (m *Minion) Description() string    { return m.template.Description() }
-func (m *Minion) Tribe() Tribe           { return m.template.Tribe() }
+func (m *Minion) Tribes() Tribes          { return m.template.Tribes() }
 func (m *Minion) Tier() Tier             { return m.template.Tier() }
 
 func (m *Minion) CombatID() CombatID { return m.combatID }
@@ -103,11 +52,10 @@ func (m *Minion) CanAttack() bool { return m.health > 0 && m.attack > 0 }
 func (m *Minion) IsSpell() bool  { return false }
 func (m *Minion) IsMinion() bool { return true }
 func (m *Minion) IsGolden() bool { return m.golden }
-func (m *Minion) IsMech() bool   { return m.Tribe() == TribeMech || m.Tribe() == TribeAll }
 
 // CanMagnetizeTo reports whether this minion can magnetize onto target.
 func (m *Minion) CanMagnetizeTo(target *Minion) bool {
-	return m.HasKeyword(KeywordMagnetic) && target != nil && target.IsMech()
+	return m.HasKeyword(KeywordMagnetic) && target != nil && target.Tribes().HasAny(m.Tribes())
 }
 
 func (m *Minion) TakeDamage(amount int) { m.health -= amount }

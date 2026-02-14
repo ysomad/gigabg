@@ -19,6 +19,7 @@ func DrawText(screen *ebiten.Image, font *text.GoTextFace, str string, baseX, ba
 	op := &text.DrawOptions{}
 	op.GeoM.Translate(baseX*s+ActiveRes.OffsetX(), baseY*s+ActiveRes.OffsetY())
 	op.ColorScale.ScaleWithColor(clr)
+	op.LineSpacing = font.Size * 1.4
 	text.Draw(screen, str, font, op)
 }
 

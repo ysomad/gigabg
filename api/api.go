@@ -150,7 +150,7 @@ type Opponent struct {
 
 type Card struct {
 	Template string        `json:"template"`
-	Tribe    game.Tribe    `json:"tribe"`
+	Tribes   game.Tribes   `json:"tribes"`
 	Attack   int           `json:"attack"`
 	Health   int           `json:"health"`
 	IsGolden bool          `json:"is_golden,omitzero"`
@@ -228,7 +228,7 @@ func NewOpponents(
 	players []*game.Player,
 	exclude game.PlayerID,
 	combatResults map[game.PlayerID][]CombatResult,
-	tribes map[game.PlayerID]game.TribeSnapshot,
+	tribes map[game.PlayerID]game.TopTribe,
 ) []Opponent {
 	res := make([]Opponent, 0, len(players)-1)
 	for _, p := range players {
@@ -256,7 +256,7 @@ func NewCard(c game.Card) Card {
 			Health:   m.Health(),
 			Cost:     m.Cost(),
 			IsGolden: m.IsGolden(),
-			Tribe:    m.Tribe(),
+			Tribes:   m.Tribes(),
 			Keywords: m.Keywords(),
 		}
 	}
@@ -273,7 +273,7 @@ func NewCardFromMinion(m *game.Minion) Card {
 		Health:   m.Health(),
 		Cost:     m.Cost(),
 		IsGolden: m.IsGolden(),
-		Tribe:    m.Tribe(),
+		Tribes:   m.Tribes(),
 		Keywords: m.Keywords(),
 	}
 }
@@ -284,7 +284,7 @@ func NewCombatCard(m *game.Minion) Card {
 		Attack:   m.Attack(),
 		Health:   m.Health(),
 		IsGolden: m.IsGolden(),
-		Tribe:    m.Tribe(),
+		Tribes:   m.Tribes(),
 		Keywords: m.Keywords(),
 		CombatID: m.CombatID(),
 	}

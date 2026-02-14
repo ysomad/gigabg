@@ -41,7 +41,7 @@ const (
 
 // TargetFilter restricts which minions/cards can be targeted.
 type TargetFilter struct {
-	Tribe         Tribe   // filter by tribe (0 = any)
+	Tribe         Tribe // filter by tribe (0 = any)
 	Tier          Tier    // filter by tier (0 = any)
 	HasKeyword    Keyword // must have this keyword (0 = any)
 	ExcludeSource bool    // exclude the source minion

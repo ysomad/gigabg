@@ -270,9 +270,9 @@ func (c *GameClient) PlayerList() []PlayerEntry {
 		return nil
 	}
 	p := c.state.Player
-	tribes := make([]game.Tribe, len(c.state.Board))
+	tribes := make([]game.Tribes, len(c.state.Board))
 	for i, card := range c.state.Board {
-		tribes[i] = card.Tribe
+		tribes[i] = card.Tribes
 	}
 	selfTribe, selfCount := game.CalcTopTribe(tribes)
 	list := make([]PlayerEntry, 0, len(c.state.Opponents)+1)

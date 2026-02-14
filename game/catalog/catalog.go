@@ -10,8 +10,8 @@ import (
 var _ game.CardCatalog = (*Catalog)(nil)
 
 type cardSet struct {
-	tribe game.Tribe
-	cards map[string]*template
+	tribes game.Tribes
+	cards  map[string]*template
 }
 
 // Catalog provides indexed access to card templates.
@@ -29,23 +29,32 @@ type Catalog struct {
 // Returns an error if duplicate IDs are found or validation fails.
 func New() (*Catalog, error) {
 	shopSets := []cardSet{
-		{game.TribeBeast, beasts()},
-		{game.TribeDemon, demons()},
-		{game.TribeDragon, dragons()},
-		{game.TribeElemental, elementals()},
-		{game.TribeMech, mechs()},
-		{game.TribeMurloc, murlocs()},
-		{game.TribeNaga, nagas()},
-		{game.TribeNeutral, neutrals()},
-		{game.TribeQuilboar, quilboars()},
-		{game.TribeUndead, undeads()},
+		{game.NewTribes(game.TribeBeast), beasts()},
+		{game.NewTribes(game.TribeDemon), demons()},
+		{game.NewTribes(game.TribeDragon), dragons()},
+		{game.NewTribes(game.TribeElemental), elementals()},
+		{game.NewTribes(game.TribeMech), mechs()},
+		{game.NewTribes(game.TribeMurloc), murlocs()},
+		{game.NewTribes(game.TribeNaga), nagas()},
+		{0, neutrals()},
+		{game.NewTribes(game.TribeQuilboar), quilboars()},
+		{game.NewTribes(game.TribeUndead), undeads()},
+		{game.NewTribes(game.TribeUndead, game.TribeMech), map[string]*template{
+			"reanimated_mech": {
+				name:     "Reanimated Mech",
+				tier:     game.Tier4,
+				attack:   4,
+				health:   5,
+				keywords: game.NewKeywords(game.KeywordReborn, game.KeywordMagnetic),
+			},
+		}},
 		{game.TribeAll, all()},
 		{0, spells()},
 	}
 
 	tokenSets := []cardSet{
-		{game.TribeDemon, demonTokens()},
-		{game.TribeUndead, undeadTokens()},
+		{game.NewTribes(game.TribeDemon), demonTokens()},
+		{game.NewTribes(game.TribeUndead), undeadTokens()},
 		{0, spellTokens()},
 	}
 
@@ -60,7 +69,7 @@ func New() (*Catalog, error) {
 	// Shop cards go into all + indexes.
 	for _, set := range shopSets {
 		for id, t := range set.cards {
-			if err := c.initTemplate(id, t, set.tribe); err != nil {
+			if err := c.initTemplate(id, t, set.tribes); err != nil {
 				return nil, err
 			}
 
@@ -72,7 +81,7 @@ func New() (*Catalog, error) {
 	// Token cards go into all only (not indexed, never offered in shop).
 	for _, set := range tokenSets {
 		for id, t := range set.cards {
-			if err := c.initTemplate(id, t, set.tribe); err != nil {
+			if err := c.initTemplate(id, t, set.tribes); err != nil {
 				return nil, err
 			}
 
@@ -83,13 +92,13 @@ func New() (*Catalog, error) {
 	return c, nil
 }
 
-func (c *Catalog) initTemplate(id string, t *template, tribe game.Tribe) error {
+func (c *Catalog) initTemplate(id string, t *template, tribes game.Tribes) error {
 	if _, ok := c.all[id]; ok {
-		return fmt.Errorf("duplicate card ID %q in %s", id, tribe.String())
+		return fmt.Errorf("duplicate card ID %q", id)
 	}
 
 	t.setID(id)
-	t.setTribe(tribe)
+	t.setTribes(tribes)
 
 	if t.kind == game.CardKindMinion {
 		t.cost = game.MinionCost
@@ -98,7 +107,7 @@ func (c *Catalog) initTemplate(id string, t *template, tribe game.Tribe) error {
 	t.initGoldenDefaults()
 
 	if err := t.validate(); err != nil {
-		return fmt.Errorf("%s: '%s' has invalid template: %w", tribe.String(), id, err)
+		return fmt.Errorf("'%s' has invalid template: %w", id, err)
 	}
 
 	return nil
@@ -106,18 +115,23 @@ func (c *Catalog) initTemplate(id string, t *template, tribe game.Tribe) error {
 
 func (c *Catalog) index(t game.CardTemplate) {
 	c.byKind[t.Kind()] = append(c.byKind[t.Kind()], t)
-	c.byTribe[t.Tribe()] = append(c.byTribe[t.Tribe()], t)
 	c.byTier[t.Tier()] = append(c.byTier[t.Tier()], t)
 
 	if c.byKindTierTribe[t.Kind()] == nil {
 		c.byKindTierTribe[t.Kind()] = make(map[game.Tier]map[game.Tribe][]game.CardTemplate)
 	}
-
 	if c.byKindTierTribe[t.Kind()][t.Tier()] == nil {
 		c.byKindTierTribe[t.Kind()][t.Tier()] = make(map[game.Tribe][]game.CardTemplate)
 	}
 
-	c.byKindTierTribe[t.Kind()][t.Tier()][t.Tribe()] = append(c.byKindTierTribe[t.Kind()][t.Tier()][t.Tribe()], t)
+	tribes := t.Tribes().List()
+	if len(tribes) == 0 {
+		tribes = []game.Tribe{game.TribeNeutral}
+	}
+	for _, tribe := range tribes {
+		c.byTribe[tribe] = append(c.byTribe[tribe], t)
+		c.byKindTierTribe[t.Kind()][t.Tier()][tribe] = append(c.byKindTierTribe[t.Kind()][t.Tier()][tribe], t)
+	}
 }
 
 // ByTemplateID returns a card template by ID, searching all cards (shop + tokens).

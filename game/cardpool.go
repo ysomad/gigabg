@@ -37,7 +37,7 @@ func scaleCopies(base, players int) int {
 // CardCatalog provides access to card templates.
 type CardCatalog interface {
 	ByTemplateID(id string) CardTemplate
-	ByKindTierTribe(kind CardKind, tier Tier, tribe Tribe) []CardTemplate
+	ByKindTierTribe(kind CardKind, tier Tier, tribe Tribe) []CardTemplate // tribe 0 = any
 }
 
 // CardPool manages a finite pool of cards shared across all players in a lobby.
@@ -164,13 +164,13 @@ func (p *CardPool) available(templates []CardTemplate) []CardTemplate {
 
 // filter returns templates matching the given tribe and kind. Zero values mean "any".
 func (p *CardPool) filter(templates []CardTemplate, tribe Tribe, kind CardKind) []CardTemplate {
-	if tribe == 0 && kind == 0 {
+	if tribe == TribeNeutral && kind == 0 {
 		return templates
 	}
 
 	filtered := make([]CardTemplate, 0, len(templates))
 	for _, t := range templates {
-		if tribe != 0 && t.Tribe() != tribe {
+		if tribe != TribeNeutral && !t.Tribes().Has(tribe) {
 			continue
 		}
 		if kind != 0 && t.Kind() != kind {

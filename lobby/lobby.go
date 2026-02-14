@@ -75,7 +75,7 @@ type Lobby struct {
 	combatPairings map[game.PlayerID]CombatPairing       // playerID -> pairing, combat phase only
 	nextPairings   map[game.PlayerID]game.PlayerID       // playerID -> next opponentID, recruit phase only
 
-	majorityTribes map[game.PlayerID]game.TribeSnapshot // playerID -> snapshot from last combat
+	topTribes map[game.PlayerID]game.TopTribe // playerID -> snapshot from last combat
 
 	startedAt  time.Time
 	eliminated int              // number of eliminated players
@@ -282,7 +282,7 @@ func (l *Lobby) checkFinished() {
 	now := time.Now()
 	placements := make([]game.PlayerPlacement, len(l.players))
 	for i, p := range l.players {
-		snap := l.majorityTribes[p.ID()]
+		snap := l.topTribes[p.ID()]
 		placements[i] = game.PlayerPlacement{
 			Player:        p.ID(),
 			Placement:     p.Placement(),
@@ -339,15 +339,15 @@ func (l *Lobby) resolvePairing(p1, p2 *game.Player) {
 }
 
 func (l *Lobby) snapshotTribe(p *game.Player) {
-	if l.majorityTribes == nil {
-		l.majorityTribes = make(map[game.PlayerID]game.TribeSnapshot, len(l.players))
+	if l.topTribes == nil {
+		l.topTribes = make(map[game.PlayerID]game.TopTribe, len(l.players))
 	}
-	tribe, count := p.Board().TopTribe()
-	l.majorityTribes[p.ID()] = game.TribeSnapshot{Tribe: tribe, Count: count}
+	tribe, count := p.Board().TopTribeOf()
+	l.topTribes[p.ID()] = game.TopTribe{Tribe: tribe, Count: count}
 }
 
 // TopTribes returns the snapshot of majority tribes from last combat.
-func (l *Lobby) TopTribes() map[game.PlayerID]game.TribeSnapshot { return l.majorityTribes }
+func (l *Lobby) TopTribes() map[game.PlayerID]game.TopTribe { return l.topTribes }
 
 func (l *Lobby) appendCombatResult(player game.PlayerID, result game.CombatResult) {
 	logs := append(l.combatResults[player], result) //nolint:gocritic // intentional new slice

@@ -14,6 +14,7 @@ const (
 	errHealthNotPositive errors.Error = "health must be positive"
 	errSpellNoCost       errors.Error = "spell with tier must have cost"
 	errMinionNoCost      errors.Error = "minion must have cost"
+	errMagneticNotMech   errors.Error = "magnetic minion must have mech tribe"
 )
 
 var _ game.CardTemplate = (*template)(nil)
@@ -21,7 +22,7 @@ var _ game.CardTemplate = (*template)(nil)
 type template struct {
 	// predefined in runtime
 	_id    string
-	_tribe game.Tribe
+	_tribes game.Tribes
 
 	name          string
 	description   string
@@ -41,7 +42,7 @@ func (t *template) ID() string                            { return t._id }
 func (t *template) Name() string                          { return t.name }
 func (t *template) Description() string                   { return t.description }
 func (t *template) Kind() game.CardKind                   { return t.kind }
-func (t *template) Tribe() game.Tribe                     { return t._tribe }
+func (t *template) Tribes() game.Tribes                    { return t._tribes }
 func (t *template) Tier() game.Tier                       { return t.tier }
 func (t *template) Cost() int                             { return t.cost }
 func (t *template) Attack() int                           { return t.attack }
@@ -53,7 +54,7 @@ func (t *template) Auras() []game.Aura                    { return slices.Clone(
 func (t *template) GoldenAuras() []game.Aura              { return slices.Clone(t.goldenAuras) }
 
 func (t *template) setID(id string)           { t._id = id }
-func (t *template) setTribe(tribe game.Tribe) { t._tribe = tribe }
+func (t *template) setTribes(tribes game.Tribes) { t._tribes = tribes }
 
 func (t *template) validate() error {
 	if t.name == "" {
@@ -79,6 +80,9 @@ func (t *template) validate() error {
 	}
 	if t.health <= 0 {
 		return errHealthNotPositive
+	}
+	if t.keywords.Has(game.KeywordMagnetic) && !t._tribes.Has(game.TribeMech) {
+		return errMagneticNotMech
 	}
 
 	return nil

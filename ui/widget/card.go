@@ -862,7 +862,7 @@ func (r *CardRenderer) cardInfo(c api.Card) (string, string, string) {
 	if t := r.Cards.ByTemplateID(c.Template); t != nil {
 		name = t.Name()
 		desc = t.Description()
-		tribe = t.Tribe().String()
+		tribe = t.Tribes().String()
 	}
 	return name, desc, tribe
 }

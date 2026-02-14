@@ -315,7 +315,7 @@ func (cp *combatPanel) rebornMinion(ev game.RebornEvent) error {
 		Template: ev.Template,
 		Attack:   t.Attack(),
 		Health:   1,
-		Tribe:    t.Tribe(),
+		Tribes:   t.Tribes(),
 		Keywords: kw,
 		CombatID: ev.Target,
 	}

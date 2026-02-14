@@ -10,12 +10,14 @@ import (
 func Test_template_validate(t *testing.T) {
 	t.Parallel()
 	type fields struct {
-		name   string
-		kind   game.CardKind
-		tier   game.Tier
-		cost   int
-		attack int
-		health int
+		name     string
+		kind     game.CardKind
+		tier     game.Tier
+		cost     int
+		attack   int
+		health   int
+		tribes   game.Tribes
+		keywords game.Keywords
 	}
 	tests := []struct {
 		name      string
@@ -81,17 +83,51 @@ func Test_template_validate(t *testing.T) {
 			fields:    fields{name: "Bolt", kind: game.CardKindSpell, tier: game.Tier2},
 			assertion: assert.Error,
 		},
+		{
+			name: "magnetic_mech",
+			fields: fields{
+				name: "Bot", kind: game.CardKindMinion, tier: game.Tier1, cost: game.MinionCost, health: 1,
+				tribes: game.NewTribes(game.TribeMech), keywords: game.NewKeywords(game.KeywordMagnetic),
+			},
+			assertion: assert.NoError,
+		},
+		{
+			name: "magnetic_mech_undead",
+			fields: fields{
+				name: "Bot", kind: game.CardKindMinion, tier: game.Tier1, cost: game.MinionCost, health: 1,
+				tribes: game.NewTribes(game.TribeMech, game.TribeUndead), keywords: game.NewKeywords(game.KeywordMagnetic),
+			},
+			assertion: assert.NoError,
+		},
+		{
+			name: "magnetic_not_mech",
+			fields: fields{
+				name: "Bot", kind: game.CardKindMinion, tier: game.Tier1, cost: game.MinionCost, health: 1,
+				tribes: game.NewTribes(game.TribeBeast), keywords: game.NewKeywords(game.KeywordMagnetic),
+			},
+			assertion: assert.Error,
+		},
+		{
+			name: "magnetic_neutral",
+			fields: fields{
+				name: "Bot", kind: game.CardKindMinion, tier: game.Tier1, cost: game.MinionCost, health: 1,
+				keywords: game.NewKeywords(game.KeywordMagnetic),
+			},
+			assertion: assert.Error,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			tr := &template{
-				name:   tt.fields.name,
-				kind:   tt.fields.kind,
-				tier:   tt.fields.tier,
-				cost:   tt.fields.cost,
-				attack: tt.fields.attack,
-				health: tt.fields.health,
+				name:     tt.fields.name,
+				kind:     tt.fields.kind,
+				tier:     tt.fields.tier,
+				cost:     tt.fields.cost,
+				attack:   tt.fields.attack,
+				health:   tt.fields.health,
+				_tribes:  tt.fields.tribes,
+				keywords: tt.fields.keywords,
 			}
 			tt.assertion(t, tr.validate())
 		})

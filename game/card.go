@@ -30,7 +30,7 @@ type CardTemplate interface {
 	Name() string
 	Description() string
 	Kind() CardKind
-	Tribe() Tribe
+	Tribes() Tribes
 	Tier() Tier
 	Cost() int
 	Attack() int
