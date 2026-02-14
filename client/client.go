@@ -3,7 +3,7 @@ package client
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	json "encoding/json/v2"
 	"fmt"
 	"io"
 	"net/http"
@@ -82,7 +82,7 @@ func (c *Client) sendRequest(ctx context.Context, method, url string, req, resp 
 		return fmt.Errorf("%s %s %d: %s", method, url, httpResp.StatusCode, strings.TrimSpace(string(respBody)))
 	}
 
-	if err := json.NewDecoder(httpResp.Body).Decode(resp); err != nil {
+	if err := json.UnmarshalRead(httpResp.Body, resp); err != nil {
 		return fmt.Errorf("decode: %w", err)
 	}
 

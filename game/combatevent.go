@@ -28,19 +28,19 @@ var (
 
 // AttackEvent is emitted when a minion initiates an attack.
 type AttackEvent struct {
-	SourceID int    `json:"source_id"`
-	TargetID int    `json:"target_id"`
-	OwnerID  string `json:"owner_id"`
+	SourceID int      `json:"source_id"`
+	TargetID int      `json:"target_id"`
+	Owner    PlayerID `json:"owner"`
 }
 
 func (AttackEvent) EventType() CombatEventType { return CombatEventAttack }
 
 // DamageEvent is emitted when damage is dealt to a minion.
 type DamageEvent struct {
-	SourceID int    `json:"source_id"`
-	TargetID int    `json:"target_id"`
-	Amount   int    `json:"amount"`
-	OwnerID  string `json:"owner_id"`
+	SourceID int      `json:"source_id"`
+	TargetID int      `json:"target_id"`
+	Amount   int      `json:"amount"`
+	Owner    PlayerID `json:"owner"`
 }
 
 func (DamageEvent) EventType() CombatEventType { return CombatEventDamage }
@@ -57,26 +57,26 @@ const (
 type DeathEvent struct {
 	TargetID    int         `json:"target_id"`
 	DeathReason DeathReason `json:"death_reason"`
-	OwnerID     string      `json:"owner_id"`
+	Owner       PlayerID    `json:"owner"`
 }
 
 func (DeathEvent) EventType() CombatEventType { return CombatEventDeath }
 
 // RemoveKeywordEvent is emitted when a keyword is removed from a minion.
 type RemoveKeywordEvent struct {
-	SourceID int     `json:"source_id"`
-	TargetID int     `json:"target_id"`
-	Keyword  Keyword `json:"keyword"`
-	OwnerID  string  `json:"owner_id"`
+	SourceID int      `json:"source_id"`
+	TargetID int      `json:"target_id"`
+	Keyword  Keyword  `json:"keyword"`
+	Owner    PlayerID `json:"owner"`
 }
 
 func (RemoveKeywordEvent) EventType() CombatEventType { return CombatEventRemoveKeyword }
 
 // RebornEvent is emitted when a minion respawns via Reborn (always 1 HP).
 type RebornEvent struct {
-	TargetID   int    `json:"target_id"`
-	OwnerID    string `json:"owner_id"`
-	TemplateID string `json:"template_id"`
+	TargetID   int      `json:"target_id"`
+	Owner      PlayerID `json:"owner"`
+	TemplateID string   `json:"template_id"`
 }
 
 func (RebornEvent) EventType() CombatEventType { return CombatEventReborn }
@@ -84,16 +84,16 @@ func (RebornEvent) EventType() CombatEventType { return CombatEventReborn }
 // CombatResult is the outcome of a single combat from one player's perspective.
 // Stored per-player (last 3). Visible to other clients on hover.
 type CombatResult struct {
-	OpponentID string
-	WinnerID   string // empty if tie
-	Damage     int    // damage dealt to loser (0 if tie)
+	Opponent PlayerID
+	Winner   PlayerID // 0 if tie
+	Damage   int      // damage dealt to loser (0 if tie)
 }
 
 // CombatLog holds data for combat replay on the client.
 // Sent once to the two fighting players, then discarded.
 // Boards are delivered separately via GameState.
 type CombatLog struct {
-	Player1ID string
-	Player2ID string
-	Events    []CombatEvent
+	Player1 PlayerID
+	Player2 PlayerID
+	Events  []CombatEvent
 }

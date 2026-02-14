@@ -8,6 +8,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
 
+	"github.com/ysomad/gigabg/game"
 	"github.com/ysomad/gigabg/ui"
 	"github.com/ysomad/gigabg/ui/widget"
 )
@@ -23,8 +24,8 @@ const (
 
 type Menu struct {
 	font     *text.GoTextFace
-	onJoin   func(playerID, lobbyID string)
-	onCreate func(playerID string, lobbySize int)
+	onJoin   func(player game.PlayerID, lobbyID string)
+	onCreate func(player game.PlayerID, lobbySize int)
 
 	playerID *widget.TextInput
 	mode     menuMode
@@ -45,8 +46,8 @@ type Menu struct {
 
 func NewMenu(
 	font *text.GoTextFace,
-	onJoin func(playerID, lobbyID string),
-	onCreate func(playerID string, lobbySize int),
+	onJoin func(player game.PlayerID, lobbyID string),
+	onCreate func(player game.PlayerID, lobbySize int),
 ) *Menu {
 	m := &Menu{
 		font:         font,
@@ -136,17 +137,20 @@ func (m *Menu) buildWidgets() {
 }
 
 func (m *Menu) submitJoin() {
-	pid := m.playerID.Value()
 	lid := m.lobbyID.Value()
-	if pid == "" || lid == "" {
+	if lid == "" {
+		return
+	}
+	pid, err := game.ParsePlayerID(m.playerID.Value())
+	if err != nil {
 		return
 	}
 	m.onJoin(pid, lid)
 }
 
 func (m *Menu) submitCreate() {
-	pid := m.playerID.Value()
-	if pid == "" {
+	pid, err := game.ParsePlayerID(m.playerID.Value())
+	if err != nil {
 		return
 	}
 	m.onCreate(pid, m.selectedSize)

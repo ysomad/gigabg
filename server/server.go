@@ -2,7 +2,7 @@ package server
 
 import (
 	"context"
-	"encoding/json"
+	json "encoding/json/v2"
 	"errors"
 	"io"
 	"log/slog"
@@ -28,10 +28,10 @@ type Server struct {
 }
 
 type ClientConn struct {
-	playerID string
-	lobbyID  string
-	conn     *websocket.Conn
-	send     chan []byte
+	player  game.PlayerID
+	lobbyID string
+	conn    *websocket.Conn
+	send    chan []byte
 }
 
 func New(store *lobby.MemoryStore, cards game.CardCatalog) *Server {
@@ -64,7 +64,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) createLobby(w http.ResponseWriter, r *http.Request) {
 	var req api.CreateLobbyReq
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.UnmarshalRead(r.Body, &req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -83,7 +83,7 @@ func (s *Server) createLobby(w http.ResponseWriter, r *http.Request) {
 	slog.Info("lobby created", "lobby", l.ID(), "max_players", req.MaxPlayers)
 
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(api.CreateLobbyResp{LobbyID: l.ID()}); err != nil {
+	if err := json.MarshalWrite(w, api.CreateLobbyResp{LobbyID: l.ID()}); err != nil {
 		slog.Error("encode failed", "error", err)
 	}
 }
@@ -134,9 +134,9 @@ func (s *Server) gameLoop() {
 
 func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	lobbyID := r.URL.Query().Get("lobby")
-	playerID := r.URL.Query().Get("player")
+	playerStr := r.URL.Query().Get("player")
 
-	slog.Info("ws connect", "player", playerID, "lobby", lobbyID, "remote", r.RemoteAddr)
+	slog.Info("ws connect", "player", playerStr, "lobby", lobbyID, "remote", r.RemoteAddr)
 
 	if lobbyID == "" {
 		slog.Info("ws rejected, missing lobby param", "remote", r.RemoteAddr)
@@ -144,9 +144,16 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if playerID == "" {
+	if playerStr == "" {
 		slog.Info("ws rejected, missing player param", "remote", r.RemoteAddr)
 		http.Error(w, "player query param required", http.StatusBadRequest)
+		return
+	}
+
+	player, err := game.ParsePlayerID(playerStr)
+	if err != nil {
+		slog.Info("ws rejected, invalid player param", "remote", r.RemoteAddr)
+		http.Error(w, "invalid player query param", http.StatusBadRequest)
 		return
 	}
 
@@ -173,21 +180,21 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	// Join lobby on connect.
 	s.mu.Lock()
 
-	if err := l.AddPlayer(playerID); err != nil {
+	if err := l.AddPlayer(player); err != nil {
 		s.mu.Unlock()
 		if cerr := conn.Close(websocket.StatusPolicyViolation, err.Error()); cerr != nil {
-			slog.Error("close rejected player conn", "error", cerr, "player", playerID)
+			slog.Error("close rejected player conn", "error", cerr, "player", player)
 		}
 		return
 	}
 
-	client.playerID = playerID
+	client.player = player
 	client.lobbyID = lobbyID
 	s.clients[lobbyID] = append(s.clients[lobbyID], client)
 	s.mu.Unlock()
 
 	slog.Info("player joined",
-		"player", playerID,
+		"player", player,
 		"lobby", lobbyID,
 		"lobby_players", l.PlayerCount(),
 		"lobby_max_players", l.MaxPlayers(),
@@ -335,7 +342,7 @@ func (s *Server) handleMessage(ctx context.Context, client *ClientConn, msg *api
 		})
 
 	case api.ActionReorderCards:
-		slog.Info(msg.Action.String(), "player", client.playerID, "lobby", client.lobbyID)
+		slog.Info(msg.Action.String(), "player", client.player, "lobby", client.lobbyID)
 		s.handleAction(ctx, client, msg.Action, func(l *lobby.Lobby, p *game.Player) error {
 			payload, err := decodePayload[api.ReorderCards](msg)
 			if err != nil {
@@ -371,7 +378,7 @@ func (s *Server) handleAction(
 		return
 	}
 
-	p := l.Player(client.playerID)
+	p := l.Player(client.player)
 	if p == nil {
 		s.sendError(client, "player not found")
 		return
@@ -390,7 +397,7 @@ func (s *Server) handleAction(
 	}
 
 	attrs := []slog.Attr{
-		slog.String("player", client.playerID),
+		slog.Any("player", client.player),
 		slog.String("lobby", client.lobbyID),
 	}
 	if d := p.Gold() - beforeGold; d != 0 {
@@ -429,13 +436,13 @@ func (s *Server) sendCombatLogs(lobbyID string, l *lobby.Lobby) {
 
 	for _, anim := range anims {
 		for _, c := range clients {
-			if c.playerID != anim.Player1ID && c.playerID != anim.Player2ID {
+			if c.player != anim.Player1 && c.player != anim.Player2 {
 				continue
 			}
 
 			events, err := api.NewCombatEvents(anim.Events)
 			if err != nil {
-				slog.Error("failed to marshal combat events", "player", c.playerID, "err", err)
+				slog.Error("failed to marshal combat events", "player", c.player, "err", err)
 				continue
 			}
 
@@ -449,7 +456,7 @@ func (s *Server) broadcastState(lobbyID string, l *lobby.Lobby) {
 	defer s.mu.RUnlock()
 
 	for _, c := range s.clients[lobbyID] {
-		p := l.Player(c.playerID)
+		p := l.Player(c.player)
 		if p == nil {
 			continue
 		}
@@ -462,7 +469,7 @@ func (s *Server) sendPlayerState(client *ClientConn, l *lobby.Lobby, p *game.Pla
 		Player: api.NewPlayer(p),
 		Opponents: api.NewOpponents(
 			l.Players(),
-			client.playerID,
+			client.player,
 			api.NewAllCombatResults(l.AllCombatResults()),
 			l.TopTribes(),
 		),
@@ -473,7 +480,7 @@ func (s *Server) sendPlayerState(client *ClientConn, l *lobby.Lobby, p *game.Pla
 		IsShopFrozen:  p.Shop().IsFrozen(),
 		Hand:          api.NewCards(p.Hand()),
 		Board:         api.NewCardsFromMinions(p.Board().Minions()),
-		CombatResults: api.NewCombatResults(l.CombatResults(client.playerID)),
+		CombatResults: api.NewCombatResults(l.CombatResults(client.player)),
 	}
 
 	if p.HasDiscovers() {
@@ -482,10 +489,10 @@ func (s *Server) sendPlayerState(client *ClientConn, l *lobby.Lobby, p *game.Pla
 
 	switch l.Phase() {
 	case game.PhaseRecruit:
-		state.OpponentID = l.NextOpponentID(client.playerID)
+		state.Opponent = l.NextOpponent(client.player)
 	case game.PhaseCombat, game.PhaseFinished:
-		if pair, ok := l.CombatPairing(client.playerID); ok {
-			state.OpponentID = pair.OpponentID
+		if pair, ok := l.CombatPairing(client.player); ok {
+			state.Opponent = pair.Opponent
 			state.CombatBoard = api.CombatCards(pair.PlayerBoard)
 			state.OpponentBoard = api.CombatCards(pair.OpponentBoard)
 		}
@@ -503,23 +510,23 @@ func (s *Server) handleUpgradeShop(ctx context.Context, client *ClientConn, acti
 		if err := p.UpgradeShop(); err != nil {
 			return err
 		}
-		s.sendOpponentUpdate(client.lobbyID, client.playerID, p.Shop().Tier())
+		s.sendOpponentUpdate(client.lobbyID, client.player, p.Shop().Tier())
 		return nil
 	})
 }
 
-func (s *Server) sendOpponentUpdate(lobbyID, playerID string, tier game.Tier) {
+func (s *Server) sendOpponentUpdate(lobbyID string, player game.PlayerID, tier game.Tier) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	msg := &api.ServerMessage{
 		OpponentUpdate: &api.OpponentUpdate{
-			PlayerID: playerID,
+			Player:   player,
 			ShopTier: tier,
 		},
 	}
 	for _, c := range s.clients[lobbyID] {
-		if c.playerID == playerID {
+		if c.player == player {
 			continue
 		}
 		s.sendMessage(c, msg)
@@ -543,7 +550,7 @@ func (s *Server) sendMessage(client *ClientConn, msg *api.ServerMessage) {
 	select {
 	case client.send <- data:
 	default:
-		slog.Warn("send buffer full", "player", client.playerID)
+		slog.Warn("send buffer full", "player", client.player)
 	}
 }
 
@@ -556,7 +563,7 @@ func (s *Server) removeClient(client *ClientConn) {
 	}
 
 	slog.Info("player disconnected",
-		"player", client.playerID,
+		"player", client.player,
 		"lobby", client.lobbyID,
 	)
 

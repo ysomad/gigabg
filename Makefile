@@ -1,6 +1,8 @@
 include .local.env
 export
 
+export GOEXPERIMENT=jsonv2
+
 export GOOSE_DRIVER=postgres
 export GOOSE_DBSTRING=${PG_URL}
 

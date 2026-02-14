@@ -46,14 +46,14 @@ func (s State) String() string {
 const maxCombatLogs = 3
 
 type CombatPairing struct {
-	OpponentID    string
+	Opponent      game.PlayerID
 	PlayerBoard   game.Board // cloned with combat IDs
 	OpponentBoard game.Board // cloned with combat IDs
 }
 
-func newCombatPairing(opponentID string, pb, ob game.Board) CombatPairing {
+func newCombatPairing(opponent game.PlayerID, pb, ob game.Board) CombatPairing {
 	return CombatPairing{
-		OpponentID:    opponentID,
+		Opponent:      opponent,
 		PlayerBoard:   pb,
 		OpponentBoard: ob,
 	}
@@ -70,12 +70,12 @@ type Lobby struct {
 	phase       game.Phase
 	phaseEndsAt time.Time // when current phase ends
 
-	combatResults  map[string][]game.CombatResult // playerID -> last N results
-	combatLogs     []game.CombatLog               // ephemeral, cleared after send
-	combatPairings map[string]CombatPairing       // playerID -> pairing, combat phase only
-	nextPairings   map[string]string              // playerID -> next opponentID, recruit phase only
+	combatResults  map[game.PlayerID][]game.CombatResult // playerID -> last N results
+	combatLogs     []game.CombatLog                      // ephemeral, cleared after send
+	combatPairings map[game.PlayerID]CombatPairing       // playerID -> pairing, combat phase only
+	nextPairings   map[game.PlayerID]game.PlayerID       // playerID -> next opponentID, recruit phase only
 
-	majorityTribes map[string]game.TribeSnapshot // playerID -> snapshot from last combat
+	majorityTribes map[game.PlayerID]game.TribeSnapshot // playerID -> snapshot from last combat
 
 	startedAt  time.Time
 	eliminated int              // number of eliminated players
@@ -102,7 +102,7 @@ func (l *Lobby) SetID(id string) { l.id = id }
 func (l *Lobby) MaxPlayers() int { return l.maxPlayers }
 
 // AddPlayer adds a player to the lobby. Auto-starts when 8 players join.
-func (l *Lobby) AddPlayer(id string) error {
+func (l *Lobby) AddPlayer(id game.PlayerID) error {
 	if l.state != StateWaiting {
 		return ErrGameStarted
 	}
@@ -143,10 +143,10 @@ func (l *Lobby) startRecruit() {
 
 // prevOpponents returns a map of playerID -> previous opponentID from the
 // current combat pairings.
-func (l *Lobby) prevOpponents() map[string]string {
-	prev := make(map[string]string, len(l.combatPairings))
+func (l *Lobby) prevOpponents() map[game.PlayerID]game.PlayerID {
+	prev := make(map[game.PlayerID]game.PlayerID, len(l.combatPairings))
 	for id, cp := range l.combatPairings {
-		prev[id] = cp.OpponentID
+		prev[id] = cp.Opponent
 	}
 	return prev
 }
@@ -166,8 +166,8 @@ func (l *Lobby) computeNextPairings() {
 
 	rand.Shuffle(len(alive), func(i, j int) { alive[i], alive[j] = alive[j], alive[i] })
 
-	l.nextPairings = make(map[string]string, len(alive))
-	paired := make(map[string]struct{}, len(alive))
+	l.nextPairings = make(map[game.PlayerID]game.PlayerID, len(alive))
+	paired := make(map[game.PlayerID]struct{}, len(alive))
 
 	for _, p := range alive {
 		if _, ok := paired[p.ID()]; ok {
@@ -202,9 +202,9 @@ func (l *Lobby) computeNextPairings() {
 	}
 }
 
-// NextOpponentID returns the pre-determined next opponent for the given player.
-func (l *Lobby) NextOpponentID(playerID string) string {
-	return l.nextPairings[playerID]
+// NextOpponent returns the pre-determined next opponent for the given player.
+func (l *Lobby) NextOpponent(player game.PlayerID) game.PlayerID {
+	return l.nextPairings[player]
 }
 
 func (l *Lobby) startCombat() {
@@ -235,14 +235,14 @@ func (l *Lobby) runCombat() {
 	}
 
 	if l.combatResults == nil {
-		l.combatResults = make(map[string][]game.CombatResult, len(l.players))
+		l.combatResults = make(map[game.PlayerID][]game.CombatResult, len(l.players))
 	}
 
 	l.combatLogs = l.combatLogs[:0]
-	l.combatPairings = make(map[string]CombatPairing, len(l.players))
+	l.combatPairings = make(map[game.PlayerID]CombatPairing, len(l.players))
 
 	// Use pre-computed pairings from recruit phase.
-	resolved := make(map[string]struct{}, len(l.nextPairings))
+	resolved := make(map[game.PlayerID]struct{}, len(l.nextPairings))
 	for pid, oid := range l.nextPairings {
 		if _, ok := resolved[pid]; ok {
 			continue
@@ -284,9 +284,9 @@ func (l *Lobby) checkFinished() {
 	for i, p := range l.players {
 		snap := l.majorityTribes[p.ID()]
 		placements[i] = game.PlayerPlacement{
-			PlayerID:      p.ID(),
+			Player:        p.ID(),
 			Placement:     p.Placement(),
-			TopTribe: snap.Tribe,
+			TopTribe:      snap.Tribe,
 			TopTribeCount: snap.Count,
 		}
 	}
@@ -294,13 +294,13 @@ func (l *Lobby) checkFinished() {
 		return a.Placement - b.Placement
 	})
 
-	winnerID := ""
+	var winnerID game.PlayerID
 	if winner != nil {
 		winnerID = winner.ID()
 	}
 
 	l.gameResult = &game.GameResult{
-		WinnerID:   winnerID,
+		Winner:     winnerID,
 		Placements: placements,
 		Duration:   now.Sub(l.startedAt),
 		StartedAt:  l.startedAt,
@@ -320,9 +320,9 @@ func (l *Lobby) resolvePairing(p1, p2 *game.Player) {
 
 	r1, r2 := combat.Run()
 
-	if r1.WinnerID != "" && r1.Damage > 0 {
+	if r1.Winner != 0 && r1.Damage > 0 {
 		loser := p2
-		if r1.WinnerID == p2.ID() {
+		if r1.Winner == p2.ID() {
 			loser = p1
 		}
 		if loser.IsAlive() {
@@ -340,21 +340,21 @@ func (l *Lobby) resolvePairing(p1, p2 *game.Player) {
 
 func (l *Lobby) snapshotTribe(p *game.Player) {
 	if l.majorityTribes == nil {
-		l.majorityTribes = make(map[string]game.TribeSnapshot, len(l.players))
+		l.majorityTribes = make(map[game.PlayerID]game.TribeSnapshot, len(l.players))
 	}
 	tribe, count := p.Board().TopTribe()
 	l.majorityTribes[p.ID()] = game.TribeSnapshot{Tribe: tribe, Count: count}
 }
 
 // TopTribes returns the snapshot of majority tribes from last combat.
-func (l *Lobby) TopTribes() map[string]game.TribeSnapshot { return l.majorityTribes }
+func (l *Lobby) TopTribes() map[game.PlayerID]game.TribeSnapshot { return l.majorityTribes }
 
-func (l *Lobby) appendCombatResult(playerID string, result game.CombatResult) {
-	logs := append(l.combatResults[playerID], result) //nolint:gocritic // intentional new slice
+func (l *Lobby) appendCombatResult(player game.PlayerID, result game.CombatResult) {
+	logs := append(l.combatResults[player], result) //nolint:gocritic // intentional new slice
 	if len(logs) > maxCombatLogs {
 		logs = logs[len(logs)-maxCombatLogs:]
 	}
-	l.combatResults[playerID] = logs
+	l.combatResults[player] = logs
 }
 
 // resolveDiscovers auto-picks a random discover option for players who
@@ -400,7 +400,7 @@ func (l *Lobby) PlayerCount() int { return len(l.players) }
 func (l *Lobby) Players() []*game.Player { return l.players }
 
 // Player returns the player with the given ID.
-func (l *Lobby) Player(id string) *game.Player {
+func (l *Lobby) Player(id game.PlayerID) *game.Player {
 	for _, p := range l.players {
 		if p.ID() == id {
 			return p
@@ -419,10 +419,12 @@ func (l *Lobby) Phase() game.Phase { return l.phase }
 func (l *Lobby) PhaseEndsAt() time.Time { return l.phaseEndsAt }
 
 // CombatResults returns combat results for the given player (last 3).
-func (l *Lobby) CombatResults(playerID string) []game.CombatResult { return l.combatResults[playerID] }
+func (l *Lobby) CombatResults(player game.PlayerID) []game.CombatResult {
+	return l.combatResults[player]
+}
 
 // AllCombatResults returns combat results for all players.
-func (l *Lobby) AllCombatResults() map[string][]game.CombatResult { return l.combatResults }
+func (l *Lobby) AllCombatResults() map[game.PlayerID][]game.CombatResult { return l.combatResults }
 
 // CombatLogs returns pending combat logs and clears them.
 func (l *Lobby) CombatLogs() []game.CombatLog {
@@ -432,8 +434,8 @@ func (l *Lobby) CombatLogs() []game.CombatLog {
 }
 
 // CombatPairing returns the combat pairing for the given player (combat phase only).
-func (l *Lobby) CombatPairing(playerID string) (CombatPairing, bool) {
-	p, ok := l.combatPairings[playerID]
+func (l *Lobby) CombatPairing(player game.PlayerID) (CombatPairing, bool) {
+	p, ok := l.combatPairings[player]
 	return p, ok
 }
 

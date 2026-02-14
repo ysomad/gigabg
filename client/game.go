@@ -2,7 +2,7 @@ package client
 
 import (
 	"context"
-	"encoding/json"
+	json "encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -20,11 +20,11 @@ import (
 
 // PlayerEntry is a player summary for the sidebar.
 type PlayerEntry struct {
-	ID            string
+	ID            game.PlayerID
 	HP            int
 	ShopTier      game.Tier
 	CombatResults []api.CombatResult
-	TopTribe game.Tribe
+	TopTribe      game.Tribe
 	TopTribeCount int
 }
 
@@ -43,8 +43,8 @@ type GameClient struct {
 // NewGameClient dials the game server WebSocket and returns a GameClient.
 // addr is host:port (e.g. "localhost:8080").
 // If proxyURL is non-empty, the WebSocket connection is routed through the given HTTP proxy.
-func NewGameClient(ctx context.Context, addr, playerID, lobbyID, proxyURL string) (*GameClient, error) {
-	wsURL := fmt.Sprintf("ws://%s/ws?player=%s&lobby=%s", addr, playerID, lobbyID)
+func NewGameClient(ctx context.Context, addr string, player game.PlayerID, lobbyID, proxyURL string) (*GameClient, error) {
+	wsURL := fmt.Sprintf("ws://%s/ws?player=%d&lobby=%s", addr, player, lobbyID)
 
 	var opts *websocket.DialOptions
 	if proxyURL != "" {
@@ -104,7 +104,7 @@ func (c *GameClient) handleMessage(msg *api.ServerMessage) {
 		c.opponentUpdates = append(c.opponentUpdates, *u)
 		if c.state != nil {
 			for i := range c.state.Opponents {
-				if c.state.Opponents[i].ID == u.PlayerID {
+				if c.state.Opponents[i].ID == u.Player {
 					c.state.Opponents[i].ShopTier = u.ShopTier
 					break
 				}
@@ -148,11 +148,11 @@ func (c *GameClient) State() *api.GameState {
 }
 
 // PlayerID returns this client's player ID.
-func (c *GameClient) PlayerID() string {
+func (c *GameClient) PlayerID() game.PlayerID {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	if c.state == nil {
-		return ""
+		return 0
 	}
 	return c.state.Player.ID
 }

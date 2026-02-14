@@ -25,7 +25,7 @@ type tierFade struct {
 type Sidebar struct {
 	font      *text.GoTextFace
 	hover     int
-	tierFades map[string]tierFade
+	tierFades map[game.PlayerID]tierFade
 	snap      []client.PlayerEntry // frozen player list
 }
 
@@ -33,7 +33,7 @@ func NewSidebar(font *text.GoTextFace) *Sidebar {
 	return &Sidebar{
 		font:      font,
 		hover:     -1,
-		tierFades: make(map[string]tierFade),
+		tierFades: make(map[game.PlayerID]tierFade),
 	}
 }
 
@@ -48,7 +48,7 @@ func (s *Sidebar) Update(rect ui.Rect, players []client.PlayerEntry, updates []a
 	}
 
 	for _, u := range updates {
-		s.tierFades[u.PlayerID] = tierFade{tier: u.ShopTier, timer: tierFadeDuration}
+		s.tierFades[u.Player] = tierFade{tier: u.ShopTier, timer: tierFadeDuration}
 	}
 
 	for id, f := range s.tierFades {
@@ -81,12 +81,12 @@ func (s *Sidebar) updateHover(rect ui.Rect) {
 }
 
 // Draw renders the sidebar and hover tooltip.
-func (s *Sidebar) Draw(screen *ebiten.Image, rect ui.Rect, playerID, opponentID string) {
-	s.drawList(screen, rect, playerID, opponentID)
+func (s *Sidebar) Draw(screen *ebiten.Image, rect ui.Rect, player, opponent game.PlayerID) {
+	s.drawList(screen, rect, player, opponent)
 	s.drawTooltip(screen, rect)
 }
 
-func (s *Sidebar) drawList(screen *ebiten.Image, rect ui.Rect, playerID, opponentID string) {
+func (s *Sidebar) drawList(screen *ebiten.Image, rect ui.Rect, player, opponent game.PlayerID) {
 	sr := rect.Screen()
 
 	// Background.
@@ -107,7 +107,7 @@ func (s *Sidebar) drawList(screen *ebiten.Image, rect ui.Rect, playerID, opponen
 		padX := row.W * 0.06
 
 		// Highlight self.
-		if e.ID == playerID {
+		if e.ID == player {
 			vector.FillRect(screen,
 				float32(rowScreen.X), float32(rowScreen.Y),
 				float32(rowScreen.W), float32(rowScreen.H),
@@ -116,7 +116,7 @@ func (s *Sidebar) drawList(screen *ebiten.Image, rect ui.Rect, playerID, opponen
 		}
 
 		// Red border for current combat opponent.
-		if e.ID == opponentID {
+		if e.ID == opponent {
 			vector.StrokeRect(screen,
 				float32(rowScreen.X), float32(rowScreen.Y),
 				float32(rowScreen.W), float32(rowScreen.H),
@@ -126,10 +126,10 @@ func (s *Sidebar) drawList(screen *ebiten.Image, rect ui.Rect, playerID, opponen
 
 		// Line 1: Name + HP.
 		nameClr := color.RGBA{200, 200, 200, 255}
-		if e.ID == playerID {
+		if e.ID == player {
 			nameClr = color.RGBA{100, 255, 100, 255}
 		}
-		ui.DrawText(screen, s.font, fmt.Sprintf("%s  %d HP", e.ID, e.HP), row.X+padX, row.Y+rowH*0.2, nameClr)
+		ui.DrawText(screen, s.font, fmt.Sprintf("%d  %d HP", e.ID, e.HP), row.X+padX, row.Y+rowH*0.2, nameClr)
 
 		// Line 2: Tier + tribe.
 		line2 := fmt.Sprintf("Tier %d", e.ShopTier)
@@ -200,7 +200,7 @@ func (s *Sidebar) drawTooltip(screen *ebiten.Image, rect ui.Rect) {
 	)
 
 	// Header: player name.
-	ui.DrawText(screen, s.font, e.ID, tip.X+padX, tip.Y+tip.H*0.08, color.RGBA{220, 220, 220, 255})
+	ui.DrawText(screen, s.font, fmt.Sprintf("%d", e.ID), tip.X+padX, tip.Y+tip.H*0.08, color.RGBA{220, 220, 220, 255})
 
 	// Tribe info.
 	switch e.TopTribe {
@@ -218,15 +218,15 @@ func (s *Sidebar) drawTooltip(screen *ebiten.Image, rect ui.Rect) {
 	for _, cr := range e.CombatResults {
 		var label string
 		var clr color.Color
-		switch cr.WinnerID {
-		case "":
-			label = "Tie vs " + cr.OpponentID
+		switch cr.Winner {
+		case 0:
+			label = fmt.Sprintf("Tie vs %d", cr.Opponent)
 			clr = color.RGBA{140, 140, 140, 255}
 		case e.ID:
-			label = fmt.Sprintf("Won vs %s (%d dmg)", cr.OpponentID, cr.Damage)
+			label = fmt.Sprintf("Won vs %d (%d dmg)", cr.Opponent, cr.Damage)
 			clr = color.RGBA{80, 220, 80, 255}
 		default:
-			label = fmt.Sprintf("Lost vs %s (%d dmg)", cr.OpponentID, cr.Damage)
+			label = fmt.Sprintf("Lost vs %d (%d dmg)", cr.Opponent, cr.Damage)
 			clr = color.RGBA{220, 80, 80, 255}
 		}
 		ui.DrawText(screen, s.font, label, tip.X+padX, y, clr)

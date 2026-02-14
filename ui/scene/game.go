@@ -168,13 +168,13 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		}
 	}
 
-	playerID := g.client.PlayerID()
+	player := g.client.PlayerID()
 	state := g.client.State()
-	var opponentID string
+	var opponent game.PlayerID
 	if state != nil {
-		opponentID = state.OpponentID
+		opponent = state.Opponent
 	}
-	g.sidebar.Draw(screen, g.lay.Sidebar, playerID, opponentID)
+	g.sidebar.Draw(screen, g.lay.Sidebar, player, opponent)
 	g.phaseToast.Draw(screen, g.toastRect())
 }
 
@@ -187,7 +187,7 @@ func (g *Game) drawConnecting(screen *ebiten.Image) {
 func (g *Game) drawWaiting(screen *ebiten.Image) {
 	playerCount := len(g.client.Opponents()) + 1
 	header := fmt.Sprintf(
-		"You are Player %s | Waiting for players... %d/%d",
+		"You are Player %d | Waiting for players... %d/%d",
 		g.client.PlayerID(),
 		playerCount,
 		game.MaxPlayers,
@@ -300,7 +300,7 @@ func (g *Game) drawGameResult(screen *ebiten.Image) {
 	}
 
 	playerID := g.client.PlayerID()
-	if playerID == result.WinnerID {
+	if playerID == result.Winner {
 		ui.DrawText(screen, g.font, "YOU WON",
 			w*0.42, h*0.08, color.RGBA{255, 215, 0, 255})
 	} else {
@@ -308,7 +308,7 @@ func (g *Game) drawGameResult(screen *ebiten.Image) {
 			w*0.42, h*0.08, color.RGBA{200, 200, 200, 255})
 	}
 
-	winnerText := "Winner: " + result.WinnerID
+	winnerText := fmt.Sprintf("Winner: %d", result.Winner)
 	ui.DrawText(screen, g.font, winnerText,
 		w*0.38, h*0.18, color.RGBA{100, 255, 100, 255})
 
@@ -319,14 +319,14 @@ func (g *Game) drawGameResult(screen *ebiten.Image) {
 		y := startY + float64(i)*lineH
 
 		clr := color.RGBA{200, 200, 200, 255}
-		if p.PlayerID == playerID {
+		if p.Player == playerID {
 			clr = color.RGBA{100, 255, 100, 255}
 		}
 		if p.Placement == 1 {
 			clr = color.RGBA{255, 215, 0, 255}
 		}
 
-		line := fmt.Sprintf("#%d  %s", p.Placement, p.PlayerID)
+		line := fmt.Sprintf("#%d  %d", p.Placement, p.Player)
 		if p.TopTribe != game.TribeNeutral && p.TopTribe != game.TribeMixed {
 			line += fmt.Sprintf("  (%s x%d)", p.TopTribe, p.TopTribeCount)
 		}

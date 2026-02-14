@@ -4,9 +4,20 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"slices"
+	"strconv"
 
 	"github.com/ysomad/gigabg/pkg/errors"
 )
+
+type PlayerID int32
+
+func ParsePlayerID(s string) (PlayerID, error) {
+	n, err := strconv.ParseInt(s, 10, 32)
+	if err != nil {
+		return 0, err
+	}
+	return PlayerID(n), nil
+}
 
 const (
 	ErrNotEnoughGold        errors.Error = "not enough gold"
@@ -25,7 +36,7 @@ const (
 )
 
 type Player struct {
-	id        string
+	id        PlayerID
 	hp        int
 	gold      int
 	maxGold   int
@@ -36,7 +47,7 @@ type Player struct {
 	discovers []Card // pending discover options
 }
 
-func NewPlayer(id string) *Player {
+func NewPlayer(id PlayerID) *Player {
 	return &Player{
 		id:      id,
 		hp:      initialHP,
@@ -48,7 +59,7 @@ func NewPlayer(id string) *Player {
 	}
 }
 
-func (p *Player) ID() string         { return p.id }
+func (p *Player) ID() PlayerID       { return p.id }
 func (p *Player) HP() int            { return p.hp }
 func (p *Player) Gold() int          { return p.gold }
 func (p *Player) MaxGold() int       { return p.maxGold }

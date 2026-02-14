@@ -1,7 +1,8 @@
 package scene
 
 import (
-	"encoding/json"
+	json "encoding/json/v2"
+	"encoding/json/jsontext"
 	"fmt"
 	"image/color"
 	"log/slog"
@@ -69,7 +70,7 @@ type combatPanel struct {
 	cr       *widget.CardRenderer
 	font     *text.GoTextFace
 	boldFont *text.GoTextFace
-	playerID string
+	player   game.PlayerID
 	turn     int
 
 	playerBoard   []animMinion
@@ -85,7 +86,7 @@ type combatPanel struct {
 
 func newCombatPanel(
 	turn int,
-	playerID string,
+	player game.PlayerID,
 	playerBoard, opponentBoard []api.Card,
 	events []api.CombatEvent,
 	c *catalog.Catalog,
@@ -99,7 +100,7 @@ func newCombatPanel(
 		cr:            &widget.CardRenderer{Cards: c, Font: font, BoldFont: boldFont},
 		font:          font,
 		boldFont:      boldFont,
-		playerID:      playerID,
+		player:        player,
 		turn:          turn,
 		playerBoard:   buildAnimBoard(playerBoard),
 		opponentBoard: buildAnimBoard(opponentBoard),
@@ -312,7 +313,7 @@ func (cp *combatPanel) rebornMinion(ev game.RebornEvent) error {
 	}
 
 	m := animMinion{card: card, opacity: 0, spawning: true}
-	if ev.OwnerID == cp.playerID {
+	if ev.Owner == cp.player {
 		cp.playerBoard = append(cp.playerBoard, m)
 	} else {
 		cp.opponentBoard = append(cp.opponentBoard, m)
@@ -336,7 +337,7 @@ func (cp *combatPanel) startPoisonIndicators() {
 	start(cp.opponentBoard)
 }
 
-func unmarshalApply[T any](payload json.RawMessage, apply func(T) error) error {
+func unmarshalApply[T any](payload jsontext.Value, apply func(T) error) error {
 	var e T
 	if err := json.Unmarshal(payload, &e); err != nil {
 		return err

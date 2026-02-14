@@ -38,8 +38,8 @@ type Combat struct {
 	defender     *combatSide
 	nextCombatID int
 	events       []CombatEvent
-	player1ID    string
-	player2ID    string
+	player1      PlayerID
+	player2      PlayerID
 	player1Board Board            // snapshot with combat IDs
 	player2Board Board            // snapshot with combat IDs
 	poisonKilled map[int]struct{} // combat IDs killed by poison/venom this attack
@@ -50,8 +50,8 @@ type Combat struct {
 func NewCombat(p1, p2 *Player) *Combat {
 	c := &Combat{
 		nextCombatID: 1,
-		player1ID:    p1.ID(),
-		player2ID:    p2.ID(),
+		player1:      p1.ID(),
+		player2:      p2.ID(),
 	}
 
 	side1 := &combatSide{player: p1, board: p1.Board()}
@@ -137,34 +137,34 @@ func (c *Combat) attack(src, dst *Minion) {
 		c.emit(RemoveKeywordEvent{
 			TargetID: src.combatID,
 			Keyword:  KeywordStealth,
-			OwnerID:  c.attacker.player.ID(),
+			Owner:    c.attacker.player.ID(),
 		})
 	}
 
 	c.emit(AttackEvent{
 		SourceID: src.combatID,
 		TargetID: dst.combatID,
-		OwnerID:  c.attacker.player.ID(),
+		Owner:    c.attacker.player.ID(),
 	})
 
 	c.poisonKilled = make(map[int]struct{})
-	defenderID := c.defender.player.ID()
+	defender := c.defender.player.ID()
 
 	// Simultaneous damage exchange.
-	hitDst := c.dealDamage(src, dst, src.Attack(), defenderID)
+	hitDst := c.dealDamage(src, dst, src.Attack(), defender)
 	hitSrc := c.dealDamage(dst, src, dst.Attack(), c.attacker.player.ID())
 
 	// Cleave: damage minions adjacent to the target.
-	c.applyCleave(src, dst, defenderID)
+	c.applyCleave(src, dst, defender)
 
 	// Poison/Venom: main target first (may consume Venomous), then cleave targets.
-	c.applyPoison(src, dst, hitDst, defenderID)
+	c.applyPoison(src, dst, hitDst, defender)
 	c.applyPoison(dst, src, hitSrc, c.attacker.player.ID())
 }
 
 // applyCleave deals attacker's damage to minions adjacent to the target
 // and applies poison to each hit target.
-func (c *Combat) applyCleave(src, dst *Minion, defenderID string) {
+func (c *Combat) applyCleave(src, dst *Minion, defender PlayerID) {
 	if !src.HasKeyword(KeywordCleave) {
 		return
 	}
@@ -181,14 +181,14 @@ func (c *Combat) applyCleave(src, dst *Minion, defenderID string) {
 		if adj == nil {
 			continue
 		}
-		hit := c.dealDamage(src, adj, src.Attack(), defenderID)
-		c.applyPoison(src, adj, hit, defenderID)                  // src's poison kills adj
+		hit := c.dealDamage(src, adj, src.Attack(), defender)
+		c.applyPoison(src, adj, hit, defender)                     // src's poison kills adj
 		c.applyPoison(adj, src, hit, c.attacker.player.ID()) // adj's poison/venom kills src
 	}
 }
 
 // applyPoison checks if src has Poisonous or Venomous and kills dst if damage was dealt.
-func (c *Combat) applyPoison(src, dst *Minion, hit bool, ownerID string) {
+func (c *Combat) applyPoison(src, dst *Minion, hit bool, owner PlayerID) {
 	if !hit || !dst.IsAlive() {
 		return
 	}
@@ -209,14 +209,14 @@ func (c *Combat) applyPoison(src, dst *Minion, hit bool, ownerID string) {
 		c.emit(RemoveKeywordEvent{
 			TargetID: src.combatID,
 			Keyword:  KeywordVenomous,
-			OwnerID:  ownerID,
+			Owner:    owner,
 		})
 	}
 }
 
 // dealDamage applies damage from src to dst. Returns true if damage was dealt.
 // Handles Divine Shield: if the target has it, removes the keyword instead.
-func (c *Combat) dealDamage(src, dst *Minion, amount int, ownerID string) bool {
+func (c *Combat) dealDamage(src, dst *Minion, amount int, owner PlayerID) bool {
 	if amount <= 0 {
 		return false
 	}
@@ -227,7 +227,7 @@ func (c *Combat) dealDamage(src, dst *Minion, amount int, ownerID string) bool {
 			SourceID: src.combatID,
 			TargetID: dst.combatID,
 			Keyword:  KeywordDivineShield,
-			OwnerID:  ownerID,
+			Owner:    owner,
 		})
 		return false
 	}
@@ -237,7 +237,7 @@ func (c *Combat) dealDamage(src, dst *Minion, amount int, ownerID string) bool {
 		SourceID: src.combatID,
 		TargetID: dst.combatID,
 		Amount:   amount,
-		OwnerID:  ownerID,
+		Owner:    owner,
 	})
 	return true
 }
@@ -259,7 +259,7 @@ func (c *Combat) removeDeadWithEvents(side *combatSide) {
 		c.emit(DeathEvent{
 			TargetID:    m.combatID,
 			DeathReason: reason,
-			OwnerID:     side.player.ID(),
+			Owner:       side.player.ID(),
 		})
 
 		if m.HasKeyword(KeywordReborn) {
@@ -282,7 +282,7 @@ func (c *Combat) removeDeadWithEvents(side *combatSide) {
 		side.board.PlaceMinion(reborn, side.board.Len())
 		c.emit(RebornEvent{
 			TargetID:   reborn.combatID,
-			OwnerID:    side.player.ID(),
+			Owner:      side.player.ID(),
 			TemplateID: reborn.TemplateID(),
 		})
 	}
@@ -307,44 +307,44 @@ func (c *Combat) Boards() (p1Board, p2Board Board) {
 // Log returns the combat log for client replay.
 func (c *Combat) Log() CombatLog {
 	return CombatLog{
-		Player1ID: c.player1ID,
-		Player2ID: c.player2ID,
-		Events:    slices.Clone(c.events),
+		Player1: c.player1,
+		Player2: c.player2,
+		Events:  slices.Clone(c.events),
 	}
 }
 
 // results computes per-player CombatResults from the final board states.
 func (c *Combat) results() (CombatResult, CombatResult) {
-	p1ID := c.attacker.player.ID()
-	p2ID := c.defender.player.ID()
+	p1 := c.attacker.player.ID()
+	p2 := c.defender.player.ID()
 
-	r1 := CombatResult{OpponentID: p2ID}
-	r2 := CombatResult{OpponentID: p1ID}
+	r1 := CombatResult{Opponent: p2}
+	r2 := CombatResult{Opponent: p1}
 
 	alive1 := c.attacker.board.LivingCount()
 	alive2 := c.defender.board.LivingCount()
 
-	var winner *combatSide
+	var winnerSide *combatSide
 	switch {
 	case alive1 > 0 && alive2 == 0:
-		winner = c.attacker
-		r1.WinnerID = p1ID
+		winnerSide = c.attacker
+		r1.Winner = p1
 	case alive2 > 0 && alive1 == 0:
-		winner = c.defender
-		r1.WinnerID = p2ID
+		winnerSide = c.defender
+		r1.Winner = p2
 	default:
 		return r1, r2
 	}
 
-	damage := int(winner.player.Shop().Tier())
-	for _, m := range winner.board.Minions() {
+	damage := int(winnerSide.player.Shop().Tier())
+	for _, m := range winnerSide.board.Minions() {
 		if m.IsAlive() {
 			damage += int(m.Tier())
 		}
 	}
 	r1.Damage = damage
 
-	r2.WinnerID = r1.WinnerID
+	r2.Winner = r1.Winner
 	r2.Damage = r1.Damage
 
 	return r1, r2

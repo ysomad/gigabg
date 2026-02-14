@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"log/slog"
 	"math/rand/v2"
 	"os"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/ysomad/gigabg/client"
 	"github.com/ysomad/gigabg/config"
+	"github.com/ysomad/gigabg/game"
 	"github.com/ysomad/gigabg/game/catalog"
 	"github.com/ysomad/gigabg/ui"
 	"github.com/ysomad/gigabg/ui/scene"
@@ -61,14 +61,14 @@ func main() {
 
 	var showMenu func()
 
-	connectAndPlay := func(p *widget.Popup, playerID, lobbyID string) {
+	connectAndPlay := func(p *widget.Popup, player game.PlayerID, lobbyID string) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
 		p.SetMessage("Connecting to server...")
-		slog.Info("connecting", "player", playerID, "lobby", lobbyID)
+		slog.Info("connecting", "player", player, "lobby", lobbyID)
 
-		gc, err := client.NewGameClient(ctx, cfg.Server.Addr, playerID, lobbyID, cfg.Server.Proxy)
+		gc, err := client.NewGameClient(ctx, cfg.Server.Addr, player, lobbyID, cfg.Server.Proxy)
 		if err != nil {
 			slog.Error("connection failed", "error", err)
 			p.SetTitle("Error")
@@ -78,7 +78,7 @@ func main() {
 		}
 
 		p.SetMessage("Waiting for game state...")
-		slog.Info("waiting for state", "player", playerID, "lobby", lobbyID)
+		slog.Info("waiting for state", "player", player, "lobby", lobbyID)
 
 		if err := gc.WaitForState(ctx); err != nil {
 			if cerr := gc.Close(); cerr != nil {
@@ -91,7 +91,7 @@ func main() {
 			return
 		}
 
-		slog.Info("joined game", "player", playerID, "lobby", lobbyID)
+		slog.Info("joined game", "player", player, "lobby", lobbyID)
 		app.HideOverlay()
 		app.SwitchScene(scene.NewGame(gc, cards, app.Font(), app.BoldFont(), func() {
 			if err := gc.Close(); err != nil {
@@ -101,16 +101,16 @@ func main() {
 		}))
 	}
 
-	onJoin := func(playerID, lobbyID string) {
+	onJoin := func(player game.PlayerID, lobbyID string) {
 		p := widget.NewPopup(app.Font(), popupRect, "", "Connecting...")
 		app.ShowOverlay(p)
 
 		go func() {
-			connectAndPlay(p, playerID, lobbyID)
+			connectAndPlay(p, player, lobbyID)
 		}()
 	}
 
-	onCreate := func(playerID string, lobbySize int) {
+	onCreate := func(player game.PlayerID, lobbySize int) {
 		p := widget.NewPopup(app.Font(), popupRect, "", "Creating lobby...")
 		app.ShowOverlay(p)
 
@@ -118,7 +118,7 @@ func main() {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
-			slog.Info("creating lobby", "player", playerID, "size", lobbySize)
+			slog.Info("creating lobby", "player", player, "size", lobbySize)
 
 			lobbyID, err := httpClient.CreateLobby(ctx, lobbySize)
 			if err != nil {
@@ -130,7 +130,7 @@ func main() {
 			}
 
 			slog.Info("lobby created", "lobby", lobbyID)
-			connectAndPlay(p, playerID, lobbyID)
+			connectAndPlay(p, player, lobbyID)
 		}()
 	}
 
@@ -140,10 +140,7 @@ func main() {
 	showMenu()
 
 	if cfg.Dev.Lobby != "" {
-		adj := []string{"swift", "brave", "wild", "calm", "bold", "keen", "warm", "cool", "fair", "wise"}
-		noun := []string{"fox", "bear", "wolf", "hawk", "deer", "lynx", "owl", "elk", "ram", "jay"}
-		name := fmt.Sprintf("%s-%s", adj[rand.IntN(len(adj))], noun[rand.IntN(len(noun))])
-		onJoin(name, cfg.Dev.Lobby)
+		onJoin(game.PlayerID(rand.Int32N(100_000_000)), cfg.Dev.Lobby)
 	}
 
 	ebiten.SetWindowSize(ui.BaseWidth, ui.BaseHeight)
