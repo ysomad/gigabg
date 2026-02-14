@@ -135,16 +135,16 @@ func (c *Combat) attack(src, dst *Minion) {
 	if src.HasKeyword(KeywordStealth) {
 		src.RemoveKeyword(KeywordStealth)
 		c.emit(RemoveKeywordEvent{
-			Target: src.combatID,
-			Keyword:  KeywordStealth,
-			Owner:    c.attacker.player.ID(),
+			Target:  src.combatID,
+			Keyword: KeywordStealth,
+			Owner:   c.attacker.player.ID(),
 		})
 	}
 
 	c.emit(AttackEvent{
 		Source: src.combatID,
 		Target: dst.combatID,
-		Owner:    c.attacker.player.ID(),
+		Owner:  c.attacker.player.ID(),
 	})
 
 	c.poisonKilled = make(map[CombatID]struct{})
@@ -182,7 +182,7 @@ func (c *Combat) applyCleave(src, dst *Minion, defender PlayerID) {
 			continue
 		}
 		hit := c.dealDamage(src, adj, src.Attack(), defender)
-		c.applyPoison(src, adj, hit, defender)                     // src's poison kills adj
+		c.applyPoison(src, adj, hit, defender)               // src's poison kills adj
 		c.applyPoison(adj, src, hit, c.attacker.player.ID()) // adj's poison/venom kills src
 	}
 }
@@ -207,9 +207,9 @@ func (c *Combat) applyPoison(src, dst *Minion, hit bool, owner PlayerID) {
 	if isVenomous {
 		src.RemoveKeyword(KeywordVenomous)
 		c.emit(RemoveKeywordEvent{
-			Target: src.combatID,
-			Keyword:  KeywordVenomous,
-			Owner:    owner,
+			Target:  src.combatID,
+			Keyword: KeywordVenomous,
+			Owner:   owner,
 		})
 	}
 }
@@ -224,10 +224,10 @@ func (c *Combat) dealDamage(src, dst *Minion, amount int, owner PlayerID) bool {
 	if dst.HasKeyword(KeywordDivineShield) {
 		dst.RemoveKeyword(KeywordDivineShield)
 		c.emit(RemoveKeywordEvent{
-			Source: src.combatID,
-			Target: dst.combatID,
-			Keyword:  KeywordDivineShield,
-			Owner:    owner,
+			Source:  src.combatID,
+			Target:  dst.combatID,
+			Keyword: KeywordDivineShield,
+			Owner:   owner,
 		})
 		return false
 	}
@@ -236,8 +236,8 @@ func (c *Combat) dealDamage(src, dst *Minion, amount int, owner PlayerID) bool {
 	c.emit(DamageEvent{
 		Source: src.combatID,
 		Target: dst.combatID,
-		Amount:   amount,
-		Owner:    owner,
+		Amount: amount,
+		Owner:  owner,
 	})
 	return true
 }

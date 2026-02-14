@@ -171,9 +171,9 @@ func NewCombatEvents(events []game.CombatEvent) ([]CombatEvent, error) {
 	for i, ev := range events {
 		raw, err := json.Marshal(ev)
 		if err != nil {
-			return nil, fmt.Errorf("event %d: %w", ev.EventType(), err)
+			return nil, fmt.Errorf("event %d: %w", ev.Type(), err)
 		}
-		res[i] = CombatEvent{Type: ev.EventType(), Payload: raw}
+		res[i] = CombatEvent{Type: ev.Type(), Payload: raw}
 	}
 	return res, nil
 }

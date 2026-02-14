@@ -15,7 +15,7 @@ const (
 
 // CombatEvent is implemented by all combat event types.
 type CombatEvent interface {
-	EventType() CombatEventType
+	Type() CombatEventType
 }
 
 var (
@@ -33,7 +33,7 @@ type AttackEvent struct {
 	Owner  PlayerID `json:"owner"`
 }
 
-func (AttackEvent) EventType() CombatEventType { return CombatEventAttack }
+func (AttackEvent) Type() CombatEventType { return CombatEventAttack }
 
 // DamageEvent is emitted when damage is dealt to a minion.
 type DamageEvent struct {
@@ -43,7 +43,7 @@ type DamageEvent struct {
 	Owner  PlayerID `json:"owner"`
 }
 
-func (DamageEvent) EventType() CombatEventType { return CombatEventDamage }
+func (DamageEvent) Type() CombatEventType { return CombatEventDamage }
 
 // DeathReason indicates why a minion died.
 type DeathReason uint8
@@ -60,7 +60,7 @@ type DeathEvent struct {
 	Owner       PlayerID    `json:"owner"`
 }
 
-func (DeathEvent) EventType() CombatEventType { return CombatEventDeath }
+func (DeathEvent) Type() CombatEventType { return CombatEventDeath }
 
 // RemoveKeywordEvent is emitted when a keyword is removed from a minion.
 type RemoveKeywordEvent struct {
@@ -70,7 +70,7 @@ type RemoveKeywordEvent struct {
 	Owner   PlayerID `json:"owner"`
 }
 
-func (RemoveKeywordEvent) EventType() CombatEventType { return CombatEventRemoveKeyword }
+func (RemoveKeywordEvent) Type() CombatEventType { return CombatEventRemoveKeyword }
 
 // RebornEvent is emitted when a minion respawns via Reborn (always 1 HP).
 type RebornEvent struct {
@@ -79,7 +79,7 @@ type RebornEvent struct {
 	Template string   `json:"template"`
 }
 
-func (RebornEvent) EventType() CombatEventType { return CombatEventReborn }
+func (RebornEvent) Type() CombatEventType { return CombatEventReborn }
 
 // CombatResult is the outcome of a single combat from one player's perspective.
 // Stored per-player (last 3). Visible to other clients on hover.
