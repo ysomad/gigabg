@@ -61,6 +61,10 @@ func (e *HitDamage) Update(elapsed float64) bool {
 	return e.timer <= 0
 }
 
+func (e *HitDamage) Progress() float64 {
+	return 1.0 - e.timer/e.duration
+}
+
 func (e *HitDamage) Modify(*ui.Rect, *uint8, *float64)                {}
 func (e *HitDamage) DrawBehind(*ebiten.Image, ui.Resolution, ui.Rect) {}
 

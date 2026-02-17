@@ -11,12 +11,12 @@ import (
 )
 
 // PoisonDrip draws a green poison drip overlay on a minion about to die
-// from poison. Calls onDone when completed to trigger death.
+// from poison. The combatboard starts the death sequence when this effect
+// completes (is removed from the list).
 type PoisonDrip struct {
 	timer    float64
 	duration float64
 	alpha    uint8 // card alpha for compositing
-	onDone   func()
 
 	// Visual config.
 	fillColor   color.RGBA
@@ -28,12 +28,11 @@ type PoisonDrip struct {
 
 var _ Effect = (*PoisonDrip)(nil)
 
-func NewPoisonDrip(duration float64, alpha uint8, onDone func()) *PoisonDrip {
+func NewPoisonDrip(duration float64, alpha uint8) *PoisonDrip {
 	return &PoisonDrip{
 		timer:       duration,
 		duration:    duration,
 		alpha:       alpha,
-		onDone:      onDone,
 		fillColor:   color.RGBA{20, 180, 40, 255},
 		dropColor:   color.RGBA{30, 200, 50, 255},
 		skullBG:     color.RGBA{30, 120, 40, 255},
@@ -48,13 +47,13 @@ func (e *PoisonDrip) Update(elapsed float64) bool {
 	e.timer -= elapsed
 	if e.timer <= 0 {
 		e.timer = 0
-		if e.onDone != nil {
-			e.onDone()
-			e.onDone = nil
-		}
 		return true
 	}
 	return false
+}
+
+func (e *PoisonDrip) Progress() float64 {
+	return 1.0 - e.timer/e.duration
 }
 
 func (e *PoisonDrip) Modify(*ui.Rect, *uint8, *float64)                {}
@@ -67,9 +66,10 @@ func (e *PoisonDrip) DrawFront(screen *ebiten.Image, res ui.Resolution, rect ui.
 	rx := float32(sr.W / 2)
 	ry := float32(sr.H / 2)
 
-	t := 1.0 - e.timer/e.duration // 0 -> 1
+	t := e.Progress()
 
 	fillH := ry * 2 * float32(t)
+	_ = fillH
 
 	// Ellipse clipping path.
 	const k = 0.5522847498
@@ -92,7 +92,7 @@ func (e *PoisonDrip) DrawFront(screen *ebiten.Image, res ui.Resolution, rect ui.
 	dropCount := int(t * 5)
 	for j := range dropCount {
 		dropX := cx + float32(math.Sin(float64(j)*1.7))*rx*0.6
-		dropY := cy - ry + fillH + float32(j)*ry*0.15
+		dropY := cy - ry + ry*2*float32(t) + float32(j)*ry*0.15
 		dropR := float32(3*res.Scale()) * float32(0.5+t*0.5)
 		dropA := uint8(float64(e.alpha) * 0.6 * t)
 		dc := e.dropColor

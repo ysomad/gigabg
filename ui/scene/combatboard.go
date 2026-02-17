@@ -22,22 +22,22 @@ import (
 
 // Animation timing (seconds).
 const (
-	attackMoveDuration = 0.55 // attacker moves to target
-	attackBackDuration = 0.45 // attacker returns to slot
-	damageFlashTime    = 0.20 // initial white flash on hit
-	damageShakeTime    = 0.50 // shake duration after hit
-	shakeFreq          = 35.0 // shake frequency multiplier
-	hitFlashTime       = 0.80 // hit damage indicator on minion body
-	poisonEffectTime   = 0.60 // green drip/splash on poisoned target before death
-	deathFadeDuration  = 0.50 // opacity fade on death
-	deathParticleTime  = 0.80 // particle burst duration
-	deathParticleCount = 12   // number of particles on death
-	shieldBreakTime    = 0.50 // divine shield shard burst
-	rebornDelayTime    = 0.30 // pause after death before reborn glow starts
-	spawnGlowTime      = 0.70 // blue glow pillar on reborn
-	spawnFadeDuration  = 0.50 // opacity fade-in on reborn (starts midway through glow)
-	spawnFadeStart     = 0.4  // glow progress fraction when fade begins
-	eventPause         = 0.30 // pause between attacks
+	attackMoveDuration    = 0.55 // attacker moves to target
+	attackBackDuration    = 0.45 // attacker returns to slot
+	damageFlashTime       = 0.20 // initial white flash on hit
+	damageShakeTime       = 0.50 // shake duration after hit
+	shakeFreq             = 35.0 // shake frequency multiplier
+	hitFlashTime          = 0.80 // hit damage indicator on minion body
+	poisonEffectTime      = 0.60 // green drip/splash on poisoned target before death
+	deathFadeDuration     = 0.50 // opacity fade on death
+	deathParticleTime     = 0.80 // particle burst duration
+	deathParticleCount    = 12   // number of particles on death
+	divineShieldBreakTime = 0.50 // divine shield shard burst
+	venomBreakTime        = 0.50 // venomous vial shatter
+	rebornDelayTime       = 0.30 // pause after death before reborn glow starts
+	spawnGlowTime         = 0.70 // blue glow pillar on reborn
+	spawnFadeStart        = 0.4  // glow progress fraction when opacity fade-in begins
+	eventPause            = 0.30 // pause between attacks
 )
 
 // animPhase tracks the two-phase attacker movement.
@@ -59,18 +59,41 @@ type pendingReborn struct {
 }
 
 // animMinion holds per-minion animation state during combat replay.
+// Opacity and spawning state are derived from effect progress — effects
+// never mutate minion fields directly.
 type animMinion struct {
 	card    api.Card
 	offsetX float64 // position offset from base slot (attack animation)
 	offsetY float64
 
-	opacity      float64 // 1.0 = visible, fades to 0 on death
 	dying        bool
 	deathReason  game.DeathReason
 	pendingDeath bool // will die after poison effect completes
 	spawning     bool
 
 	effects effect.List
+}
+
+// minionOpacity computes the minion's current opacity from effect state.
+// Dying minions fade out based on DeathFade progress (1→0).
+// Spawning minions fade in based on SpawnGlow progress (0→1).
+// Normal minions are fully opaque.
+func minionOpacity(m *animMinion) float64 {
+	if p := m.effects.Progress(effect.KindDeathFade); p >= 0 {
+		return 1.0 - p
+	}
+	if p := m.effects.Progress(effect.KindSpawnGlow); p >= 0 {
+		sg := m.effects.Progress(effect.KindSpawnGlow)
+		if sg < spawnFadeStart {
+			return 0
+		}
+		fp := (sg - spawnFadeStart) / (1.0 - spawnFadeStart)
+		if fp > 1.0 {
+			return 1.0
+		}
+		return fp
+	}
+	return 1.0
 }
 
 type attackAnimation struct {
@@ -106,8 +129,8 @@ type combatBoard struct {
 	player   game.PlayerID
 	turn     int
 
-	playerBoard   []animMinion
-	opponentBoard []animMinion
+	playerBoard   []*animMinion
+	opponentBoard []*animMinion
 
 	events     []api.CombatEvent
 	eventIndex int
@@ -151,10 +174,10 @@ func newCombatBoard(
 	}
 }
 
-func buildAnimBoard(cards []api.Card) []animMinion {
-	board := make([]animMinion, len(cards))
+func buildAnimBoard(cards []api.Card) []*animMinion {
+	board := make([]*animMinion, len(cards))
 	for i, c := range cards {
-		board[i] = animMinion{card: c, opacity: 1.0}
+		board[i] = &animMinion{card: c}
 	}
 	return board
 }
@@ -168,12 +191,12 @@ func (cp *combatBoard) Update(elapsed float64, res ui.Resolution, lay ui.GameLay
 		return true, nil
 	}
 
-	// Tick all minion effects.
+	// Tick all minion effects and derive state transitions.
 	cp.updateMinionEffects(elapsed)
 
-	// Remove dead minions (opacity reached 0).
-	cp.playerBoard = cp.removeDeadMinions(cp.playerBoard, lay, true)
-	cp.opponentBoard = cp.removeDeadMinions(cp.opponentBoard, lay, false)
+	// Remove dead minions (DeathFade completed).
+	cp.playerBoard = removeDeadMinions(cp.playerBoard, cp, lay, true)
+	cp.opponentBoard = removeDeadMinions(cp.opponentBoard, cp, lay, false)
 
 	// Tick pending reborns.
 	cp.updatePendingReborns(elapsed)
@@ -224,23 +247,46 @@ func (cp *combatBoard) Update(elapsed float64, res ui.Resolution, lay ui.GameLay
 	return false, nil
 }
 
-// updateMinionEffects ticks effect lists on all minions.
+// updateMinionEffects ticks effect lists on all minions and derives state
+// transitions from effect completion:
+//   - PoisonDrip finished → start death (add DeathFade + DeathTint)
+//   - SpawnGlow finished → clear spawning flag
 func (cp *combatBoard) updateMinionEffects(elapsed float64) {
-	for i := range cp.playerBoard {
-		cp.playerBoard[i].effects.Update(elapsed)
+	for _, m := range cp.playerBoard {
+		cp.tickMinion(m, elapsed)
 	}
-	for i := range cp.opponentBoard {
-		cp.opponentBoard[i].effects.Update(elapsed)
+	for _, m := range cp.opponentBoard {
+		cp.tickMinion(m, elapsed)
 	}
 }
 
-// removeDeadMinions removes minions whose opacity reached 0 and spawns
+func (cp *combatBoard) tickMinion(m *animMinion, elapsed float64) {
+	hadPoisonDrip := m.effects.Has(effect.KindPoisonDrip)
+	hadSpawnGlow := m.effects.Has(effect.KindSpawnGlow)
+
+	m.effects.Update(elapsed)
+
+	// PoisonDrip just finished → start death sequence.
+	if hadPoisonDrip && !m.effects.Has(effect.KindPoisonDrip) {
+		m.pendingDeath = false
+		m.dying = true
+		m.effects.Add(effect.NewDeathFade(deathFadeDuration))
+		m.effects.Add(effect.NewDeathTint(deathFadeDuration, m.deathReason))
+	}
+
+	// SpawnGlow just finished → minion is fully visible.
+	if hadSpawnGlow && !m.effects.Has(effect.KindSpawnGlow) {
+		m.spawning = false
+	}
+}
+
+// removeDeadMinions removes minions whose DeathFade has completed and spawns
 // death particles at their position.
-func (cp *combatBoard) removeDeadMinions(board []animMinion, lay ui.GameLayout, isPlayer bool) []animMinion {
+func removeDeadMinions(board []*animMinion, cp *combatBoard, lay ui.GameLayout, isPlayer bool) []*animMinion {
 	n := 0
-	for i := range board {
-		if board[i].dying && board[i].opacity <= 0 {
-			cp.spawnDeathParticles(board[i], lay, i, len(board), isPlayer)
+	for i, m := range board {
+		if m.dying && !m.effects.Has(effect.KindDeathFade) {
+			cp.spawnDeathParticles(m, lay, i, len(board), isPlayer)
 			continue
 		}
 		board[n] = board[i]
@@ -255,7 +301,7 @@ func (cp *combatBoard) hasActiveEffects() bool {
 	if len(cp.pendingReborns) > 0 {
 		return true
 	}
-	check := func(board []animMinion) bool {
+	check := func(board []*animMinion) bool {
 		for _, m := range board {
 			if m.effects.HasAny() || m.pendingDeath || m.spawning {
 				return true
@@ -363,11 +409,11 @@ func (cp *combatBoard) hasImpactEffects() bool {
 	if len(cp.pendingReborns) > 0 {
 		return true
 	}
-	check := func(board []animMinion) bool {
+	check := func(board []*animMinion) bool {
 		for _, m := range board {
-			if m.effects.Has(effect.KindFlash) || m.effects.Has(effect.KindShieldBreak) ||
-				m.effects.Has(effect.KindPoisonDrip) || m.effects.Has(effect.KindSpawnGlow) ||
-				m.pendingDeath || m.dying || m.spawning {
+			if m.effects.Has(effect.KindFlash) || m.effects.Has(effect.KindDivineShieldBreak) ||
+				m.effects.Has(effect.KindVenomBreak) || m.effects.Has(effect.KindPoisonDrip) ||
+				m.effects.Has(effect.KindSpawnGlow) || m.pendingDeath || m.dying || m.spawning {
 				return true
 			}
 		}
@@ -413,8 +459,7 @@ func (cp *combatBoard) applyDamage(ev game.DamageEvent) error {
 	if idx < 0 {
 		return fmt.Errorf("minion %d not found", ev.Target)
 	}
-	board := cp.boardFor(isPlayer)
-	m := &board[idx]
+	m := cp.boardFor(isPlayer)[idx]
 	m.card.Health -= ev.Amount
 
 	intensity := math.Min(float64(ev.Amount)*1.5, 8.0)
@@ -429,11 +474,14 @@ func (cp *combatBoard) removeKeyword(ev game.RemoveKeywordEvent) error {
 	if idx < 0 {
 		return fmt.Errorf("minion %d not found", ev.Target)
 	}
-	board := cp.boardFor(isPlayer)
-	board[idx].card.Keywords.Remove(ev.Keyword)
+	m := cp.boardFor(isPlayer)[idx]
+	m.card.Keywords.Remove(ev.Keyword)
 
-	if ev.Keyword == game.KeywordDivineShield {
-		board[idx].effects.Add(effect.NewShieldBreak(shieldBreakTime))
+	switch ev.Keyword {
+	case game.KeywordDivineShield:
+		m.effects.Add(effect.NewDivineShieldBreak(divineShieldBreakTime))
+	case game.KeywordVenomous:
+		m.effects.Add(effect.NewVenomBreak(venomBreakTime))
 	}
 	return nil
 }
@@ -447,28 +495,22 @@ func (cp *combatBoard) markDying(ev game.DeathEvent) error {
 	cp.lastDeathIdx = idx
 	cp.lastDeathIsPlayer = isPlayer
 
-	board := cp.boardFor(isPlayer)
-	m := &board[idx]
+	m := cp.boardFor(isPlayer)[idx]
 	m.deathReason = ev.DeathReason
 
+	// Poison deaths show a drip effect first; tickMinion starts the death
+	// sequence when PoisonDrip completes.
 	if ev.DeathReason == game.DeathReasonPoison {
 		m.pendingDeath = true
-		m.effects.Add(effect.NewPoisonDrip(poisonEffectTime, uint8(255*m.opacity), func() {
-			m.pendingDeath = false
-			cp.startDying(m)
-		}))
+		m.effects.Add(effect.NewPoisonDrip(poisonEffectTime, 255))
 		return nil
 	}
 
-	cp.startDying(m)
-	return nil
-}
-
-// startDying begins the death fade and tint effects on a minion.
-func (cp *combatBoard) startDying(m *animMinion) {
+	// Immediate death: start fade + tint.
 	m.dying = true
-	m.effects.Add(effect.NewDeathFade(deathFadeDuration, &m.opacity, nil))
-	m.effects.Add(effect.NewDeathTint(&m.opacity, m.deathReason))
+	m.effects.Add(effect.NewDeathFade(deathFadeDuration))
+	m.effects.Add(effect.NewDeathTint(deathFadeDuration, m.deathReason))
+	return nil
 }
 
 // queueReborn records a pending reborn. The actual minion insertion happens
@@ -532,8 +574,7 @@ func (cp *combatBoard) updatePendingReborns(elapsed float64) {
 }
 
 func (cp *combatBoard) hasDyingOnBoard(isPlayer bool) bool {
-	board := cp.boardFor(isPlayer)
-	for _, m := range board {
+	for _, m := range cp.boardFor(isPlayer) {
 		if m.dying {
 			return true
 		}
@@ -542,11 +583,12 @@ func (cp *combatBoard) hasDyingOnBoard(isPlayer bool) bool {
 }
 
 func (cp *combatBoard) insertRebornMinion(pr pendingReborn) {
-	m := animMinion{
+	m := &animMinion{
 		card:     pr.card,
-		opacity:  0,
 		spawning: true,
 	}
+
+	m.effects.Add(effect.NewSpawnGlow(spawnGlowTime, spawnFadeStart))
 
 	// Clamp index to current board length.
 	board := cp.boardFor(pr.isPlayer)
@@ -555,32 +597,21 @@ func (cp *combatBoard) insertRebornMinion(pr pendingReborn) {
 		idx = len(board)
 	}
 
-	// Insert first, then attach effect with pointers to the actual slice
-	// element. Creating the effect before insert would point at the local
-	// variable which is dead after the copy into the slice.
 	if pr.isPlayer {
 		cp.playerBoard = slices.Insert(cp.playerBoard, idx, m)
-		actual := &cp.playerBoard[idx]
-		actual.effects.Add(effect.NewSpawnGlow(
-			spawnGlowTime, spawnFadeDuration, spawnFadeStart,
-			&actual.opacity, &actual.spawning, &cp.cr.Tick,
-		))
 	} else {
 		cp.opponentBoard = slices.Insert(cp.opponentBoard, idx, m)
-		actual := &cp.opponentBoard[idx]
-		actual.effects.Add(effect.NewSpawnGlow(
-			spawnGlowTime, spawnFadeDuration, spawnFadeStart,
-			&actual.opacity, &actual.spawning, &cp.cr.Tick,
-		))
 	}
 }
 
-func (cp *combatBoard) spawnDeathParticles(m animMinion, lay ui.GameLayout, idx, count int, isPlayer bool) {
+func (cp *combatBoard) spawnDeathParticles(m *animMinion, lay ui.GameLayout, idx, count int, isPlayer bool) {
 	zone := lay.Shop
 	if isPlayer {
 		zone = lay.Board
 	}
 	r := ui.CardRect(zone, idx, count, lay.CardW, lay.CardH, lay.Gap)
+	r.X += m.offsetX
+	r.Y += m.offsetY
 	cx := r.X + r.W/2
 	cy := r.Y + r.H/2
 
@@ -636,7 +667,7 @@ func (cp *combatBoard) findMinion(combatID game.CombatID) (idx int, isPlayer boo
 	return -1, false
 }
 
-func (cp *combatBoard) boardFor(isPlayer bool) []animMinion {
+func (cp *combatBoard) boardFor(isPlayer bool) []*animMinion {
 	if isPlayer {
 		return cp.playerBoard
 	}
@@ -655,38 +686,98 @@ func (cp *combatBoard) minionPos(lay ui.GameLayout, idx int, isPlayer bool) (flo
 
 // --- Drawing ---
 
-func (cp *combatBoard) drawOpponentBoard(screen *ebiten.Image, res ui.Resolution, lay ui.GameLayout) {
-	cp.drawBoard(screen, res, lay.Shop, cp.opponentBoard, lay.CardW, lay.CardH, lay.Gap)
+// draw renders both boards and overlays. The attacking minion is always
+// drawn last so it appears on top of all other minions. Impact effects
+// on the defender (shield break, venom break) are drawn on top of the
+// attacker so they remain visible.
+func (cp *combatBoard) draw(screen *ebiten.Image, res ui.Resolution, lay ui.GameLayout) {
+	// Determine which minion (if any) is the active attacker.
+	attackerIdx := -1
+	attackerIsPlayer := false
+	if cp.attackAnim != nil {
+		attackerIdx = cp.attackAnim.srcIdx
+		attackerIsPlayer = cp.attackAnim.srcIsPlayer
+	}
+
+	// Draw both boards, skipping the attacker.
+	playerSkip := -1
+	opponentSkip := -1
+	if attackerIdx >= 0 {
+		if attackerIsPlayer {
+			playerSkip = attackerIdx
+		} else {
+			opponentSkip = attackerIdx
+		}
+	}
+
+	cp.drawBoard(screen, res, lay, lay.Shop, cp.opponentBoard, opponentSkip)
+	cp.drawBoard(screen, res, lay, lay.Board, cp.playerBoard, playerSkip)
+
+	// Draw the attacker on top of both boards.
+	if attackerIdx >= 0 {
+		board := cp.boardFor(attackerIsPlayer)
+		zone := lay.Shop
+		if attackerIsPlayer {
+			zone = lay.Board
+		}
+		if attackerIdx < len(board) {
+			cp.drawMinion(screen, res, lay, zone, board, attackerIdx)
+		}
+	}
+
+	// Draw the defender's front effects on top of the attacker so impact
+	// visuals (divine shield break, venom break) aren't hidden.
+	if cp.attackAnim != nil {
+		a := cp.attackAnim
+		dstBoard := cp.boardFor(a.dstIsPlayer)
+		if a.dstIdx < len(dstBoard) {
+			dm := dstBoard[a.dstIdx]
+			dstZone := lay.Shop
+			if a.dstIsPlayer {
+				dstZone = lay.Board
+			}
+			r := ui.CardRect(dstZone, a.dstIdx, len(dstBoard), lay.CardW, lay.CardH, lay.Gap)
+			r.X += dm.offsetX
+			r.Y += dm.offsetY
+			var a8 uint8
+			var fp float64
+			dm.effects.Modify(&r, &a8, &fp)
+			dm.effects.DrawFront(screen, res, r)
+		}
+	}
+
+	cp.overlays.DrawFront(screen, res, ui.Rect{})
 }
 
-func (cp *combatBoard) drawPlayerBoard(screen *ebiten.Image, res ui.Resolution, lay ui.GameLayout) {
-	cp.drawBoard(screen, res, lay.Board, cp.playerBoard, lay.CardW, lay.CardH, lay.Gap)
-}
-
-func (cp *combatBoard) drawBoard(screen *ebiten.Image, res ui.Resolution, zone ui.Rect, board []animMinion, cardW, cardH, gap float64) {
-	for i, m := range board {
-		r := ui.CardRect(zone, i, len(board), cardW, cardH, gap)
-		r.X += m.offsetX
-		r.Y += m.offsetY
-
-		// Let effects modify draw params.
-		alpha := uint8(255 * m.opacity)
-		flashPct := 0.0
-		m.effects.Modify(&r, &alpha, &flashPct)
-
-		// Draw behind-card effects (shield break, spawn glow).
-		m.effects.DrawBehind(screen, res, r)
-
-		// Draw the minion card.
-		cp.cr.DrawMinion(screen, m.card, r, alpha, flashPct)
-
-		// Draw front-of-card effects (hit damage, poison drip, death tint).
-		m.effects.DrawFront(screen, res, r)
+func (cp *combatBoard) drawBoard(screen *ebiten.Image, res ui.Resolution, lay ui.GameLayout, zone ui.Rect, board []*animMinion, skipIdx int) {
+	for i := range board {
+		if i == skipIdx {
+			continue
+		}
+		cp.drawMinion(screen, res, lay, zone, board, i)
 	}
 }
 
-// drawOverlays draws panel-level effects (death particles) on top of all boards.
-// Must be called once per frame, after both boards are drawn.
-func (cp *combatBoard) drawOverlays(screen *ebiten.Image, res ui.Resolution) {
-	cp.overlays.DrawFront(screen, res, ui.Rect{})
+func (cp *combatBoard) drawMinion(screen *ebiten.Image, res ui.Resolution, lay ui.GameLayout, zone ui.Rect, board []*animMinion, idx int) {
+	m := board[idx]
+	r := ui.CardRect(zone, idx, len(board), lay.CardW, lay.CardH, lay.Gap)
+	r.X += m.offsetX
+	r.Y += m.offsetY
+
+	// Compute opacity from effect state.
+	opacity := minionOpacity(m)
+	alpha := uint8(255 * opacity)
+	flashPct := 0.0
+
+	// Let effects modify draw params (shake, flash).
+	m.effects.Modify(&r, &alpha, &flashPct)
+
+	// Draw behind-card effects (spawn glow).
+	m.effects.DrawBehind(screen, res, r)
+
+	// Draw the minion card.
+	cp.cr.DrawMinion(screen, m.card, r, alpha, flashPct)
+
+	// Draw front-of-card effects (hit damage, poison drip, death tint, shield break).
+	m.effects.DrawFront(screen, res, r)
 }

@@ -263,9 +263,7 @@ func (g *Game) drawCombat(screen *ebiten.Image, res ui.Resolution) {
 		color.RGBA{150, 150, 150, 255})
 
 	if g.combat != nil {
-		g.combat.drawOpponentBoard(screen, res, lay)
-		g.combat.drawPlayerBoard(screen, res, lay)
-		g.combat.drawOverlays(screen, res)
+		g.combat.draw(screen, res, lay)
 	} else {
 		// Static boards before animation starts.
 		state := g.client.State()

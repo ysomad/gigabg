@@ -28,6 +28,10 @@ func (e *Flash) Update(elapsed float64) bool {
 	return e.timer <= 0
 }
 
+func (e *Flash) Progress() float64 {
+	return 1.0 - e.timer/e.duration
+}
+
 // Modify sets flashPct so CardRenderer.DrawMinion renders the white overlay.
 func (e *Flash) Modify(_ *ui.Rect, _ *uint8, flashPct *float64) {
 	if flashPct != nil {

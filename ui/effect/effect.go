@@ -14,22 +14,27 @@ const (
 	KindShake
 	KindHitDamage
 	KindPoisonDrip
-	KindShieldBreak
+	KindDivineShieldBreak
 	KindDeathFade
 	KindDeathTint
 	KindSpawnGlow
+	KindVenomBreak
 )
 
 // Effect is a visual effect attached to a combat minion.
 //
-// Lifecycle: created, added to a minion's effect list, updated each frame,
-// drawn each frame, and removed when Update returns true.
+// Effects are pure timers — they track their own progress and draw visuals.
+// They never mutate external state (no stored pointers or callbacks).
+// The combatboard reads Progress to derive minion state (opacity, dying, etc).
 type Effect interface {
 	// Kind returns the effect's type for querying (e.g. "has shake?").
 	Kind() Kind
 
 	// Update advances state by elapsed seconds. Returns true when done.
 	Update(elapsed float64) bool
+
+	// Progress returns the effect's completion fraction (0.0 = just started, 1.0 = done).
+	Progress() float64
 
 	// Modify lets the effect alter card draw parameters before rendering.
 	// Effects that don't modify draw params leave all pointers unchanged.
@@ -75,6 +80,17 @@ func (l List) Has(kind Kind) bool {
 // HasAny returns true if any effect is active.
 func (l List) HasAny() bool {
 	return len(l) > 0
+}
+
+// Progress returns the progress of the first effect matching kind,
+// or -1 if no such effect exists.
+func (l List) Progress(kind Kind) float64 {
+	for _, e := range l {
+		if e.Kind() == kind {
+			return e.Progress()
+		}
+	}
+	return -1
 }
 
 // Modify applies all effect modifications to draw params.

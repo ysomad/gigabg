@@ -37,6 +37,10 @@ func (e *Shake) Update(elapsed float64) bool {
 	return e.timer <= 0
 }
 
+func (e *Shake) Progress() float64 {
+	return 1.0 - e.timer/e.duration
+}
+
 // Modify offsets the card rect to create a shake effect.
 func (e *Shake) Modify(rect *ui.Rect, _ *uint8, _ *float64) {
 	if rect == nil || e.timer <= 0 {
