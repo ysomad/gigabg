@@ -11,21 +11,21 @@ import (
 var ColorBackground = color.RGBA{20, 20, 30, 255}
 
 // DrawText draws text at base coordinates, converting to screen space internally.
-func DrawText(screen *ebiten.Image, font *text.GoTextFace, str string, baseX, baseY float64, clr color.Color) {
+func DrawText(screen *ebiten.Image, res Resolution, font *text.GoTextFace, str string, baseX, baseY float64, clr color.Color) {
 	if font == nil {
 		return
 	}
-	s := ActiveRes.Scale()
+	s := res.Scale()
 	op := &text.DrawOptions{}
-	op.GeoM.Translate(baseX*s+ActiveRes.OffsetX(), baseY*s+ActiveRes.OffsetY())
+	op.GeoM.Translate(baseX*s+res.OffsetX(), baseY*s+res.OffsetY())
 	op.ColorScale.ScaleWithColor(clr)
 	op.LineSpacing = font.Size * 1.4
 	text.Draw(screen, str, font, op)
 }
 
 // FillScreen fills the entire actual screen (for fullscreen overlays).
-func FillScreen(screen *ebiten.Image, clr color.Color) {
-	vector.FillRect(screen, 0, 0, float32(ActiveRes.Width), float32(ActiveRes.Height), clr, false)
+func FillScreen(screen *ebiten.Image, res Resolution, clr color.Color) {
+	vector.FillRect(screen, 0, 0, float32(res.Width), float32(res.Height), clr, false)
 }
 
 // FillEllipse draws a filled ellipse at screen-space center (cx, cy) with radii (rx, ry).

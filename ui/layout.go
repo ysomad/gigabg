@@ -6,9 +6,6 @@ const (
 	BaseHeight = 720
 )
 
-// ActiveRes is the current window resolution, updated each frame by App.Layout.
-var ActiveRes = Resolution{BaseWidth, BaseHeight}
-
 type Resolution struct {
 	Width  int
 	Height int
@@ -35,6 +32,14 @@ func (r Resolution) OffsetY() float64 {
 	return (float64(r.Height) - BaseHeight*r.Scale()) / 2
 }
 
+// ScreenToBase converts screen pixel coords to base coords.
+func (r Resolution) ScreenToBase(screenX, screenY int) (float64, float64) {
+	s := r.Scale()
+	bx := (float64(screenX) - r.OffsetX()) / s
+	by := (float64(screenY) - r.OffsetY()) / s
+	return bx, by
+}
+
 // Rect is a positioned rectangle in base coordinate space (1280x720).
 type Rect struct {
 	X, Y, W, H float64
@@ -42,19 +47,17 @@ type Rect struct {
 
 // Contains reports whether screen pixel (px, py) falls within this base-space rect.
 // Converts screen pixels to base coordinates before testing.
-func (r Rect) Contains(px, py int) bool {
-	s := ActiveRes.Scale()
-	bx := (float64(px) - ActiveRes.OffsetX()) / s
-	by := (float64(py) - ActiveRes.OffsetY()) / s
+func (r Rect) Contains(res Resolution, px, py int) bool {
+	bx, by := res.ScreenToBase(px, py)
 	return bx >= r.X && bx < r.X+r.W && by >= r.Y && by < r.Y+r.H
 }
 
 // Screen converts this base-space rect to screen pixel coordinates.
-func (r Rect) Screen() Rect {
-	s := ActiveRes.Scale()
+func (r Rect) Screen(res Resolution) Rect {
+	s := res.Scale()
 	return Rect{
-		X: r.X*s + ActiveRes.OffsetX(),
-		Y: r.Y*s + ActiveRes.OffsetY(),
+		X: r.X*s + res.OffsetX(),
+		Y: r.Y*s + res.OffsetY(),
 		W: r.W * s,
 		H: r.H * s,
 	}

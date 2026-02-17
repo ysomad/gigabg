@@ -51,7 +51,7 @@ func (r *recruitPhase) syncSizes() {
 }
 
 // Update processes recruit-phase input.
-func (r *recruitPhase) Update(lay ui.GameLayout) error {
+func (r *recruitPhase) Update(res ui.Resolution, lay ui.GameLayout) error {
 	r.syncSizes()
 
 	mx, my := ebiten.CursorPosition()
@@ -61,13 +61,13 @@ func (r *recruitPhase) Update(lay ui.GameLayout) error {
 	// Discover overlay blocks all other input.
 	if discover := r.client.Discovers(); discover != nil {
 		if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-			r.handleDiscoverClick(lay, discover, mx, my)
+			r.handleDiscoverClick(res, lay, discover, mx, my)
 		}
 		return nil
 	}
 
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-		if r.handleStartDrag(lay, mx, my) {
+		if r.handleStartDrag(res, lay, mx, my) {
 			return nil
 		}
 	}
@@ -79,28 +79,28 @@ func (r *recruitPhase) Update(lay ui.GameLayout) error {
 	}
 
 	if r.drag.active && inpututil.IsMouseButtonJustReleased(ebiten.MouseButtonLeft) {
-		r.endDrag(lay, mx, my)
+		r.endDrag(res, lay, mx, my)
 		return nil
 	}
 
 	if inpututil.IsMouseButtonJustReleased(ebiten.MouseButtonLeft) {
-		if r.shop.handleButtonClick(lay, mx, my) {
+		if r.shop.handleButtonClick(res, lay, mx, my) {
 			return nil
 		}
 	}
 
 	if !r.drag.active {
-		r.updateHover(lay, mx, my)
+		r.updateHover(res, lay, mx, my)
 	}
 
 	return nil
 }
 
 // handleStartDrag checks if the click starts a drag from board, hand, or shop.
-func (r *recruitPhase) handleStartDrag(lay ui.GameLayout, mx, my int) bool {
+func (r *recruitPhase) handleStartDrag(res ui.Resolution, lay ui.GameLayout, mx, my int) bool {
 	for i := range r.boardOrder {
 		rect := ui.CardRect(lay.Board, i, len(r.boardOrder), lay.CardW, lay.CardH, lay.Gap)
-		if rect.Contains(mx, my) {
+		if rect.Contains(res, mx, my) {
 			r.drag.Start(i, true, false, mx, my)
 			return true
 		}
@@ -109,7 +109,7 @@ func (r *recruitPhase) handleStartDrag(lay ui.GameLayout, mx, my int) bool {
 	hand := r.client.Hand()
 	for i, c := range hand {
 		rect := ui.CardRect(lay.Hand, i, len(hand), lay.CardW, lay.CardH, lay.Gap)
-		if !rect.Contains(mx, my) {
+		if !rect.Contains(res, mx, my) {
 			continue
 		}
 		if t := r.cr.Cards.ByTemplateID(c.Template); t != nil && t.Kind() == game.CardKindSpell {
@@ -122,12 +122,12 @@ func (r *recruitPhase) handleStartDrag(lay ui.GameLayout, mx, my int) bool {
 		return true
 	}
 
-	return r.shop.handleStartDrag(lay, mx, my, &r.drag)
+	return r.shop.handleStartDrag(res, lay, mx, my, &r.drag)
 }
 
 // updateHover detects card hover for tooltip display.
-func (r *recruitPhase) updateHover(lay ui.GameLayout, mx, my int) {
-	if card, rect, ok := r.shop.updateHover(lay, mx, my); ok {
+func (r *recruitPhase) updateHover(res ui.Resolution, lay ui.GameLayout, mx, my int) {
+	if card, rect, ok := r.shop.updateHover(res, lay, mx, my); ok {
 		r.hoverCard = card
 		r.hoverRect = rect
 		return
@@ -139,7 +139,7 @@ func (r *recruitPhase) updateHover(lay ui.GameLayout, mx, my int) {
 			continue
 		}
 		rect := ui.CardRect(lay.Board, i, len(r.boardOrder), lay.CardW, lay.CardH, lay.Gap)
-		if rect.Contains(mx, my) {
+		if rect.Contains(res, mx, my) {
 			c := board[serverIdx]
 			r.hoverCard = &c
 			r.hoverRect = rect
@@ -148,24 +148,24 @@ func (r *recruitPhase) updateHover(lay ui.GameLayout, mx, my int) {
 	}
 }
 
-func (r *recruitPhase) endDrag(lay ui.GameLayout, mx, my int) {
+func (r *recruitPhase) endDrag(res ui.Resolution, lay ui.GameLayout, mx, my int) {
 	defer r.drag.Reset()
 
 	switch {
 	case r.drag.fromShop:
-		r.shop.endDrag(lay, mx, my, &r.drag)
+		r.shop.endDrag(res, lay, mx, my, &r.drag)
 	case r.drag.fromBoard:
-		r.endBoardDrag(lay, mx, my)
+		r.endBoardDrag(res, lay, mx, my)
 	default:
-		r.endHandDrag(lay, mx, my)
+		r.endHandDrag(res, lay, mx, my)
 	}
 }
 
-func (r *recruitPhase) endBoardDrag(lay ui.GameLayout, mx, my int) {
+func (r *recruitPhase) endBoardDrag(res ui.Resolution, lay ui.GameLayout, mx, my int) {
 	dropPad := lay.CardH * 0.4
 	shopZone := ui.Rect{X: lay.Shop.X, Y: lay.Shop.Y - dropPad, W: lay.Shop.W, H: lay.Shop.H + 2*dropPad}
 
-	if shopZone.Contains(mx, my) {
+	if shopZone.Contains(res, mx, my) {
 		if err := r.client.SellMinion(r.boardOrder[r.drag.index]); err != nil {
 			slog.Error("sell minion", "error", err)
 		}
@@ -173,11 +173,11 @@ func (r *recruitPhase) endBoardDrag(lay ui.GameLayout, mx, my int) {
 	}
 
 	boardZone := ui.Rect{X: lay.Board.X, Y: lay.Board.Y - dropPad, W: lay.Board.W, H: lay.Board.H + 2*dropPad}
-	if !boardZone.Contains(mx, my) {
+	if !boardZone.Contains(res, mx, my) {
 		return
 	}
 
-	pos := r.getBoardDropPosition(lay, mx)
+	pos := r.getBoardDropPosition(res, lay, mx)
 	if pos == r.drag.index || pos < 0 || pos > len(r.boardOrder) {
 		return
 	}
@@ -190,22 +190,22 @@ func (r *recruitPhase) endBoardDrag(lay ui.GameLayout, mx, my int) {
 	r.boardOrder = append(r.boardOrder[:pos], append([]int{val}, r.boardOrder[pos:]...)...)
 }
 
-func (r *recruitPhase) endHandDrag(lay ui.GameLayout, mx, my int) {
+func (r *recruitPhase) endHandDrag(res ui.Resolution, lay ui.GameLayout, mx, my int) {
 	dropPad := lay.CardH * 0.4
 	boardZone := ui.Rect{X: lay.Board.X, Y: lay.Board.Y - dropPad, W: lay.Board.W, H: lay.Board.H + 2*dropPad}
 
-	if !boardZone.Contains(mx, my) {
+	if !boardZone.Contains(res, mx, my) {
 		return
 	}
 
-	pos := r.getBoardDropPosition(lay, mx)
+	pos := r.getBoardDropPosition(res, lay, mx)
 	if err := r.client.PlaceMinion(r.drag.index, pos); err != nil {
 		slog.Error("place minion", "error", err)
 	}
 }
 
-func (r *recruitPhase) getBoardDropPosition(lay ui.GameLayout, mx int) int {
-	baseMx, _ := screenToBase(mx, 0)
+func (r *recruitPhase) getBoardDropPosition(res ui.Resolution, lay ui.GameLayout, mx int) int {
+	baseMx, _ := res.ScreenToBase(mx, 0)
 	board := r.client.Board()
 	if len(board) == 0 {
 		return 0
@@ -219,7 +219,7 @@ func (r *recruitPhase) getBoardDropPosition(lay ui.GameLayout, mx int) int {
 	return len(board)
 }
 
-func (r *recruitPhase) handleDiscoverClick(lay ui.GameLayout, discover []api.Card, mx, my int) {
+func (r *recruitPhase) handleDiscoverClick(res ui.Resolution, lay ui.GameLayout, discover []api.Card, mx, my int) {
 	discoverZone := ui.Rect{
 		X: 0,
 		Y: lay.Screen.H/2 - lay.CardH/2 - lay.Screen.H*0.03,
@@ -228,7 +228,7 @@ func (r *recruitPhase) handleDiscoverClick(lay ui.GameLayout, discover []api.Car
 	}
 	for i := range discover {
 		rect := ui.CardRect(discoverZone, i, len(discover), lay.CardW, lay.CardH, lay.Gap)
-		if rect.Contains(mx, my) {
+		if rect.Contains(res, mx, my) {
 			if err := r.client.DiscoverPick(i); err != nil {
 				slog.Error("discover pick", "error", err)
 			}
@@ -240,72 +240,73 @@ func (r *recruitPhase) handleDiscoverClick(lay ui.GameLayout, discover []api.Car
 // Draw renders the recruit phase.
 func (r *recruitPhase) Draw(
 	screen *ebiten.Image,
+	res ui.Resolution,
 	font *text.GoTextFace,
 	lay ui.GameLayout,
 	turn int,
 	timeRemaining time.Duration,
 ) {
-	r.drawHeader(screen, font, lay, turn, timeRemaining)
-	r.drawPlayerStats(screen, font, lay)
-	r.shop.drawButtons(screen, font, lay)
+	r.drawHeader(screen, res, font, lay, turn, timeRemaining)
+	r.drawPlayerStats(screen, res, font, lay)
+	r.shop.drawButtons(screen, res, font, lay)
 
-	ui.DrawText(screen, font, "SHOP",
+	ui.DrawText(screen, res, font, "SHOP",
 		lay.Shop.X+lay.Shop.W*0.04, lay.Shop.Y+lay.Shop.H*0.02,
 		color.RGBA{150, 150, 150, 255})
-	r.shop.drawCards(screen, lay, &r.drag)
+	r.shop.drawCards(screen, res, lay, &r.drag)
 
-	ui.DrawText(screen, font, "BOARD",
+	ui.DrawText(screen, res, font, "BOARD",
 		lay.Board.X+lay.Board.W*0.04, lay.Board.Y+lay.Board.H*0.02,
 		color.RGBA{150, 150, 150, 255})
 	r.drawBoardCards(screen, lay)
-	r.drawMagnetizeHighlight(screen, lay)
+	r.drawMagnetizeHighlight(screen, res, lay)
 
-	ui.DrawText(screen, font, "HAND",
+	ui.DrawText(screen, res, font, "HAND",
 		lay.Hand.X+lay.Hand.W*0.04, lay.Hand.Y+lay.Hand.H*0.02,
 		color.RGBA{150, 150, 150, 255})
 	r.drawHandCards(screen, lay)
 
-	r.drawDraggedCard(screen, lay)
-	r.drawHoverTooltip(screen, lay)
+	r.drawDraggedCard(screen, res, lay)
+	r.drawHoverTooltip(screen, res, lay)
 
 	if discover := r.client.Discovers(); discover != nil {
-		r.drawDiscoverOverlay(screen, font, lay, discover)
+		r.drawDiscoverOverlay(screen, res, font, lay, discover)
 	}
 }
 
 func (r *recruitPhase) drawHeader(
-	screen *ebiten.Image, font *text.GoTextFace, lay ui.GameLayout, turn int, timeRemaining time.Duration,
+	screen *ebiten.Image, res ui.Resolution, font *text.GoTextFace, lay ui.GameLayout, turn int, timeRemaining time.Duration,
 ) {
 	header := fmt.Sprintf("Turn %d", turn)
-	ui.DrawText(screen, font, header,
+	ui.DrawText(screen, res, font, header,
 		lay.Header.X+lay.Header.W*0.04, lay.Header.H*0.5,
 		color.RGBA{200, 200, 200, 255})
 
 	secs := int(timeRemaining.Seconds())
 	timer := fmt.Sprintf("%d:%02d", secs/60, secs%60)
-	ui.DrawText(screen, font, timer,
+	ui.DrawText(screen, res, font, timer,
 		lay.Header.X+lay.Header.W*0.9, lay.Header.H*0.5,
 		color.RGBA{255, 255, 255, 255})
 
-	lineRect := lay.Header.Screen()
+	lineRect := lay.Header.Screen(res)
 	lineY := float32(lineRect.Bottom())
 	vector.StrokeLine(
 		screen,
 		float32(lineRect.X+lineRect.W*0.03), lineY,
 		float32(lineRect.X+lineRect.W*0.97), lineY,
-		float32(ui.ActiveRes.Scale()),
+		float32(res.Scale()),
 		color.RGBA{60, 60, 80, 255},
 		false,
 	)
 }
 
-func (r *recruitPhase) drawPlayerStats(screen *ebiten.Image, font *text.GoTextFace, lay ui.GameLayout) {
+func (r *recruitPhase) drawPlayerStats(screen *ebiten.Image, res ui.Resolution, font *text.GoTextFace, lay ui.GameLayout) {
 	p := r.client.Player()
 	if p == nil {
 		return
 	}
 	stats := fmt.Sprintf("Gold: %d/%d | Tier: %d", p.Gold, p.MaxGold, p.ShopTier)
-	ui.DrawText(screen, font, stats,
+	ui.DrawText(screen, res, font, stats,
 		lay.BtnRow.X+lay.BtnRow.W*0.04, lay.BtnRow.Y+lay.BtnRow.H*0.15,
 		color.RGBA{255, 215, 0, 255})
 }
@@ -334,7 +335,7 @@ func (r *recruitPhase) drawHandCards(screen *ebiten.Image, lay ui.GameLayout) {
 	}
 }
 
-func (r *recruitPhase) drawDraggedCard(screen *ebiten.Image, lay ui.GameLayout) {
+func (r *recruitPhase) drawDraggedCard(screen *ebiten.Image, res ui.Resolution, lay ui.GameLayout) {
 	if !r.drag.active {
 		return
 	}
@@ -358,7 +359,7 @@ func (r *recruitPhase) drawDraggedCard(screen *ebiten.Image, lay ui.GameLayout) 
 		c = hand[r.drag.index]
 	}
 
-	bx, by := screenToBase(r.drag.cursorX, r.drag.cursorY)
+	bx, by := res.ScreenToBase(r.drag.cursorX, r.drag.cursorY)
 	dragRect := ui.Rect{
 		X: bx - lay.CardW/2,
 		Y: by - lay.CardH/2,
@@ -376,25 +377,28 @@ func (r *recruitPhase) drawDraggedCard(screen *ebiten.Image, lay ui.GameLayout) 
 	}
 }
 
-func (r *recruitPhase) drawHoverTooltip(screen *ebiten.Image, lay ui.GameLayout) {
+func (r *recruitPhase) drawHoverTooltip(screen *ebiten.Image, res ui.Resolution, lay ui.GameLayout) {
 	if r.hoverCard == nil {
 		return
 	}
 
-	tooltipY := r.hoverRect.Y - lay.CardH - 8
-	if tooltipY < 0 {
-		tooltipY = 0
+	// Large card centered on screen.
+	hoverW := lay.CardW * 2.5
+	hoverH := lay.CardH * 2.5
+	hoverRect := ui.Rect{
+		X: (ui.BaseWidth - hoverW) / 2,
+		Y: (ui.BaseHeight - hoverH) / 2,
+		W: hoverW,
+		H: hoverH,
 	}
-	tooltipRect := ui.Rect{
-		X: r.hoverRect.X + r.hoverRect.W/2 - lay.CardW/2,
-		Y: tooltipY,
-		W: lay.CardW,
-		H: lay.CardH,
-	}
-	r.cr.DrawHandCard(screen, *r.hoverCard, tooltipRect)
+
+	// Dim background behind the card.
+	ui.FillScreen(screen, res, color.RGBA{0, 0, 0, 120})
+
+	r.cr.DrawHoverCard(screen, *r.hoverCard, hoverRect)
 }
 
-func (r *recruitPhase) drawMagnetizeHighlight(screen *ebiten.Image, lay ui.GameLayout) {
+func (r *recruitPhase) drawMagnetizeHighlight(screen *ebiten.Image, res ui.Resolution, lay ui.GameLayout) {
 	if !r.drag.fromHand() {
 		return
 	}
@@ -417,24 +421,25 @@ func (r *recruitPhase) drawMagnetizeHighlight(screen *ebiten.Image, lay ui.GameL
 			continue
 		}
 		rect := ui.CardRect(lay.Board, i, len(r.boardOrder), lay.CardW, lay.CardH, lay.Gap)
-		sr := rect.Screen()
+		sr := rect.Screen(res)
 		lineX := float32(sr.X)
 		vector.StrokeLine(screen,
 			lineX, float32(sr.Y), lineX, float32(sr.Y+sr.H),
-			2*float32(ui.ActiveRes.Scale()),
+			2*float32(res.Scale()),
 			color.RGBA{0, 150, 255, 200}, false)
 	}
 }
 
 func (r *recruitPhase) drawDiscoverOverlay(
 	screen *ebiten.Image,
+	res ui.Resolution,
 	font *text.GoTextFace,
 	lay ui.GameLayout,
 	discover []api.Card,
 ) {
-	ui.FillScreen(screen, color.RGBA{0, 0, 0, 160})
+	ui.FillScreen(screen, res, color.RGBA{0, 0, 0, 160})
 
-	ui.DrawText(screen, font, "DISCOVER — Pick a card",
+	ui.DrawText(screen, res, font, "DISCOVER — Pick a card",
 		lay.Screen.W*0.4, lay.Screen.H*0.5-lay.CardH/2-lay.Screen.H*0.04,
 		color.RGBA{255, 215, 0, 255})
 

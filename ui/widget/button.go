@@ -20,26 +20,26 @@ type Button struct {
 	OnClick   func()
 }
 
-func (b *Button) Update() {
+func (b *Button) Update(res ui.Resolution) {
 	if b.OnClick == nil {
 		return
 	}
 	if inpututil.IsMouseButtonJustReleased(ebiten.MouseButtonLeft) {
 		mx, my := ebiten.CursorPosition()
-		if b.Rect.Contains(mx, my) {
+		if b.Rect.Contains(res, mx, my) {
 			b.OnClick()
 		}
 	}
 }
 
-func (b *Button) Draw(screen *ebiten.Image, font *text.GoTextFace) {
-	sr := b.Rect.Screen()
-	sw := float32(ui.ActiveRes.Scale())
+func (b *Button) Draw(screen *ebiten.Image, res ui.Resolution, font *text.GoTextFace) {
+	sr := b.Rect.Screen(res)
+	sw := float32(res.Scale())
 
 	vector.FillRect(screen, float32(sr.X), float32(sr.Y), float32(sr.W), float32(sr.H), b.Color, false)
 	vector.StrokeRect(screen, float32(sr.X), float32(sr.Y), float32(sr.W), float32(sr.H), sw, b.BorderClr, false)
 
 	padX := b.Rect.W * 0.08
 	padY := b.Rect.H * 0.25
-	ui.DrawText(screen, font, b.Text, b.Rect.X+padX, b.Rect.Y+padY, b.TextClr)
+	ui.DrawText(screen, res, font, b.Text, b.Rect.X+padX, b.Rect.Y+padY, b.TextClr)
 }

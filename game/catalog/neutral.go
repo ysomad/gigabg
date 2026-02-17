@@ -18,7 +18,7 @@ func neutrals() map[string]*template {
 			tier:     game.Tier1,
 			attack:   1,
 			health:   2,
-			keywords: game.NewKeywords(game.KeywordPoisonous),
+			keywords: game.NewKeywords(game.KeywordVenomous),
 		},
 		"venom_fang": {
 			name:     "Venom Fang",

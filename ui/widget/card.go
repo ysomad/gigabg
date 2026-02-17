@@ -20,7 +20,8 @@ type CardRenderer struct {
 	Cards    *catalog.Catalog
 	Font     *text.GoTextFace
 	BoldFont *text.GoTextFace
-	Tick     int // incremented each frame, used for animations
+	Res      ui.Resolution // updated each frame alongside Tick
+	Tick     int           // incremented each frame, used for animations
 }
 
 func (r *CardRenderer) isSpell(c api.Card) bool {
@@ -38,6 +39,139 @@ func (r *CardRenderer) DrawHandCard(screen *ebiten.Image, c api.Card, rect ui.Re
 	}
 }
 
+// DrawHoverCard renders a large centered card for hover inspection.
+// Layout top-to-bottom: tier badge (top-left), minion ellipse (center-top),
+// name, description, tribes (bottom-center between badges),
+// attack badge (bottom-left), health badge (bottom-right).
+func (r *CardRenderer) DrawHoverCard(screen *ebiten.Image, c api.Card, rect ui.Rect) {
+	if r.isSpell(c) {
+		r.drawHoverSpell(screen, c, rect)
+	} else {
+		r.drawHoverMinion(screen, c, rect)
+	}
+}
+
+func (r *CardRenderer) drawHoverMinion(screen *ebiten.Image, c api.Card, rect ui.Rect) {
+	r.drawRectBase(screen, rect, color.RGBA{40, 40, 60, 255}, c.IsGolden, false, 255)
+
+	t := r.Cards.ByTemplateID(c.Template)
+	name, desc, tribe := r.cardInfo(c)
+
+	// --- Tier badge (top-left) ---
+	if t != nil && t.Tier().IsValid() {
+		badgeR := rect.W * 0.06
+		r.drawTierBadge(screen, int(t.Tier()),
+			rect.X+rect.W*0.08, rect.Y+rect.H*0.06, badgeR, 255)
+	}
+
+	// --- Minion portrait ellipse (center-top) ---
+	// Use same 1:1.4 aspect ratio as board minion cards.
+	portraitW := rect.W * 0.50
+	portraitH := portraitW * 1.4
+	portraitRect := ui.Rect{
+		X: rect.X + (rect.W-portraitW)/2,
+		Y: rect.Y + rect.H*0.06,
+		W: portraitW,
+		H: portraitH,
+	}
+	sr := portraitRect.Screen(r.Res)
+	cx := float32(sr.X + sr.W/2)
+	cy := float32(sr.Y + sr.H/2)
+	rx := float32(sr.W / 2)
+	ry := float32(sr.H / 2)
+
+	ui.FillEllipse(screen, cx, cy, rx, ry, color.RGBA{35, 40, 70, 255})
+
+	s := r.Res.Scale()
+	border := color.RGBA{80, 80, 100, 255}
+	borderW := float32(2 * s)
+	if c.IsGolden {
+		border = color.RGBA{255, 215, 0, 255}
+		borderW = float32(3 * s)
+	}
+	ui.StrokeEllipse(screen, cx, cy, rx, ry, borderW, border)
+
+	// Template placeholder text inside portrait.
+	ui.DrawText(screen, r.Res, r.Font, c.Template,
+		portraitRect.X+portraitRect.W*0.15, portraitRect.Y+portraitRect.H*0.42,
+		color.RGBA{100, 100, 120, 255})
+
+	// --- Name (centered below portrait) ---
+	nameY := portraitRect.Bottom() + rect.H*0.02
+	r.drawCenteredText(screen, r.BoldFont, name,
+		rect.X+rect.W*0.5, nameY, color.White)
+
+	// --- Description (centered below name) ---
+	descY := nameY + rect.H*0.06
+	r.drawCenteredText(screen, r.Font, desc,
+		rect.X+rect.W*0.5, descY, color.RGBA{180, 180, 180, 255})
+
+	// --- Keywords text (below description) ---
+	kwY := descY + rect.H*0.09
+	for _, k := range c.Keywords.All() {
+		r.drawCenteredText(screen, r.Font, k.String(),
+			rect.X+rect.W*0.5, kwY, color.RGBA{180, 220, 140, 255})
+		kwY += rect.H * 0.055
+	}
+
+	// --- Attack and Health badges (bottom corners) ---
+	badgeR := rect.W * 0.07
+	r.drawAttackBadge(screen, c.Attack,
+		rect.X+rect.W*0.12, rect.Bottom()-rect.H*0.08, badgeR, 255)
+	r.drawHealthBadge(screen, c.Health,
+		rect.Right()-rect.W*0.12, rect.Bottom()-rect.H*0.08, badgeR, 255)
+
+	// --- Tribe (bottom-center between badges) ---
+	if tribe != "" {
+		r.drawCenteredText(screen, r.Font, tribe,
+			rect.X+rect.W*0.5, rect.Bottom()-rect.H*0.10,
+			color.RGBA{150, 150, 200, 255})
+	}
+}
+
+func (r *CardRenderer) drawHoverSpell(screen *ebiten.Image, c api.Card, rect ui.Rect) {
+	r.drawRectBase(screen, rect, color.RGBA{80, 40, 100, 255}, c.IsGolden, true, 255)
+
+	name, desc, _ := r.cardInfo(c)
+
+	// Cost badge (top-left, gold text).
+	ui.DrawText(screen, r.Res, r.BoldFont, strconv.Itoa(c.Cost),
+		rect.X+rect.W*0.08, rect.Y+rect.H*0.06,
+		color.RGBA{255, 215, 0, 255})
+
+	// SPELL label (center-top).
+	r.drawCenteredText(screen, r.Font, "SPELL",
+		rect.X+rect.W*0.5, rect.Y+rect.H*0.12,
+		color.RGBA{200, 150, 255, 255})
+
+	// Name (centered).
+	r.drawCenteredText(screen, r.BoldFont, name,
+		rect.X+rect.W*0.5, rect.Y+rect.H*0.35,
+		color.White)
+
+	// Description (centered below name).
+	r.drawCenteredText(screen, r.Font, desc,
+		rect.X+rect.W*0.5, rect.Y+rect.H*0.48,
+		color.RGBA{180, 180, 180, 255})
+}
+
+// drawCenteredText draws text horizontally centered at (baseX, baseY) in base coords.
+func (r *CardRenderer) drawCenteredText(
+	screen *ebiten.Image, font *text.GoTextFace, str string,
+	baseX, baseY float64, clr color.Color,
+) {
+	if font == nil {
+		return
+	}
+	s := r.Res.Scale()
+	op := &text.DrawOptions{}
+	op.GeoM.Translate(baseX*s+r.Res.OffsetX(), baseY*s+r.Res.OffsetY())
+	op.ColorScale.ScaleWithColor(clr)
+	op.LineSpacing = font.Size * 1.4
+	op.PrimaryAlign = text.AlignCenter
+	text.Draw(screen, str, font, op)
+}
+
 func (r *CardRenderer) drawHandMinion(screen *ebiten.Image, c api.Card, rect ui.Rect) {
 	r.drawRectBase(screen, rect, color.RGBA{40, 40, 60, 255}, c.IsGolden, false, 255)
 
@@ -45,20 +179,20 @@ func (r *CardRenderer) drawHandMinion(screen *ebiten.Image, c api.Card, rect ui.
 	t := r.Cards.ByTemplateID(c.Template)
 
 	// Name (top-left).
-	ui.DrawText(screen, r.Font, name, rect.X+rect.W*0.04, rect.Y+rect.H*0.04, color.White)
+	ui.DrawText(screen, r.Res, r.Font, name, rect.X+rect.W*0.04, rect.Y+rect.H*0.04, color.White)
 
 	// Tier (top-right).
 	if t != nil && t.Tier().IsValid() {
-		ui.DrawText(screen, r.Font, "T"+strconv.Itoa(int(t.Tier())),
+		ui.DrawText(screen, r.Res, r.Font, "T"+strconv.Itoa(int(t.Tier())),
 			rect.Right()-rect.W*0.22, rect.Y+rect.H*0.04,
 			color.RGBA{180, 180, 180, 255})
 	}
 
 	// Description (center).
-	ui.DrawText(screen, r.Font, desc, rect.X+rect.W*0.04, rect.Y+rect.H*0.30, color.RGBA{180, 180, 180, 255})
+	ui.DrawText(screen, r.Res, r.Font, desc, rect.X+rect.W*0.04, rect.Y+rect.H*0.30, color.RGBA{180, 180, 180, 255})
 
 	// Tribe (bottom-center).
-	ui.DrawText(screen, r.Font, tribe,
+	ui.DrawText(screen, r.Res, r.Font, tribe,
 		rect.X+rect.W*0.3, rect.Bottom()-rect.H*0.25,
 		color.RGBA{150, 150, 200, 255})
 
@@ -74,18 +208,18 @@ func (r *CardRenderer) drawHandSpell(screen *ebiten.Image, c api.Card, rect ui.R
 	name, desc, _ := r.cardInfo(c)
 
 	// Name (top-left).
-	ui.DrawText(screen, r.Font, name, rect.X+rect.W*0.04, rect.Y+rect.H*0.04, color.White)
+	ui.DrawText(screen, r.Res, r.Font, name, rect.X+rect.W*0.04, rect.Y+rect.H*0.04, color.White)
 
 	// Cost (top-right).
-	ui.DrawText(screen, r.Font, strconv.Itoa(c.Cost),
+	ui.DrawText(screen, r.Res, r.Font, strconv.Itoa(c.Cost),
 		rect.Right()-rect.W*0.15, rect.Y+rect.H*0.04,
 		color.RGBA{255, 215, 0, 255})
 
 	// Description (center).
-	ui.DrawText(screen, r.Font, desc, rect.X+rect.W*0.04, rect.Y+rect.H*0.30, color.RGBA{180, 180, 180, 255})
+	ui.DrawText(screen, r.Res, r.Font, desc, rect.X+rect.W*0.04, rect.Y+rect.H*0.30, color.RGBA{180, 180, 180, 255})
 
 	// SPELL label (bottom-center).
-	ui.DrawText(screen, r.Font, "SPELL",
+	ui.DrawText(screen, r.Res, r.Font, "SPELL",
 		rect.X+rect.W*0.30, rect.Bottom()-rect.H*0.12,
 		color.RGBA{200, 150, 255, 255})
 }
@@ -106,7 +240,15 @@ func (r *CardRenderer) drawShopMinion(screen *ebiten.Image, c api.Card, rect ui.
 	t := r.Cards.ByTemplateID(c.Template)
 
 	// Image placeholder (center).
-	ui.DrawText(screen, r.Font, c.Template, rect.X+rect.W*0.15, rect.Y+rect.H*0.42, color.RGBA{100, 100, 120, 255})
+	ui.DrawText(
+		screen,
+		r.Res,
+		r.Font,
+		c.Template,
+		rect.X+rect.W*0.15,
+		rect.Y+rect.H*0.42,
+		color.RGBA{100, 100, 120, 255},
+	)
 
 	// Keywords (below placeholder).
 	r.drawKeywords(screen, c.Keywords, rect, 255)
@@ -127,28 +269,28 @@ func (r *CardRenderer) drawShopSpell(screen *ebiten.Image, c api.Card, rect ui.R
 	name, _, _ := r.cardInfo(c)
 
 	// Name (top, centered).
-	ui.DrawText(screen, r.Font, name, rect.X+rect.W*0.20, rect.Y+rect.H*0.15, color.White)
+	ui.DrawText(screen, r.Res, r.Font, name, rect.X+rect.W*0.20, rect.Y+rect.H*0.15, color.White)
 
 	// Tier (center-left).
 	if t != nil && t.Tier().IsValid() {
-		ui.DrawText(screen, r.Font, "T"+strconv.Itoa(int(t.Tier())),
+		ui.DrawText(screen, r.Res, r.Font, "T"+strconv.Itoa(int(t.Tier())),
 			rect.X+rect.W*0.20, rect.Y+rect.H*0.40,
 			color.RGBA{180, 180, 180, 255})
 	}
 
 	// Cost (center-right, gold).
-	ui.DrawText(screen, r.Font, strconv.Itoa(c.Cost)+"g",
+	ui.DrawText(screen, r.Res, r.Font, strconv.Itoa(c.Cost)+"g",
 		rect.Right()-rect.W*0.40, rect.Y+rect.H*0.40,
 		color.RGBA{255, 215, 0, 255})
 
 	// SPELL label (bottom).
-	ui.DrawText(screen, r.Font, "SPELL",
+	ui.DrawText(screen, r.Res, r.Font, "SPELL",
 		rect.X+rect.W*0.30, rect.Bottom()-rect.H*0.22,
 		color.RGBA{200, 150, 255, 255})
 }
 
 // DrawMinion renders a minion (portrait ellipse) for board and combat contexts.
-// Use alpha < 255 and flashPct > 0 for combat effects (death fade, damage flash).
+// alpha < 255 for death fade, flashPct > 0 for white body flash on hit.
 func (r *CardRenderer) DrawMinion(screen *ebiten.Image, c api.Card, rect ui.Rect, alpha uint8, flashPct float64) {
 	bg := color.RGBA{35, 35, 55, alpha}
 	if flashPct > 0.7 {
@@ -157,7 +299,15 @@ func (r *CardRenderer) DrawMinion(screen *ebiten.Image, c api.Card, rect ui.Rect
 	r.drawEllipseBase(screen, rect, bg, c.IsGolden, false, alpha, c.Keywords)
 
 	// Image placeholder (center).
-	ui.DrawText(screen, r.Font, c.Template, rect.X+rect.W*0.15, rect.Y+rect.H*0.42, color.RGBA{100, 100, 120, alpha})
+	ui.DrawText(
+		screen,
+		r.Res,
+		r.Font,
+		c.Template,
+		rect.X+rect.W*0.15,
+		rect.Y+rect.H*0.42,
+		color.RGBA{100, 100, 120, alpha},
+	)
 
 	// Keywords (below placeholder).
 	r.drawKeywords(screen, c.Keywords, rect, alpha)
@@ -170,7 +320,7 @@ func (r *CardRenderer) DrawMinion(screen *ebiten.Image, c api.Card, rect ui.Rect
 func (r *CardRenderer) drawKeywords(screen *ebiten.Image, kw game.Keywords, rect ui.Rect, alpha uint8) {
 	kwY := rect.Y + rect.H*0.58
 	for _, k := range kw.All() {
-		ui.DrawText(screen, r.Font, k.String(),
+		ui.DrawText(screen, r.Res, r.Font, k.String(),
 			rect.X+rect.W*0.20, kwY,
 			color.RGBA{180, 220, 140, alpha})
 		kwY += rect.H * 0.08
@@ -186,8 +336,8 @@ func (r *CardRenderer) drawKeywordEffects(
 	alpha uint8,
 	attack, health int,
 ) {
-	sr := rect.Screen()
-	s := ui.ActiveRes.Scale()
+	sr := rect.Screen(r.Res)
+	s := r.Res.Scale()
 
 	cx := float32(sr.X + sr.W/2)
 	cy := float32(sr.Y + sr.H/2)
@@ -231,8 +381,8 @@ func (r *CardRenderer) drawKeywordEffects(
 func (r *CardRenderer) drawRectBase(
 	screen *ebiten.Image, rect ui.Rect, bg color.RGBA, golden, spell bool, alpha uint8,
 ) {
-	sr := rect.Screen()
-	s := ui.ActiveRes.Scale()
+	sr := rect.Screen(r.Res)
+	s := r.Res.Scale()
 
 	bg.A = alpha
 	vector.FillRect(screen, float32(sr.X), float32(sr.Y), float32(sr.W), float32(sr.H), bg, false)
@@ -252,8 +402,8 @@ func (r *CardRenderer) drawEllipseBase(
 	screen *ebiten.Image, rect ui.Rect, bg color.RGBA,
 	golden, spell bool, alpha uint8, keywords game.Keywords,
 ) {
-	sr := rect.Screen()
-	s := ui.ActiveRes.Scale()
+	sr := rect.Screen(r.Res)
+	s := r.Res.Scale()
 
 	cx := float32(sr.X + sr.W/2)
 	cy := float32(sr.Y + sr.H/2)
@@ -586,9 +736,9 @@ func withAlpha(c color.RGBA, alpha uint8) color.RGBA {
 
 // drawAttackBadge draws a gold circle with bold white number.
 func (r *CardRenderer) drawAttackBadge(screen *ebiten.Image, attack int, baseX, baseY, baseR float64, alpha uint8) {
-	s := ui.ActiveRes.Scale()
-	ox := ui.ActiveRes.OffsetX()
-	oy := ui.ActiveRes.OffsetY()
+	s := r.Res.Scale()
+	ox := r.Res.OffsetX()
+	oy := r.Res.OffsetY()
 
 	sx := float32(baseX*s + ox)
 	sy := float32(baseY*s + oy)
@@ -607,9 +757,9 @@ func (r *CardRenderer) drawAttackBadge(screen *ebiten.Image, attack int, baseX, 
 
 // drawHealthBadge draws a red circle with bold white number.
 func (r *CardRenderer) drawHealthBadge(screen *ebiten.Image, health int, baseX, baseY, baseR float64, alpha uint8) {
-	s := ui.ActiveRes.Scale()
-	ox := ui.ActiveRes.OffsetX()
-	oy := ui.ActiveRes.OffsetY()
+	s := r.Res.Scale()
+	ox := r.Res.OffsetX()
+	oy := r.Res.OffsetY()
 
 	sx := float32(baseX*s + ox)
 	sy := float32(baseY*s + oy)
@@ -629,9 +779,9 @@ func (r *CardRenderer) drawHealthBadge(screen *ebiten.Image, health int, baseX, 
 // drawTierBadge draws a shield-shaped badge with golden stars (one per tier level).
 // Shield has deep purple fill with ellipse-matching outline color.
 func (r *CardRenderer) drawTierBadge(screen *ebiten.Image, tier int, baseX, baseY, baseR float64, alpha uint8) {
-	s := ui.ActiveRes.Scale()
-	ox := ui.ActiveRes.OffsetX()
-	oy := ui.ActiveRes.OffsetY()
+	s := r.Res.Scale()
+	ox := r.Res.OffsetX()
+	oy := r.Res.OffsetY()
 
 	cx := float32(baseX*s + ox)
 	cy := float32(baseY*s + oy)

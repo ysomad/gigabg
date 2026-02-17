@@ -16,17 +16,8 @@ import (
 
 	"github.com/ysomad/gigabg/api"
 	"github.com/ysomad/gigabg/game"
+	"github.com/ysomad/gigabg/ui"
 )
-
-// PlayerEntry is a player summary for the sidebar.
-type PlayerEntry struct {
-	ID            game.PlayerID
-	HP            int
-	ShopTier      game.Tier
-	CombatResults []api.CombatResult
-	TopTribe      game.Tribe
-	TopTribeCount int
-}
 
 // GameClient connects to a game server via WebSocket.
 type GameClient struct {
@@ -263,7 +254,7 @@ func (c *GameClient) GameResult() *api.GameResult {
 }
 
 // PlayerList returns all players (including self) sorted by HP descending.
-func (c *GameClient) PlayerList() []PlayerEntry {
+func (c *GameClient) PlayerList() []ui.PlayerEntry {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	if c.state == nil {
@@ -275,8 +266,8 @@ func (c *GameClient) PlayerList() []PlayerEntry {
 		tribes[i] = card.Tribes
 	}
 	selfTribe, selfCount := game.CalcTopTribe(tribes)
-	list := make([]PlayerEntry, 0, len(c.state.Opponents)+1)
-	list = append(list, PlayerEntry{
+	list := make([]ui.PlayerEntry, 0, len(c.state.Opponents)+1)
+	list = append(list, ui.PlayerEntry{
 		ID:            p.ID,
 		HP:            p.HP,
 		ShopTier:      p.ShopTier,
@@ -285,7 +276,7 @@ func (c *GameClient) PlayerList() []PlayerEntry {
 		TopTribeCount: selfCount,
 	})
 	for _, o := range c.state.Opponents {
-		list = append(list, PlayerEntry{
+		list = append(list, ui.PlayerEntry{
 			ID:            o.ID,
 			HP:            o.HP,
 			ShopTier:      o.ShopTier,
@@ -294,7 +285,7 @@ func (c *GameClient) PlayerList() []PlayerEntry {
 			TopTribeCount: o.TopTribeCount,
 		})
 	}
-	slices.SortFunc(list, func(a, b PlayerEntry) int {
+	slices.SortFunc(list, func(a, b ui.PlayerEntry) int {
 		return b.HP - a.HP
 	})
 	return list

@@ -36,7 +36,7 @@ func all() map[string]*template {
 			tier:     game.Tier6,
 			attack:   6,
 			health:   6,
-			keywords: game.NewKeywords(game.KeywordTaunt, game.KeywordDivineShield, game.KeywordPoisonous),
+			keywords: game.NewKeywords(game.KeywordTaunt, game.KeywordDivineShield, game.KeywordVenomous),
 		},
 	}
 }

@@ -112,7 +112,7 @@ func quilboars() map[string]*template {
 			tier:     game.Tier6,
 			attack:   7,
 			health:   7,
-			keywords: game.NewKeywords(game.KeywordPoisonous, game.KeywordDivineShield, game.KeywordTaunt),
+			keywords: game.NewKeywords(game.KeywordVenomous, game.KeywordDivineShield, game.KeywordTaunt),
 		},
 	}
 }

@@ -1,7 +1,5 @@
 package scene
 
-import "github.com/ysomad/gigabg/ui"
-
 // dragState tracks card drag-and-drop input.
 type dragState struct {
 	active    bool
@@ -25,12 +23,4 @@ func (d *dragState) fromHand() bool { return d.active && !d.fromBoard && !d.from
 
 func (d *dragState) Reset() {
 	d.active = false
-}
-
-// screenToBase converts screen pixel coords to base coords.
-func screenToBase(screenX, screenY int) (float64, float64) {
-	s := ui.ActiveRes.Scale()
-	bx := (float64(screenX) - ui.ActiveRes.OffsetX()) / s
-	by := (float64(screenY) - ui.ActiveRes.OffsetY()) / s
-	return bx, by
 }

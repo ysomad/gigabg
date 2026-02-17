@@ -16,8 +16,8 @@ const baseFontSize = 14
 
 // Overlay is drawn on top of the current scene and blocks scene input.
 type Overlay interface {
-	Update()
-	Draw(screen *ebiten.Image)
+	Update(res Resolution)
+	Draw(screen *ebiten.Image, res Resolution)
 }
 
 // App is the root ebiten.Game that owns the SceneManager and font.
@@ -28,6 +28,7 @@ type App struct {
 	boldFontSource *text.GoTextFaceSource
 	font           *text.GoTextFace
 	boldFont       *text.GoTextFace
+	res            Resolution
 	debug          bool
 }
 
@@ -40,12 +41,14 @@ func NewApp() (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	sz := baseFontSize * ActiveRes.Scale()
+	res := Resolution{BaseWidth, BaseHeight}
+	sz := baseFontSize * res.Scale()
 	return &App{
 		fontSource:     src,
 		boldFontSource: boldSrc,
 		font:           &text.GoTextFace{Source: src, Size: sz},
 		boldFont:       &text.GoTextFace{Source: boldSrc, Size: sz},
+		res:            res,
 	}, nil
 }
 
@@ -54,6 +57,9 @@ func (a *App) Font() *text.GoTextFace { return a.font }
 
 // BoldFont returns the shared bold font face. Size is updated each frame.
 func (a *App) BoldFont() *text.GoTextFace { return a.boldFont }
+
+// Res returns the current resolution.
+func (a *App) Res() Resolution { return a.res }
 
 // SwitchScene transitions to a new scene.
 func (a *App) SwitchScene(s Scene) { a.sm.Switch(s) }
@@ -71,19 +77,19 @@ func (a *App) Update() error {
 	if inpututil.IsKeyJustPressed(ebiten.KeyF3) {
 		a.debug = !a.debug
 	}
-	a.font.Size = baseFontSize * ActiveRes.Scale()
-	a.boldFont.Size = baseFontSize * ActiveRes.Scale()
+	a.font.Size = baseFontSize * a.res.Scale()
+	a.boldFont.Size = baseFontSize * a.res.Scale()
 	if a.overlay != nil {
-		a.overlay.Update()
+		a.overlay.Update(a.res)
 		return nil
 	}
-	return a.sm.Update()
+	return a.sm.Update(a.res)
 }
 
 func (a *App) Draw(screen *ebiten.Image) {
-	a.sm.Draw(screen)
+	a.sm.Draw(screen, a.res)
 	if a.overlay != nil {
-		a.overlay.Draw(screen)
+		a.overlay.Draw(screen, a.res)
 	}
 	if a.debug {
 		a.drawDebug(screen)
@@ -92,9 +98,7 @@ func (a *App) Draw(screen *ebiten.Image) {
 
 func (a *App) drawDebug(screen *ebiten.Image) {
 	cx, cy := ebiten.CursorPosition()
-	s := ActiveRes.Scale()
-	bx := (float64(cx) - ActiveRes.OffsetX()) / s
-	by := (float64(cy) - ActiveRes.OffsetY()) / s
+	bx, by := a.res.ScreenToBase(cx, cy)
 
 	ww, wh := ebiten.WindowSize()
 	var dbg ebiten.DebugInfo
@@ -103,15 +107,15 @@ func (a *App) drawDebug(screen *ebiten.Image) {
 	msg := fmt.Sprintf(
 		"TPS: %.1f  FPS: %.1f\nWindow: %dx%d  Scale: %.2f\nCursor: %d,%d  Base: %.0f,%.0f\nGPU: %s  VRAM: %d KB",
 		ebiten.ActualTPS(), ebiten.ActualFPS(),
-		ww, wh, s,
+		ww, wh, a.res.Scale(),
 		cx, cy, bx, by,
 		dbg.GraphicsLibrary, dbg.TotalGPUImageMemoryUsageInBytes/1024,
 	)
-	ebitenutil.DebugPrintAt(screen, msg, 4, ActiveRes.Height-64)
+	ebitenutil.DebugPrintAt(screen, msg, 4, a.res.Height-64)
 }
 
 func (a *App) Layout(outsideWidth, outsideHeight int) (int, int) {
-	ActiveRes.Width = outsideWidth
-	ActiveRes.Height = outsideHeight
+	a.res.Width = outsideWidth
+	a.res.Height = outsideHeight
 	return outsideWidth, outsideHeight
 }

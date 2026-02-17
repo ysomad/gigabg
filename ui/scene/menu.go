@@ -156,20 +156,20 @@ func (m *Menu) submitCreate() {
 	m.onCreate(pid, m.selectedSize)
 }
 
-func (m *Menu) Update() error {
-	m.playerID.Update()
-	m.joinTab.Update()
-	m.createTab.Update()
+func (m *Menu) Update(res ui.Resolution) error {
+	m.playerID.Update(res)
+	m.joinTab.Update(res)
+	m.createTab.Update(res)
 
 	switch m.mode {
 	case modeJoin:
-		m.lobbyID.Update()
-		m.submitBtn.Update()
+		m.lobbyID.Update(res)
+		m.submitBtn.Update(res)
 	case modeCreate:
 		for _, btn := range m.sizeBtns {
-			btn.Update()
+			btn.Update(res)
 		}
-		m.createBtn.Update()
+		m.createBtn.Update(res)
 	}
 
 	if inpututil.IsKeyJustPressed(ebiten.KeyTab) {
@@ -214,45 +214,45 @@ var (
 	clrTitle        = color.RGBA{255, 215, 0, 255}
 )
 
-func (m *Menu) Draw(screen *ebiten.Image) {
+func (m *Menu) Draw(screen *ebiten.Image, res ui.Resolution) {
 	screen.Fill(ui.ColorBackground)
 
 	w := float64(ui.BaseWidth)
 	h := float64(ui.BaseHeight)
 
 	// Title.
-	ui.DrawText(screen, m.font, "GIGA Battlegrounds", w*0.38, h*0.14, clrTitle)
+	ui.DrawText(screen, res, m.font, "GIGA Battlegrounds", w*0.38, h*0.14, clrTitle)
 
 	// Player ID.
-	ui.DrawText(screen, m.font, "Player ID:", m.playerID.Rect.X, m.playerID.Rect.Y-h*0.03, clrLabel)
-	m.playerID.Draw(screen, m.font)
+	ui.DrawText(screen, res, m.font, "Player ID:", m.playerID.Rect.X, m.playerID.Rect.Y-h*0.03, clrLabel)
+	m.playerID.Draw(screen, res, m.font)
 
 	// Tab buttons.
 	m.styleTab(m.joinTab, m.mode == modeJoin)
 	m.styleTab(m.createTab, m.mode == modeCreate)
-	m.joinTab.Draw(screen, m.font)
-	m.createTab.Draw(screen, m.font)
+	m.joinTab.Draw(screen, res, m.font)
+	m.createTab.Draw(screen, res, m.font)
 
 	// Mode content.
 	switch m.mode {
 	case modeJoin:
-		m.drawJoinMode(screen, h)
+		m.drawJoinMode(screen, res, h)
 	case modeCreate:
-		m.drawCreateMode(screen, h)
+		m.drawCreateMode(screen, res, h)
 	}
 }
 
-func (m *Menu) drawJoinMode(screen *ebiten.Image, h float64) {
-	ui.DrawText(screen, m.font, "Lobby ID:", m.lobbyID.Rect.X, m.lobbyID.Rect.Y-h*0.03, clrLabel)
-	m.lobbyID.Draw(screen, m.font)
+func (m *Menu) drawJoinMode(screen *ebiten.Image, res ui.Resolution, h float64) {
+	ui.DrawText(screen, res, m.font, "Lobby ID:", m.lobbyID.Rect.X, m.lobbyID.Rect.Y-h*0.03, clrLabel)
+	m.lobbyID.Draw(screen, res, m.font)
 
 	canSubmit := m.playerID.Value() != "" && m.lobbyID.Value() != ""
 	m.styleSubmitBtn(m.submitBtn, canSubmit)
-	m.submitBtn.Draw(screen, m.font)
+	m.submitBtn.Draw(screen, res, m.font)
 }
 
-func (m *Menu) drawCreateMode(screen *ebiten.Image, h float64) {
-	ui.DrawText(screen, m.font, "Lobby Size:", m.sizeBtns[0].Rect.X, m.sizeBtns[0].Rect.Y-h*0.03, clrLabel)
+func (m *Menu) drawCreateMode(screen *ebiten.Image, res ui.Resolution, h float64) {
+	ui.DrawText(screen, res, m.font, "Lobby Size:", m.sizeBtns[0].Rect.X, m.sizeBtns[0].Rect.Y-h*0.03, clrLabel)
 
 	for _, btn := range m.sizeBtns {
 		size, err := strconv.Atoi(btn.Text)
@@ -268,12 +268,12 @@ func (m *Menu) drawCreateMode(screen *ebiten.Image, h float64) {
 			btn.BorderClr = clrSizeBorderIn
 			btn.TextClr = clrTextDim
 		}
-		btn.Draw(screen, m.font)
+		btn.Draw(screen, res, m.font)
 	}
 
 	canSubmit := m.playerID.Value() != ""
 	m.styleSubmitBtn(m.createBtn, canSubmit)
-	m.createBtn.Draw(screen, m.font)
+	m.createBtn.Draw(screen, res, m.font)
 }
 
 func (m *Menu) styleTab(btn *widget.Button, active bool) {

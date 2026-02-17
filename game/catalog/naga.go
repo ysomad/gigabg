@@ -61,7 +61,7 @@ func nagas() map[string]*template {
 			tier:     game.Tier6,
 			attack:   8,
 			health:   8,
-			keywords: game.NewKeywords(game.KeywordPoisonous, game.KeywordReborn),
+			keywords: game.NewKeywords(game.KeywordVenomous, game.KeywordReborn),
 		},
 	}
 }

@@ -8,7 +8,7 @@ const (
 )
 
 const (
-	RecruitDuration = 60 * time.Second
+	RecruitDuration = 20 * time.Second
 	CombatDuration  = 5 * time.Second
 )
 

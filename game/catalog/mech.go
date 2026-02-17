@@ -76,7 +76,7 @@ func mechs() map[string]*template {
 			tier:     game.Tier2,
 			attack:   1,
 			health:   1,
-			keywords: game.NewKeywords(game.KeywordMagnetic, game.KeywordPoisonous),
+			keywords: game.NewKeywords(game.KeywordMagnetic, game.KeywordVenomous),
 		},
 
 		// Tier 6

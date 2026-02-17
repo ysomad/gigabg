@@ -43,13 +43,13 @@ func (t *Toast) Update(dt float64) {
 }
 
 // Draw renders the toast inside the given rect.
-func (t *Toast) Draw(screen *ebiten.Image, rect ui.Rect) {
+func (t *Toast) Draw(screen *ebiten.Image, res ui.Resolution, rect ui.Rect) {
 	if t.timer <= 0 {
 		return
 	}
 
-	sr := rect.Screen()
-	s := ui.ActiveRes.Scale()
+	sr := rect.Screen(res)
+	s := res.Scale()
 
 	vector.FillRect(
 		screen,
@@ -72,7 +72,7 @@ func (t *Toast) Draw(screen *ebiten.Image, rect ui.Rect) {
 	)
 
 	op := &text.DrawOptions{}
-	op.GeoM.Translate((rect.X+rect.W*0.5)*s+ui.ActiveRes.OffsetX(), (rect.Y+rect.H*0.3)*s+ui.ActiveRes.OffsetY())
+	op.GeoM.Translate((rect.X+rect.W*0.5)*s+res.OffsetX(), (rect.Y+rect.H*0.3)*s+res.OffsetY())
 	op.ColorScale.ScaleWithColor(color.White)
 	op.PrimaryAlign = text.AlignCenter
 	text.Draw(screen, t.text, t.font, op)
@@ -129,22 +129,22 @@ func (p *Popup) ShowButton(text string, onClick func()) {
 	}
 }
 
-func (p *Popup) Update() {
+func (p *Popup) Update(res ui.Resolution) {
 	p.mu.Lock()
 	btn := p.btn
 	p.mu.Unlock()
 
 	if btn != nil {
-		btn.Update()
+		btn.Update(res)
 	}
 }
 
-func (p *Popup) Draw(screen *ebiten.Image) {
+func (p *Popup) Draw(screen *ebiten.Image, res ui.Resolution) {
 	// Semi-transparent overlay covering actual screen.
-	ui.FillScreen(screen, color.RGBA{0, 0, 0, 160})
+	ui.FillScreen(screen, res, color.RGBA{0, 0, 0, 160})
 
-	sr := p.rect.Screen()
-	sw := float32(ui.ActiveRes.Scale())
+	sr := p.rect.Screen(res)
+	sw := float32(res.Scale())
 
 	vector.FillRect(
 		screen,
@@ -173,12 +173,12 @@ func (p *Popup) Draw(screen *ebiten.Image) {
 	p.mu.Unlock()
 
 	if title != "" {
-		ui.DrawText(screen, p.font, title, p.rect.X+p.rect.W*0.05, p.rect.Y+p.rect.H*0.15, color.RGBA{220, 200, 60, 255})
+		ui.DrawText(screen, res, p.font, title, p.rect.X+p.rect.W*0.05, p.rect.Y+p.rect.H*0.15, color.RGBA{220, 200, 60, 255})
 	}
 
-	ui.DrawText(screen, p.font, message, p.rect.X+p.rect.W*0.05, p.rect.Y+p.rect.H*0.45, color.RGBA{200, 200, 200, 255})
+	ui.DrawText(screen, res, p.font, message, p.rect.X+p.rect.W*0.05, p.rect.Y+p.rect.H*0.45, color.RGBA{200, 200, 200, 255})
 
 	if btn != nil {
-		btn.Draw(screen, p.font)
+		btn.Draw(screen, res, p.font)
 	}
 }

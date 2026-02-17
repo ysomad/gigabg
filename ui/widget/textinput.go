@@ -20,10 +20,10 @@ type TextInput struct {
 	focused bool
 }
 
-func (t *TextInput) Update() {
+func (t *TextInput) Update(res ui.Resolution) {
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
 		mx, my := ebiten.CursorPosition()
-		t.focused = t.Rect.Contains(mx, my)
+		t.focused = t.Rect.Contains(res, mx, my)
 	}
 
 	if !t.focused {
@@ -71,9 +71,9 @@ func (t *TextInput) handlePaste() bool {
 	return true
 }
 
-func (t *TextInput) Draw(screen *ebiten.Image, font *text.GoTextFace) {
-	sr := t.Rect.Screen()
-	sw := float32(2 * ui.ActiveRes.Scale())
+func (t *TextInput) Draw(screen *ebiten.Image, res ui.Resolution, font *text.GoTextFace) {
+	sr := t.Rect.Screen(res)
+	sw := float32(2 * res.Scale())
 
 	borderClr := color.RGBA{60, 60, 80, 255}
 	if t.focused {
@@ -90,7 +90,7 @@ func (t *TextInput) Draw(screen *ebiten.Image, font *text.GoTextFace) {
 
 	padX := t.Rect.W * 0.04
 	padY := t.Rect.H * 0.25
-	ui.DrawText(screen, font, display, t.Rect.X+padX, t.Rect.Y+padY, color.White)
+	ui.DrawText(screen, res, font, display, t.Rect.X+padX, t.Rect.Y+padY, color.White)
 }
 
 func (t *TextInput) Value() string     { return t.text }

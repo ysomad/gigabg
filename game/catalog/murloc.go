@@ -19,7 +19,7 @@ func murlocs() map[string]*template {
 			tier:     game.Tier2,
 			attack:   1,
 			health:   2,
-			keywords: game.NewKeywords(game.KeywordPoisonous),
+			keywords: game.NewKeywords(game.KeywordVenomous),
 		},
 
 		// Tier 3
@@ -37,7 +37,7 @@ func murlocs() map[string]*template {
 			tier:     game.Tier4,
 			attack:   4,
 			health:   4,
-			keywords: game.NewKeywords(game.KeywordPoisonous, game.KeywordDivineShield),
+			keywords: game.NewKeywords(game.KeywordVenomous, game.KeywordDivineShield),
 		},
 
 		// Tier 5
@@ -72,7 +72,7 @@ func murlocs() map[string]*template {
 			tier:     game.Tier6,
 			attack:   8,
 			health:   8,
-			keywords: game.NewKeywords(game.KeywordPoisonous, game.KeywordWindfury),
+			keywords: game.NewKeywords(game.KeywordVenomous, game.KeywordWindfury),
 		},
 	}
 }

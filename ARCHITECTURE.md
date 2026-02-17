@@ -41,7 +41,16 @@ gigabg/
 │   ├── scene/               # Scene implementations
 │   │   ├── menu.go          # Player ID + lobby ID entry
 │   │   ├── game.go          # Recruit phase + combat display
-│   │   └── combat.go        # CombatAnimator (animation replay)
+│   │   └── combatboard.go   # Combat animation replay (effect-driven)
+│   ├── effect/              # Effect interface + concrete visual effects
+│   │       ├── effect.go    # Effect interface, Kind enum, List type
+│   │       ├── flash.go     # White flash on damage
+│   │       ├── shake.go     # Damage shake
+│   │       ├── hitdamage.go # Damage number indicator
+│   │       ├── poison.go    # Poison drip overlay
+│   │       ├── shield.go    # Divine shield break burst
+│   │       ├── death.go     # Death fade, tint, particles
+│   │       └── spawn.go     # Reborn glow pillar + fade-in
 │   └── widget/              # Reusable UI components
 │       ├── button.go        # Clickable button
 │       ├── textinput.go     # Text input field
@@ -68,8 +77,9 @@ api/            → game/
 server/         → api/, game/, lobby/, pkg/errors/
 client/         → api/, game/
 ui/             → ebiten
+ui/effect/      → ui/, game/, ebiten
 ui/widget/      → ui/, api/, game/cards/, ebiten
-ui/scene/       → ui/, ui/widget/, client/, api/, game/, game/cards/, ebiten
+ui/scene/       → ui/, ui/effect/, ui/widget/, client/, api/, game/, game/cards/, ebiten
 cmd/client/     → ui/, ui/scene/, client/, game/cards/
 cmd/server/     → server/, game/cards/
 ```
@@ -81,6 +91,7 @@ No circular dependencies.
 - **No auth** — players identify by self-chosen player ID, no JWT/sessions
 - **No interfaces unless necessary** — concrete types everywhere; interfaces only for testing or breaking circular deps
 - **Scene interface is needed** — breaks circular dependency between `ui/` and `ui/scene/`
+- **Effect interface** — `effect.Effect` unifies visual effects (flash, shake, particles, etc.) with a common Update/Draw lifecycle; new effects = new struct implementing the interface
 - **Widgets are concrete structs** — no layout engine; Ebiten immediate-mode drawing
 - **Zone-based layout** — `Rect` type + `CalcGameLayout(w,h)` computes positions from screen size, no hardcoded base coordinates
 - **pgx over database/sql** — native PG protocol, connection pooling, type safety

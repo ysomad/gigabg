@@ -4,8 +4,8 @@ import "github.com/hajimehoshi/ebiten/v2"
 
 // Scene is the interface for all UI scenes.
 type Scene interface {
-	Update() error
-	Draw(screen *ebiten.Image)
+	Update(res Resolution) error
+	Draw(screen *ebiten.Image, res Resolution)
 	OnEnter()
 	OnExit()
 }
@@ -25,16 +25,16 @@ func (sm *SceneManager) Switch(s Scene) {
 	}
 }
 
-func (sm *SceneManager) Update() error {
+func (sm *SceneManager) Update(res Resolution) error {
 	if sm.current == nil {
 		return nil
 	}
-	return sm.current.Update()
+	return sm.current.Update(res)
 }
 
-func (sm *SceneManager) Draw(screen *ebiten.Image) {
+func (sm *SceneManager) Draw(screen *ebiten.Image, res Resolution) {
 	if sm.current == nil {
 		return
 	}
-	sm.current.Draw(screen)
+	sm.current.Draw(screen, res)
 }
