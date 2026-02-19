@@ -186,6 +186,7 @@ func buildAnimBoard(cards []api.Card) []*animMinion {
 func (cp *combatBoard) Update(elapsed float64, res ui.Resolution, lay ui.GameLayout) (bool, error) {
 	cp.cr.Res = res
 	cp.cr.Tick++
+	cp.cr.UpdateEffects(elapsed)
 
 	if cp.done {
 		return true, nil

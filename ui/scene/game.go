@@ -81,6 +81,7 @@ func (g *Game) Update(res ui.Resolution) error {
 	g.cr.Tick++
 	g.lay = ui.CalcGameLayout()
 	dt := 1.0 / float64(ebiten.TPS())
+	g.cr.UpdateEffects(dt)
 	phase := g.client.Phase()
 
 	// Keep sidebar snapshot fresh during recruit, but freeze it during combat animation and toasts.

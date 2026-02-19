@@ -19,6 +19,7 @@ const (
 	KindDeathTint
 	KindSpawnGlow
 	KindVenomBreak
+	KindWindfury
 )
 
 // Effect is a visual effect attached to a combat minion.
