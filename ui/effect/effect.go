@@ -12,8 +12,8 @@ type Kind uint8
 const (
 	KindFlash Kind = iota + 1
 	KindShake
-	KindHitDamage
-	KindPoisonDrip
+	KindHitIndicator
+	KindVenomDrip
 	KindDivineShieldBreak
 	KindDeathFade
 	KindDeathTint

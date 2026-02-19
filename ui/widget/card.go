@@ -39,26 +39,23 @@ func (r *CardRenderer) DrawHandCard(screen *ebiten.Image, c api.Card, rect ui.Re
 	}
 }
 
-// DrawHoverCard renders a large centered card for hover inspection.
+// DrawCard renders a full-detail card from template data.
 // Layout top-to-bottom: tier badge (top-left), minion ellipse (center-top),
 // name, description, tribes (bottom-center between badges),
 // attack badge (bottom-left), health badge (bottom-right).
-func (r *CardRenderer) DrawHoverCard(screen *ebiten.Image, c api.Card, rect ui.Rect) {
-	if r.isSpell(c) {
-		r.drawHoverSpell(screen, c, rect)
+func (r *CardRenderer) DrawCard(screen *ebiten.Image, t game.CardTemplate, rect ui.Rect) {
+	if t.Kind() == game.CardKindSpell {
+		r.drawCardSpell(screen, t, rect)
 	} else {
-		r.drawHoverMinion(screen, c, rect)
+		r.drawCardMinion(screen, t, rect)
 	}
 }
 
-func (r *CardRenderer) drawHoverMinion(screen *ebiten.Image, c api.Card, rect ui.Rect) {
-	r.drawRectBase(screen, rect, color.RGBA{40, 40, 60, 255}, c.IsGolden, false, 255)
-
-	t := r.Cards.ByTemplateID(c.Template)
-	name, desc, tribe := r.cardInfo(c)
+func (r *CardRenderer) drawCardMinion(screen *ebiten.Image, t game.CardTemplate, rect ui.Rect) {
+	r.drawRectBase(screen, rect, color.RGBA{40, 40, 60, 255}, false, false, 255)
 
 	// --- Tier badge (top-left) ---
-	if t != nil && t.Tier().IsValid() {
+	if t.Tier().IsValid() {
 		badgeR := rect.W * 0.06
 		r.drawTierBadge(screen, int(t.Tier()),
 			rect.X+rect.W*0.08, rect.Y+rect.H*0.06, badgeR, 255)
@@ -85,30 +82,26 @@ func (r *CardRenderer) drawHoverMinion(screen *ebiten.Image, c api.Card, rect ui
 	s := r.Res.Scale()
 	border := color.RGBA{80, 80, 100, 255}
 	borderW := float32(2 * s)
-	if c.IsGolden {
-		border = color.RGBA{255, 215, 0, 255}
-		borderW = float32(3 * s)
-	}
 	ui.StrokeEllipse(screen, cx, cy, rx, ry, borderW, border)
 
 	// Template placeholder text inside portrait.
-	ui.DrawText(screen, r.Res, r.Font, c.Template,
+	ui.DrawText(screen, r.Res, r.Font, t.ID(),
 		portraitRect.X+portraitRect.W*0.15, portraitRect.Y+portraitRect.H*0.42,
 		color.RGBA{100, 100, 120, 255})
 
 	// --- Name (centered below portrait) ---
 	nameY := portraitRect.Bottom() + rect.H*0.02
-	r.drawCenteredText(screen, r.BoldFont, name,
+	r.drawCenteredText(screen, r.BoldFont, t.Name(),
 		rect.X+rect.W*0.5, nameY, color.White)
 
 	// --- Description (centered below name) ---
 	descY := nameY + rect.H*0.06
-	r.drawCenteredText(screen, r.Font, desc,
+	r.drawCenteredText(screen, r.Font, t.Description(),
 		rect.X+rect.W*0.5, descY, color.RGBA{180, 180, 180, 255})
 
 	// --- Keywords text (below description) ---
 	kwY := descY + rect.H*0.09
-	for _, k := range c.Keywords.All() {
+	for _, k := range t.Keywords().All() {
 		r.drawCenteredText(screen, r.Font, k.String(),
 			rect.X+rect.W*0.5, kwY, color.RGBA{180, 220, 140, 255})
 		kwY += rect.H * 0.055
@@ -116,26 +109,24 @@ func (r *CardRenderer) drawHoverMinion(screen *ebiten.Image, c api.Card, rect ui
 
 	// --- Attack and Health badges (bottom corners) ---
 	badgeR := rect.W * 0.07
-	r.drawAttackBadge(screen, c.Attack,
+	r.drawAttackBadge(screen, t.Attack(),
 		rect.X+rect.W*0.12, rect.Bottom()-rect.H*0.08, badgeR, 255)
-	r.drawHealthBadge(screen, c.Health,
+	r.drawHealthBadge(screen, t.Health(),
 		rect.Right()-rect.W*0.12, rect.Bottom()-rect.H*0.08, badgeR, 255)
 
 	// --- Tribe (bottom-center between badges) ---
-	if tribe != "" {
+	if tribe := t.Tribes().String(); tribe != "" {
 		r.drawCenteredText(screen, r.Font, tribe,
 			rect.X+rect.W*0.5, rect.Bottom()-rect.H*0.10,
 			color.RGBA{150, 150, 200, 255})
 	}
 }
 
-func (r *CardRenderer) drawHoverSpell(screen *ebiten.Image, c api.Card, rect ui.Rect) {
-	r.drawRectBase(screen, rect, color.RGBA{80, 40, 100, 255}, c.IsGolden, true, 255)
-
-	name, desc, _ := r.cardInfo(c)
+func (r *CardRenderer) drawCardSpell(screen *ebiten.Image, t game.CardTemplate, rect ui.Rect) {
+	r.drawRectBase(screen, rect, color.RGBA{80, 40, 100, 255}, false, true, 255)
 
 	// Cost badge (top-left, gold text).
-	ui.DrawText(screen, r.Res, r.BoldFont, strconv.Itoa(c.Cost),
+	ui.DrawText(screen, r.Res, r.BoldFont, strconv.Itoa(t.Cost()),
 		rect.X+rect.W*0.08, rect.Y+rect.H*0.06,
 		color.RGBA{255, 215, 0, 255})
 
@@ -145,12 +136,12 @@ func (r *CardRenderer) drawHoverSpell(screen *ebiten.Image, c api.Card, rect ui.
 		color.RGBA{200, 150, 255, 255})
 
 	// Name (centered).
-	r.drawCenteredText(screen, r.BoldFont, name,
+	r.drawCenteredText(screen, r.BoldFont, t.Name(),
 		rect.X+rect.W*0.5, rect.Y+rect.H*0.35,
 		color.White)
 
 	// Description (centered below name).
-	r.drawCenteredText(screen, r.Font, desc,
+	r.drawCenteredText(screen, r.Font, t.Description(),
 		rect.X+rect.W*0.5, rect.Y+rect.H*0.48,
 		color.RGBA{180, 180, 180, 255})
 }
@@ -348,10 +339,6 @@ func (r *CardRenderer) drawKeywordEffects(
 		r.drawReborn(screen, cx, cy, rx, ry, s, alpha)
 	}
 
-	if keywords.Has(game.KeywordPoisonous) {
-		r.drawPoisonous(screen, cx, cy+ry*0.95, s, alpha)
-	}
-
 	if keywords.Has(game.KeywordVenomous) {
 		r.drawVenomous(screen, cx, cy+ry*0.95, s, alpha)
 	}
@@ -540,45 +527,6 @@ var (
 	bottleStroke = color.RGBA{15, 60, 20, 255}
 	bottleCap    = color.RGBA{100, 80, 50, 255}
 )
-
-// drawPoisonous draws a rounded potion vial at (cx, cy).
-func (r *CardRenderer) drawPoisonous(screen *ebiten.Image, cx, cy float32, s float64, alpha uint8) {
-	sf := float32(s)
-
-	h := 21 * sf    // bottle height
-	w := 8.4 * sf   // body half-width
-	nw := 3.15 * sf // neck half-width
-	sw := 4.6 * sf  // stopper half-width
-
-	var stopper vector.Path
-	stopper.MoveTo(cx-sw, cy-h*0.5)
-	stopper.LineTo(cx+sw, cy-h*0.5)
-	stopper.LineTo(cx+sw, cy-h*0.4)
-	stopper.LineTo(cx-sw, cy-h*0.4)
-	stopper.Close()
-
-	stopOp := &vector.DrawPathOptions{AntiAlias: true}
-	stopOp.ColorScale.ScaleWithColor(withAlpha(bottleCap, alpha))
-	vector.FillPath(screen, &stopper, nil, stopOp)
-
-	var body vector.Path
-	body.MoveTo(cx-nw, cy-h*0.4)
-	body.LineTo(cx+nw, cy-h*0.4)
-	body.LineTo(cx+nw, cy-h*0.15)
-	body.CubicTo(cx+w*1.2, cy-h*0.05, cx+w*1.2, cy+h*0.1, cx+w, cy+h*0.15)
-	body.CubicTo(cx+w, cy+h*0.4, cx+w*0.5, cy+h*0.5, cx, cy+h*0.5)
-	body.CubicTo(cx-w*0.5, cy+h*0.5, cx-w, cy+h*0.4, cx-w, cy+h*0.15)
-	body.CubicTo(cx-w*1.2, cy+h*0.1, cx-w*1.2, cy-h*0.05, cx-nw, cy-h*0.15)
-	body.Close()
-
-	fillOp := &vector.DrawPathOptions{AntiAlias: true}
-	fillOp.ColorScale.ScaleWithColor(withAlpha(bottleFill, alpha))
-	vector.FillPath(screen, &body, nil, fillOp)
-
-	strokeOp := &vector.DrawPathOptions{AntiAlias: true}
-	strokeOp.ColorScale.ScaleWithColor(withAlpha(bottleStroke, alpha))
-	vector.StrokePath(screen, &body, &vector.StrokeOptions{Width: float32(0.8 * s)}, strokeOp)
-}
 
 // drawVenomous draws a narrow elongated vial at (cx, cy).
 func (r *CardRenderer) drawVenomous(screen *ebiten.Image, cx, cy float32, s float64, alpha uint8) {

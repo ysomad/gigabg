@@ -34,12 +34,12 @@ func TestNewKeywords(t *testing.T) {
 		{
 			name: "all",
 			args: args{kws: []Keyword{
-				KeywordTaunt, KeywordDivineShield, KeywordWindfury, KeywordPoisonous,
+				KeywordTaunt, KeywordDivineShield, KeywordWindfury,
 				KeywordVenomous, KeywordCleave, KeywordStealth, KeywordReborn,
 				KeywordMagnetic,
 			}},
 			want: []Keyword{
-				KeywordTaunt, KeywordDivineShield, KeywordWindfury, KeywordPoisonous,
+				KeywordTaunt, KeywordDivineShield, KeywordWindfury,
 				KeywordVenomous, KeywordCleave, KeywordStealth, KeywordReborn,
 				KeywordMagnetic,
 			},
@@ -92,11 +92,11 @@ func TestKeywords_Len(t *testing.T) {
 		{
 			name: "all",
 			kws: NewKeywords(
-				KeywordTaunt, KeywordDivineShield, KeywordWindfury, KeywordPoisonous,
+				KeywordTaunt, KeywordDivineShield, KeywordWindfury,
 				KeywordVenomous, KeywordCleave, KeywordStealth, KeywordReborn,
 				KeywordMagnetic,
 			),
-			want: 9,
+			want: 8,
 		},
 	}
 	for _, tt := range tests {
@@ -123,12 +123,12 @@ func TestKeywords_All(t *testing.T) {
 		{
 			name: "all",
 			kws: NewKeywords(
-				KeywordTaunt, KeywordDivineShield, KeywordWindfury, KeywordPoisonous,
+				KeywordTaunt, KeywordDivineShield, KeywordWindfury,
 				KeywordVenomous, KeywordCleave, KeywordStealth, KeywordReborn,
 				KeywordMagnetic,
 			),
 			want: []Keyword{
-				KeywordTaunt, KeywordDivineShield, KeywordWindfury, KeywordPoisonous,
+				KeywordTaunt, KeywordDivineShield, KeywordWindfury,
 				KeywordVenomous, KeywordCleave, KeywordStealth, KeywordReborn,
 				KeywordMagnetic,
 			},

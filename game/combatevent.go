@@ -50,7 +50,7 @@ type DeathReason uint8
 
 const (
 	DeathReasonDamage DeathReason = iota // killed by normal damage
-	DeathReasonPoison                    // killed by Poisonous or Venomous
+	DeathReasonVenom                    // killed by Venomous
 )
 
 // DeathEvent is emitted when a minion dies and is removed.

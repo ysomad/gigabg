@@ -24,9 +24,8 @@ type recruitPhase struct {
 	cr     *widget.CardRenderer
 	shop   *shopPanel
 
-	drag      dragState
-	hoverCard *api.Card
-	hoverRect ui.Rect
+	drag  dragState
+	hover hoverTooltip
 
 	boardOrder []int
 }
@@ -55,8 +54,6 @@ func (r *recruitPhase) Update(res ui.Resolution, lay ui.GameLayout) error {
 	r.syncSizes()
 
 	mx, my := ebiten.CursorPosition()
-
-	r.hoverCard = nil
 
 	// Discover overlay blocks all other input.
 	if discover := r.client.Discovers(); discover != nil {
@@ -125,27 +122,31 @@ func (r *recruitPhase) handleStartDrag(res ui.Resolution, lay ui.GameLayout, mx,
 	return r.shop.handleStartDrag(res, lay, mx, my, &r.drag)
 }
 
-// updateHover detects card hover for tooltip display.
+// updateHover detects card hover for tooltip display with delay.
 func (r *recruitPhase) updateHover(res ui.Resolution, lay ui.GameLayout, mx, my int) {
-	if card, rect, ok := r.shop.updateHover(res, lay, mx, my); ok {
-		r.hoverCard = card
-		r.hoverRect = rect
-		return
+	var card *api.Card
+	var rect ui.Rect
+
+	if c, rc, ok := r.shop.updateHover(res, lay, mx, my); ok {
+		card = c
+		rect = rc
+	} else {
+		board := r.client.Board()
+		for i, serverIdx := range r.boardOrder {
+			if serverIdx < 0 || serverIdx >= len(board) {
+				continue
+			}
+			rc := ui.CardRect(lay.Board, i, len(r.boardOrder), lay.CardW, lay.CardH, lay.Gap)
+			if rc.Contains(res, mx, my) {
+				c := board[serverIdx]
+				card = &c
+				rect = rc
+				break
+			}
+		}
 	}
 
-	board := r.client.Board()
-	for i, serverIdx := range r.boardOrder {
-		if serverIdx < 0 || serverIdx >= len(board) {
-			continue
-		}
-		rect := ui.CardRect(lay.Board, i, len(r.boardOrder), lay.CardW, lay.CardH, lay.Gap)
-		if rect.Contains(res, mx, my) {
-			c := board[serverIdx]
-			r.hoverCard = &c
-			r.hoverRect = rect
-			return
-		}
-	}
+	r.hover.Update(card, rect)
 }
 
 func (r *recruitPhase) endDrag(res ui.Resolution, lay ui.GameLayout, mx, my int) {
@@ -267,7 +268,7 @@ func (r *recruitPhase) Draw(
 	r.drawHandCards(screen, lay)
 
 	r.drawDraggedCard(screen, res, lay)
-	r.drawHoverTooltip(screen, res, lay)
+	r.hover.Draw(screen, lay, r.cr)
 
 	if discover := r.client.Discovers(); discover != nil {
 		r.drawDiscoverOverlay(screen, res, font, lay, discover)
@@ -275,7 +276,12 @@ func (r *recruitPhase) Draw(
 }
 
 func (r *recruitPhase) drawHeader(
-	screen *ebiten.Image, res ui.Resolution, font *text.GoTextFace, lay ui.GameLayout, turn int, timeRemaining time.Duration,
+	screen *ebiten.Image,
+	res ui.Resolution,
+	font *text.GoTextFace,
+	lay ui.GameLayout,
+	turn int,
+	timeRemaining time.Duration,
 ) {
 	header := fmt.Sprintf("Turn %d", turn)
 	ui.DrawText(screen, res, font, header,
@@ -300,7 +306,12 @@ func (r *recruitPhase) drawHeader(
 	)
 }
 
-func (r *recruitPhase) drawPlayerStats(screen *ebiten.Image, res ui.Resolution, font *text.GoTextFace, lay ui.GameLayout) {
+func (r *recruitPhase) drawPlayerStats(
+	screen *ebiten.Image,
+	res ui.Resolution,
+	font *text.GoTextFace,
+	lay ui.GameLayout,
+) {
 	p := r.client.Player()
 	if p == nil {
 		return
@@ -375,27 +386,6 @@ func (r *recruitPhase) drawDraggedCard(screen *ebiten.Image, res ui.Resolution, 
 	default:
 		r.cr.DrawHandCard(screen, c, dragRect)
 	}
-}
-
-func (r *recruitPhase) drawHoverTooltip(screen *ebiten.Image, res ui.Resolution, lay ui.GameLayout) {
-	if r.hoverCard == nil {
-		return
-	}
-
-	// Large card centered on screen.
-	hoverW := lay.CardW * 2.5
-	hoverH := lay.CardH * 2.5
-	hoverRect := ui.Rect{
-		X: (ui.BaseWidth - hoverW) / 2,
-		Y: (ui.BaseHeight - hoverH) / 2,
-		W: hoverW,
-		H: hoverH,
-	}
-
-	// Dim background behind the card.
-	ui.FillScreen(screen, res, color.RGBA{0, 0, 0, 120})
-
-	r.cr.DrawHoverCard(screen, *r.hoverCard, hoverRect)
 }
 
 func (r *recruitPhase) drawMagnetizeHighlight(screen *ebiten.Image, res ui.Resolution, lay ui.GameLayout) {

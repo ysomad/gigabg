@@ -15,7 +15,6 @@ const (
 	KeywordTaunt Keyword = iota + 1
 	KeywordDivineShield
 	KeywordWindfury
-	KeywordPoisonous
 	KeywordVenomous
 	KeywordCleave
 	KeywordStealth
@@ -33,8 +32,6 @@ func (k Keyword) String() string {
 		return "Divine Shield"
 	case KeywordWindfury:
 		return "Windfury"
-	case KeywordPoisonous:
-		return "Poisonous"
 	case KeywordVenomous:
 		return "Venomous"
 	case KeywordCleave:
@@ -58,8 +55,6 @@ func (k Keyword) Description() string {
 		return "The first time a Shielded minion takes damage, ignore it."
 	case KeywordWindfury:
 		return "Can attack twice each turn."
-	case KeywordPoisonous:
-		return "Destroy any minion damaged by this."
 	case KeywordVenomous:
 		return "Destroy the first minion this deals damage to."
 	case KeywordCleave:

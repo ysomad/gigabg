@@ -28,7 +28,7 @@ const (
 	damageShakeTime       = 0.50 // shake duration after hit
 	shakeFreq             = 35.0 // shake frequency multiplier
 	hitFlashTime          = 0.80 // hit damage indicator on minion body
-	poisonEffectTime      = 0.60 // green drip/splash on poisoned target before death
+	venomEffectTime       = 0.60 // green drip/splash on venomed target before death
 	deathFadeDuration     = 0.50 // opacity fade on death
 	deathParticleTime     = 0.80 // particle burst duration
 	deathParticleCount    = 12   // number of particles on death
@@ -68,7 +68,7 @@ type animMinion struct {
 
 	dying        bool
 	deathReason  game.DeathReason
-	pendingDeath bool // will die after poison effect completes
+	pendingDeath bool // will die after venom effect completes
 	spawning     bool
 
 	effects effect.List
@@ -118,7 +118,7 @@ type attackAnimation struct {
 //  1. Attacker moves forward to target (eased)
 //  2. Impact: process events (damage, shield breaks, keyword removals)
 //  3. Damage numbers float up, shakes play
-//  4. Poison effect overlay on poisoned targets
+//  4. Venom effect overlay on venomed targets
 //  5. Death animations (fade + particles)
 //  6. Reborn: delay -> glow pillar -> minion fades in at same position
 //  7. Attacker returns to slot (waits for reborn to finish)
@@ -249,7 +249,7 @@ func (cp *combatBoard) Update(elapsed float64, res ui.Resolution, lay ui.GameLay
 
 // updateMinionEffects ticks effect lists on all minions and derives state
 // transitions from effect completion:
-//   - PoisonDrip finished → start death (add DeathFade + DeathTint)
+//   - VenomDrip finished → start death (add DeathFade + DeathTint)
 //   - SpawnGlow finished → clear spawning flag
 func (cp *combatBoard) updateMinionEffects(elapsed float64) {
 	for _, m := range cp.playerBoard {
@@ -261,13 +261,13 @@ func (cp *combatBoard) updateMinionEffects(elapsed float64) {
 }
 
 func (cp *combatBoard) tickMinion(m *animMinion, elapsed float64) {
-	hadPoisonDrip := m.effects.Has(effect.KindPoisonDrip)
+	hadVenomDrip := m.effects.Has(effect.KindVenomDrip)
 	hadSpawnGlow := m.effects.Has(effect.KindSpawnGlow)
 
 	m.effects.Update(elapsed)
 
-	// PoisonDrip just finished → start death sequence.
-	if hadPoisonDrip && !m.effects.Has(effect.KindPoisonDrip) {
+	// VenomDrip just finished → start death sequence.
+	if hadVenomDrip && !m.effects.Has(effect.KindVenomDrip) {
 		m.pendingDeath = false
 		m.dying = true
 		m.effects.Add(effect.NewDeathFade(deathFadeDuration))
@@ -412,7 +412,7 @@ func (cp *combatBoard) hasImpactEffects() bool {
 	check := func(board []*animMinion) bool {
 		for _, m := range board {
 			if m.effects.Has(effect.KindFlash) || m.effects.Has(effect.KindDivineShieldBreak) ||
-				m.effects.Has(effect.KindVenomBreak) || m.effects.Has(effect.KindPoisonDrip) ||
+				m.effects.Has(effect.KindVenomBreak) || m.effects.Has(effect.KindVenomDrip) ||
 				m.effects.Has(effect.KindSpawnGlow) || m.pendingDeath || m.dying || m.spawning {
 				return true
 			}
@@ -465,7 +465,7 @@ func (cp *combatBoard) applyDamage(ev game.DamageEvent) error {
 	intensity := math.Min(float64(ev.Amount)*1.5, 8.0)
 	m.effects.Add(effect.NewFlash(damageFlashTime))
 	m.effects.Add(effect.NewShake(damageShakeTime, intensity, shakeFreq))
-	m.effects.Add(effect.NewHitDamage(hitFlashTime, ev.Amount, cp.boldFont))
+	m.effects.Add(effect.NewHitIndicator(effect.HitTypeDamage, hitFlashTime, ev.Amount, cp.boldFont))
 	return nil
 }
 
@@ -498,11 +498,12 @@ func (cp *combatBoard) markDying(ev game.DeathEvent) error {
 	m := cp.boardFor(isPlayer)[idx]
 	m.deathReason = ev.DeathReason
 
-	// Poison deaths show a drip effect first; tickMinion starts the death
-	// sequence when PoisonDrip completes.
-	if ev.DeathReason == game.DeathReasonPoison {
+	// Venom deaths show a drip effect first; tickMinion starts the death
+	// sequence when VenomDrip completes.
+	if ev.DeathReason == game.DeathReasonVenom {
 		m.pendingDeath = true
-		m.effects.Add(effect.NewPoisonDrip(poisonEffectTime, 255))
+		m.effects.Add(effect.NewHitIndicator(effect.HitTypeVenom, hitFlashTime, 0, cp.boldFont))
+		m.effects.Add(effect.NewVenomDrip(venomEffectTime, 255))
 		return nil
 	}
 
@@ -616,7 +617,7 @@ func (cp *combatBoard) spawnDeathParticles(m *animMinion, lay ui.GameLayout, idx
 	cy := r.Y + r.H/2
 
 	baseClr := color.RGBA{80, 80, 120, 255}
-	if m.deathReason == game.DeathReasonPoison {
+	if m.deathReason == game.DeathReasonVenom {
 		baseClr = color.RGBA{30, 160, 50, 255}
 	}
 
@@ -778,6 +779,6 @@ func (cp *combatBoard) drawMinion(screen *ebiten.Image, res ui.Resolution, lay u
 	// Draw the minion card.
 	cp.cr.DrawMinion(screen, m.card, r, alpha, flashPct)
 
-	// Draw front-of-card effects (hit damage, poison drip, death tint, shield break).
+	// Draw front-of-card effects (hit damage, venom drip, death tint, shield break).
 	m.effects.DrawFront(screen, res, r)
 }

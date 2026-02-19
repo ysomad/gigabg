@@ -59,7 +59,7 @@ var _ Effect = (*DeathTint)(nil)
 
 func NewDeathTint(duration float64, deathReason game.DeathReason) *DeathTint {
 	tint := color.RGBA{180, 30, 30, 0}
-	if deathReason == game.DeathReasonPoison {
+	if deathReason == game.DeathReasonVenom {
 		tint = color.RGBA{30, 160, 50, 0}
 	}
 	return &DeathTint{

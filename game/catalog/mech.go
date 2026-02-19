@@ -71,8 +71,8 @@ func mechs() map[string]*template {
 			health:   1,
 			keywords: game.NewKeywords(game.KeywordMagnetic, game.KeywordWindfury),
 		},
-		"magnetic_poison": {
-			name:     "Magnetic Poison",
+		"magnetic_venom": {
+			name:     "Magnetic Venom",
 			tier:     game.Tier2,
 			attack:   1,
 			health:   1,

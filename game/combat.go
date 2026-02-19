@@ -42,7 +42,7 @@ type Combat struct {
 	player2      PlayerID
 	player1Board Board                 // snapshot with combat IDs
 	player2Board Board                 // snapshot with combat IDs
-	poisonKilled map[CombatID]struct{} // killed by poison/venom this attack
+	venomKilled map[CombatID]struct{} // killed by venom this attack
 }
 
 // NewCombat creates a combat with cloned boards.
@@ -147,7 +147,7 @@ func (c *Combat) attack(src, dst *Minion) {
 		Owner:  c.attacker.player.ID(),
 	})
 
-	c.poisonKilled = make(map[CombatID]struct{})
+	c.venomKilled = make(map[CombatID]struct{})
 	defender := c.defender.player.ID()
 
 	// Simultaneous damage exchange.
@@ -157,13 +157,13 @@ func (c *Combat) attack(src, dst *Minion) {
 	// Cleave: damage minions adjacent to the target.
 	c.applyCleave(src, dst, defender)
 
-	// Poison/Venom: main target first (may consume Venomous), then cleave targets.
-	c.applyPoison(src, dst, hitDst, defender)
-	c.applyPoison(dst, src, hitSrc, c.attacker.player.ID())
+	// Venom: main target first (may consume Venomous), then cleave targets.
+	c.applyVenom(src, dst, hitDst, defender)
+	c.applyVenom(dst, src, hitSrc, c.attacker.player.ID())
 }
 
 // applyCleave deals attacker's damage to minions adjacent to the target
-// and applies poison to each hit target.
+// and applies venom to each hit target.
 func (c *Combat) applyCleave(src, dst *Minion, defender PlayerID) {
 	if !src.HasKeyword(KeywordCleave) {
 		return
@@ -182,36 +182,27 @@ func (c *Combat) applyCleave(src, dst *Minion, defender PlayerID) {
 			continue
 		}
 		hit := c.dealDamage(src, adj, src.Attack(), defender)
-		c.applyPoison(src, adj, hit, defender)               // src's poison kills adj
-		c.applyPoison(adj, src, hit, c.attacker.player.ID()) // adj's poison/venom kills src
+		c.applyVenom(src, adj, hit, defender)               // src's venom kills adj
+		c.applyVenom(adj, src, hit, c.attacker.player.ID()) // adj's venom kills src
 	}
 }
 
-// applyPoison checks if src has Poisonous or Venomous and kills dst if damage was dealt.
-func (c *Combat) applyPoison(src, dst *Minion, hit bool, owner PlayerID) {
-	if !hit || !dst.IsAlive() {
+// applyVenom checks if src has Venomous and kills dst if damage was dealt.
+// On kill, Venomous is consumed (removed from src).
+func (c *Combat) applyVenom(src, dst *Minion, hit bool, owner PlayerID) {
+	if !hit || !dst.IsAlive() || !src.HasKeyword(KeywordVenomous) {
 		return
 	}
 
-	isPoisonous := src.HasKeyword(KeywordPoisonous)
-	isVenomous := src.HasKeyword(KeywordVenomous)
-
-	if !isPoisonous && !isVenomous {
-		return
-	}
-
-	// Kill the target and record poison kill.
 	dst.TakeDamage(dst.Health())
-	c.poisonKilled[dst.combatID] = struct{}{}
+	c.venomKilled[dst.combatID] = struct{}{}
 
-	if isVenomous {
-		src.RemoveKeyword(KeywordVenomous)
-		c.emit(RemoveKeywordEvent{
-			Target:  src.combatID,
-			Keyword: KeywordVenomous,
-			Owner:   owner,
-		})
-	}
+	src.RemoveKeyword(KeywordVenomous)
+	c.emit(RemoveKeywordEvent{
+		Target:  src.combatID,
+		Keyword: KeywordVenomous,
+		Owner:   owner,
+	})
 }
 
 // dealDamage applies damage from src to dst. Returns true if damage was dealt.
@@ -251,8 +242,8 @@ func (c *Combat) removeDeadWithEvents(side *combatSide) {
 			continue
 		}
 		reason := DeathReasonDamage
-		if _, ok := c.poisonKilled[m.combatID]; ok {
-			reason = DeathReasonPoison
+		if _, ok := c.venomKilled[m.combatID]; ok {
+			reason = DeathReasonVenom
 		}
 		c.emit(DeathEvent{
 			Target:      m.combatID,
